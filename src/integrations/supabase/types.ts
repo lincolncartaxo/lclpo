@@ -14,7 +14,247 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      base_composicoes: {
+        Row: {
+          classe: string | null
+          codigo: string
+          created_at: string
+          custo_unitario: number | null
+          descricao: string
+          fonte: string
+          id: number
+          mes_ref: string | null
+          unidade: string | null
+        }
+        Insert: {
+          classe?: string | null
+          codigo: string
+          created_at?: string
+          custo_unitario?: number | null
+          descricao: string
+          fonte: string
+          id?: number
+          mes_ref?: string | null
+          unidade?: string | null
+        }
+        Update: {
+          classe?: string | null
+          codigo?: string
+          created_at?: string
+          custo_unitario?: number | null
+          descricao?: string
+          fonte?: string
+          id?: number
+          mes_ref?: string | null
+          unidade?: string | null
+        }
+        Relationships: []
+      }
+      base_insumos: {
+        Row: {
+          codigo: string
+          created_at: string
+          descricao: string
+          fonte: string
+          id: number
+          mes_ref: string | null
+          origem: string | null
+          preco: number | null
+          unidade: string | null
+        }
+        Insert: {
+          codigo: string
+          created_at?: string
+          descricao: string
+          fonte?: string
+          id?: number
+          mes_ref?: string | null
+          origem?: string | null
+          preco?: number | null
+          unidade?: string | null
+        }
+        Update: {
+          codigo?: string
+          created_at?: string
+          descricao?: string
+          fonte?: string
+          id?: number
+          mes_ref?: string | null
+          origem?: string | null
+          preco?: number | null
+          unidade?: string | null
+        }
+        Relationships: []
+      }
+      orcamento_cronograma: {
+        Row: {
+          created_at: string
+          etapa: string
+          id: string
+          mes: number
+          orcamento_id: string
+          percentual: number
+        }
+        Insert: {
+          created_at?: string
+          etapa: string
+          id?: string
+          mes: number
+          orcamento_id: string
+          percentual?: number
+        }
+        Update: {
+          created_at?: string
+          etapa?: string
+          id?: string
+          mes?: number
+          orcamento_id?: string
+          percentual?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orcamento_cronograma_orcamento_id_fkey"
+            columns: ["orcamento_id"]
+            isOneToOne: false
+            referencedRelation: "orcamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orcamento_itens: {
+        Row: {
+          codigo: string | null
+          created_at: string
+          descricao: string
+          etapa: string | null
+          fonte: string | null
+          id: string
+          item: string | null
+          orcamento_id: string
+          ordem: number
+          preco_unitario: number
+          quantidade: number
+          unidade: string | null
+        }
+        Insert: {
+          codigo?: string | null
+          created_at?: string
+          descricao: string
+          etapa?: string | null
+          fonte?: string | null
+          id?: string
+          item?: string | null
+          orcamento_id: string
+          ordem?: number
+          preco_unitario?: number
+          quantidade?: number
+          unidade?: string | null
+        }
+        Update: {
+          codigo?: string | null
+          created_at?: string
+          descricao?: string
+          etapa?: string | null
+          fonte?: string | null
+          id?: string
+          item?: string | null
+          orcamento_id?: string
+          ordem?: number
+          preco_unitario?: number
+          quantidade?: number
+          unidade?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orcamento_itens_orcamento_id_fkey"
+            columns: ["orcamento_id"]
+            isOneToOne: false
+            referencedRelation: "orcamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orcamentos: {
+        Row: {
+          bdi_pct: number
+          contrato: string | null
+          crea: string | null
+          created_at: string
+          encargos_pct: number
+          engenheiro: string | null
+          id: string
+          municipio: string | null
+          nome: string
+          objeto: string | null
+          orgao: string | null
+          ref_precos: string | null
+          status: string
+          uf: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bdi_pct?: number
+          contrato?: string | null
+          crea?: string | null
+          created_at?: string
+          encargos_pct?: number
+          engenheiro?: string | null
+          id?: string
+          municipio?: string | null
+          nome: string
+          objeto?: string | null
+          orgao?: string | null
+          ref_precos?: string | null
+          status?: string
+          uf?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bdi_pct?: number
+          contrato?: string | null
+          crea?: string | null
+          created_at?: string
+          encargos_pct?: number
+          engenheiro?: string | null
+          id?: string
+          municipio?: string | null
+          nome?: string
+          objeto?: string | null
+          orgao?: string | null
+          ref_precos?: string | null
+          status?: string
+          uf?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          empresa: string | null
+          id: string
+          nome: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          empresa?: string | null
+          id: string
+          nome?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          empresa?: string | null
+          id?: string
+          nome?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
