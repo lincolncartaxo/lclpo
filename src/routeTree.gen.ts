@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedBasesRouteImport } from './routes/_authenticated/bases'
+import { Route as AuthenticatedOrcamentoIdRouteImport } from './routes/_authenticated/orcamento.$id'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -39,18 +40,26 @@ const AuthenticatedBasesRoute = AuthenticatedBasesRouteImport.update({
   path: '/bases',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedOrcamentoIdRoute =
+  AuthenticatedOrcamentoIdRouteImport.update({
+    id: '/orcamento/$id',
+    path: '/orcamento/$id',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/bases': typeof AuthenticatedBasesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/orcamento/$id': typeof AuthenticatedOrcamentoIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/bases': typeof AuthenticatedBasesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/orcamento/$id': typeof AuthenticatedOrcamentoIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -59,12 +68,13 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_authenticated/bases': typeof AuthenticatedBasesRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/orcamento/$id': typeof AuthenticatedOrcamentoIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/bases' | '/dashboard'
+  fullPaths: '/' | '/login' | '/bases' | '/dashboard' | '/orcamento/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/bases' | '/dashboard'
+  to: '/' | '/login' | '/bases' | '/dashboard' | '/orcamento/$id'
   id:
     | '__root__'
     | '/'
@@ -72,6 +82,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/_authenticated/bases'
     | '/_authenticated/dashboard'
+    | '/_authenticated/orcamento/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -117,17 +128,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBasesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/orcamento/$id': {
+      id: '/_authenticated/orcamento/$id'
+      path: '/orcamento/$id'
+      fullPath: '/orcamento/$id'
+      preLoaderRoute: typeof AuthenticatedOrcamentoIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
   }
 }
 
 interface AuthenticatedRouteChildren {
   AuthenticatedBasesRoute: typeof AuthenticatedBasesRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedOrcamentoIdRoute: typeof AuthenticatedOrcamentoIdRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedBasesRoute: AuthenticatedBasesRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedOrcamentoIdRoute: AuthenticatedOrcamentoIdRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
