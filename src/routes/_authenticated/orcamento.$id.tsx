@@ -219,7 +219,7 @@ function PlanilhaTab({ orcId, items, reload }: { orcId: string; items: Item[]; r
   const total = items.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario), 0);
 
   const updateField = async (id: string, field: string, value: any) => {
-    await supabase.from("orcamento_itens").update({ [field]: value }).eq("id", id);
+    await (supabase.from("orcamento_itens") as any).update({ [field]: value }).eq("id", id);
     reload();
   };
   const remove = async (id: string) => {
