@@ -65,7 +65,7 @@ function Editor() {
       <div className="p-6">
         <Tabs defaultValue="capa">
           <TabsList className="flex-wrap h-auto">
-            <TabsTrigger value="capa">Capa</TabsTrigger>
+            <TabsTrigger value="capa">Dados Gerais</TabsTrigger>
             <TabsTrigger value="encargos">Encargos</TabsTrigger>
             <TabsTrigger value="bdi">BDI</TabsTrigger>
             <TabsTrigger value="composicao">Composições</TabsTrigger>
@@ -102,7 +102,7 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
       municipio: f.municipio, uf: f.uf, engenheiro: f.engenheiro, crea: f.crea, ref_precos: f.ref_precos,
     }).eq("id", orc.id);
     if (error) return toast.error(error.message);
-    toast.success("Capa salva"); onSaved();
+    toast.success("Dados Gerais salvos"); onSaved();
   };
   return (
     <div className="mt-4 max-w-3xl space-y-4">
@@ -117,7 +117,7 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
         <Field label="CREA"><Input value={f.crea ?? ""} onChange={(e)=>setF({...f,crea:e.target.value})} /></Field>
       </div>
       <Field label="Objeto"><Textarea rows={4} value={f.objeto ?? ""} onChange={(e)=>setF({...f,objeto:e.target.value})} /></Field>
-      <Button onClick={save}><Save className="mr-2 size-4" />Salvar capa</Button>
+      <Button onClick={save}><Save className="mr-2 size-4" />Salvar Dados Gerais</Button>
     </div>
   );
 }
