@@ -300,7 +300,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
   );
 }
 
-function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem }: any) {
+function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, etapas = [], items: allItems = [] }: any) {
   const [tab, setTab] = useState("base");
   const [fonte, setFonte] = useState<"SINAPI"|"DER">("SINAPI");
   const [q, setQ] = useState("");
