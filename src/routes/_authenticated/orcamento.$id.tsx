@@ -340,14 +340,33 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem }: any) {
     toast.success("Item adicionado"); setOpen(false); onAdded();
   };
 
+  const etapas: string[] = (arguments[0] as any)?.etapas ?? [];
+  const allItems: Item[] = (arguments[0] as any)?.items ?? [];
+
+  // auto suggest item nº based on count within selected etapa
+  useEffect(() => {
+    if (!etapa) return;
+    const count = allItems.filter(i => (i.etapa || "") === etapa).length;
+    setItem(String(count + 1));
+  }, [etapa]);
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild><Button><Plus className="mr-2 size-4"/>Adicionar item</Button></DialogTrigger>
       <DialogContent className="max-w-3xl">
         <DialogHeader><DialogTitle>Adicionar item</DialogTitle></DialogHeader>
         <div className="grid grid-cols-3 gap-3">
-          <Field label="Etapa"><Input value={etapa} onChange={(e)=>setEtapa(e.target.value)} placeholder="Ex.: 1 - Serviços Preliminares" /></Field>
-          <Field label="Item nº"><Input value={item} onChange={(e)=>setItem(e.target.value)} placeholder="1.1.1" /></Field>
+          <Field label="Etapa">
+            {etapas.length > 0 ? (
+              <Select value={etapa} onValueChange={setEtapa}>
+                <SelectTrigger><SelectValue placeholder="Selecione uma etapa" /></SelectTrigger>
+                <SelectContent>{etapas.map(e=>(<SelectItem key={e} value={e}>{e}</SelectItem>))}</SelectContent>
+              </Select>
+            ) : (
+              <Input value={etapa} onChange={(e)=>setEtapa(e.target.value)} placeholder="Crie uma etapa primeiro" />
+            )}
+          </Field>
+          <Field label="Item nº"><Input value={item} onChange={(e)=>setItem(e.target.value)} placeholder="auto" /></Field>
           <Field label="Quantidade"><Input value={quant} onChange={(e)=>setQuant(e.target.value)} /></Field>
         </div>
         <Tabs value={tab} onValueChange={setTab}>
