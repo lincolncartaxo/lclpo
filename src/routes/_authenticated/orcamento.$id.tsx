@@ -510,23 +510,6 @@ function QciTab({ subtotal, totalComBdi, orc }: any) {
   );
 }
 
-/* ---------- ART ---------- */
-function ArtTab({ orc, totalComBdi }: any) {
-  return (
-    <div className="mt-4 max-w-xl rounded border p-6 bg-card">
-      <h3 className="font-semibold mb-3">Dados para emissão de ART</h3>
-      <dl className="grid grid-cols-2 gap-3 text-sm">
-        <dt className="text-muted-foreground">Engenheiro</dt><dd>{orc.engenheiro || "—"}</dd>
-        <dt className="text-muted-foreground">CREA</dt><dd>{orc.crea || "—"}</dd>
-        <dt className="text-muted-foreground">Objeto</dt><dd>{orc.objeto || "—"}</dd>
-        <dt className="text-muted-foreground">Município/UF</dt><dd>{orc.municipio || "—"}/{orc.uf || "—"}</dd>
-        <dt className="text-muted-foreground">Valor da obra</dt><dd className="font-semibold">{fmtBRL(totalComBdi)}</dd>
-      </dl>
-    </div>
-  );
-}
-
-/* ---------- helpers ---------- */
 function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return <div><Label className="mb-1 block">{label}</Label>{children}</div>;
 }
