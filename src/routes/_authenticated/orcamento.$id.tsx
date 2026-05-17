@@ -81,11 +81,10 @@ function Editor() {
           <TabsContent value="bdi"><BdiTab orc={orc} onSaved={load} /></TabsContent>
           <TabsContent value="composicao"><ComposicaoTab items={items} /></TabsContent>
           <TabsContent value="cotacao"><CotacaoTab /></TabsContent>
-          <TabsContent value="planilha"><PlanilhaTab orcId={id} items={items} reload={load} /></TabsContent>
+          <TabsContent value="planilha"><PlanilhaTab orcId={id} items={items} reload={load} bdiPct={Number(orc.bdi_pct)} /></TabsContent>
           <TabsContent value="resumo"><ResumoTab items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
           <TabsContent value="cronograma"><CronogramaTab orcId={id} items={items} totalComBdi={totalComBdi} /></TabsContent>
           <TabsContent value="qci"><QciTab subtotal={subtotal} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
-          <TabsContent value="art"><ArtTab orc={orc} totalComBdi={totalComBdi} /></TabsContent>
         </Tabs>
       </div>
     </div>
