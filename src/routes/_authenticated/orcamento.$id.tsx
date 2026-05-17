@@ -340,13 +340,10 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, etapas = [], 
     toast.success("Item adicionado"); setOpen(false); onAdded();
   };
 
-  const etapas: string[] = (arguments[0] as any)?.etapas ?? [];
-  const allItems: Item[] = (arguments[0] as any)?.items ?? [];
-
   // auto suggest item nº based on count within selected etapa
   useEffect(() => {
     if (!etapa) return;
-    const count = allItems.filter(i => (i.etapa || "") === etapa).length;
+    const count = (allItems as Item[]).filter((i: Item) => (i.etapa || "") === etapa).length;
     setItem(String(count + 1));
   }, [etapa]);
 
