@@ -206,15 +206,26 @@ function CotacaoTab() {
 }
 
 /* ---------- PLANILHA ORÇAMENTÁRIA ---------- */
-function PlanilhaTab({ orcId, items, reload }: { orcId: string; items: Item[]; reload: () => void }) {
+function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: Item[]; reload: () => void; bdiPct: number }) {
   const [open, setOpen] = useState(false);
+  const [novaEtapa, setNovaEtapa] = useState("");
+  const [etapasExtra, setEtapasExtra] = useState<string[]>([]);
+
+  const etapasExistentes = useMemo(() => {
+    const set = new Set<string>();
+    items.forEach(i => { if (i.etapa) set.add(i.etapa); });
+    etapasExtra.forEach(e => set.add(e));
+    return Array.from(set);
+  }, [items, etapasExtra]);
+
   const grouped = useMemo(() => {
     const map: Record<string, Item[]> = {};
+    etapasExistentes.forEach(e => { map[e] = []; });
     items.forEach(i => { const k = i.etapa || "Sem etapa"; (map[k] ??= []).push(i); });
     return map;
-  }, [items]);
+  }, [items, etapasExistentes]);
 
-  const total = items.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario), 0);
+  const total = items.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario) * (1 + bdiPct), 0);
 
   const updateField = async (id: string, field: string, value: any) => {
     await (supabase.from("orcamento_itens") as any).update({ [field]: value }).eq("id", id);
@@ -225,26 +236,42 @@ function PlanilhaTab({ orcId, items, reload }: { orcId: string; items: Item[]; r
     reload();
   };
 
+  const addEtapa = () => {
+    const e = novaEtapa.trim();
+    if (!e) return toast.error("Informe o nome da etapa");
+    if (etapasExistentes.includes(e)) return toast.error("Etapa já existe");
+    setEtapasExtra(prev => [...prev, e]);
+    setNovaEtapa("");
+    toast.success("Etapa criada. Adicione itens a ela.");
+  };
+
   return (
     <div className="mt-4">
-      <div className="flex justify-between items-center mb-3">
-        <p className="text-sm text-muted-foreground">{items.length} itens · Subtotal {fmtBRL(total)}</p>
-        <AddItemDialog orcId={orcId} open={open} setOpen={setOpen} onAdded={reload} nextOrdem={items.length+1} />
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-3">
+        <p className="text-sm text-muted-foreground">{items.length} itens · Total c/ BDI {fmtBRL(total)}</p>
+        <div className="flex gap-2 items-center">
+          <Input className="w-64" placeholder="Nova etapa (ex.: 1 - Serviços Preliminares)" value={novaEtapa} onChange={(e)=>setNovaEtapa(e.target.value)} onKeyDown={(e)=>{ if(e.key==='Enter') addEtapa(); }} />
+          <Button variant="secondary" onClick={addEtapa}><Plus className="mr-1 size-4"/>Etapa</Button>
+          <AddItemDialog orcId={orcId} open={open} setOpen={setOpen} onAdded={reload} nextOrdem={items.length+1} etapas={etapasExistentes} items={items} />
+        </div>
       </div>
       <div className="overflow-x-auto rounded border bg-card">
         <table className="budget-table">
           <thead><tr>
             <th style={{width:80}}>Item</th><th style={{width:80}}>Fonte</th><th style={{width:90}}>Código</th>
             <th>Descrição</th><th style={{width:60}}>Un.</th>
-            <th className="num" style={{width:100}}>Quant.</th><th className="num" style={{width:120}}>Preço Unit.</th>
+            <th className="num" style={{width:90}}>Quant.</th><th className="num" style={{width:110}}>Preço Unit.</th>
+            <th className="num" style={{width:80}}>BDI</th><th className="num" style={{width:130}}>Preço Unit. c/ BDI</th>
             <th className="num" style={{width:130}}>Total</th><th style={{width:40}}></th>
           </tr></thead>
           <tbody>
             {Object.entries(grouped).map(([etapa, list]) => (
-              <>
-                <tr key={"h-"+etapa}><td colSpan={9} className="bg-secondary/60 font-semibold">{etapa}</td></tr>
+              <React.Fragment key={"g-"+etapa}>
+                <tr><td colSpan={11} className="bg-secondary/60 font-semibold">{etapa}</td></tr>
                 {list.map((i) => {
-                  const tot = Number(i.quantidade) * Number(i.preco_unitario);
+                  const pu = Number(i.preco_unitario);
+                  const puBdi = pu * (1 + bdiPct);
+                  const tot = Number(i.quantidade) * puBdi;
                   return (
                     <tr key={i.id}>
                       <td><input className="w-full bg-transparent outline-none" defaultValue={i.item ?? ""} onBlur={(e)=>updateField(i.id,"item",e.target.value)} /></td>
@@ -254,15 +281,18 @@ function PlanilhaTab({ orcId, items, reload }: { orcId: string; items: Item[]; r
                       <td><input className="w-full bg-transparent outline-none" defaultValue={i.unidade ?? ""} onBlur={(e)=>updateField(i.id,"unidade",e.target.value)} /></td>
                       <td className="num"><input className="w-full text-right bg-transparent outline-none" type="number" step="0.01" defaultValue={i.quantidade} onBlur={(e)=>updateField(i.id,"quantidade",Number(e.target.value))} /></td>
                       <td className="num"><input className="w-full text-right bg-transparent outline-none" type="number" step="0.01" defaultValue={i.preco_unitario} onBlur={(e)=>updateField(i.id,"preco_unitario",Number(e.target.value))} /></td>
+                      <td className="num text-muted-foreground">{fmtPct(bdiPct)}</td>
+                      <td className="num">{fmtBRL(puBdi)}</td>
                       <td className="num font-medium">{fmtBRL(tot)}</td>
                       <td><button onClick={()=>remove(i.id)} className="text-destructive hover:opacity-70"><Trash2 className="size-4"/></button></td>
                     </tr>
                   );
                 })}
-              </>
+                {list.length===0 && <tr><td colSpan={11} className="text-center text-muted-foreground py-3 text-xs italic">Etapa vazia — adicione itens a ela.</td></tr>}
+              </React.Fragment>
             ))}
-            {items.length===0 && <tr><td colSpan={9} className="text-center text-muted-foreground py-8">Adicione o primeiro item.</td></tr>}
-            <tr><td colSpan={7} className="text-right font-semibold">SUBTOTAL</td><td className="num font-bold">{fmtBRL(total)}</td><td></td></tr>
+            {items.length===0 && etapasExistentes.length===0 && <tr><td colSpan={11} className="text-center text-muted-foreground py-8">Crie uma etapa e adicione o primeiro item.</td></tr>}
+            <tr><td colSpan={9} className="text-right font-semibold">TOTAL c/ BDI</td><td className="num font-bold">{fmtBRL(total)}</td><td></td></tr>
           </tbody>
         </table>
       </div>
