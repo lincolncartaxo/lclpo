@@ -357,7 +357,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, etapas = [], 
             {etapas.length > 0 ? (
               <Select value={etapa} onValueChange={setEtapa}>
                 <SelectTrigger><SelectValue placeholder="Selecione uma etapa" /></SelectTrigger>
-                <SelectContent>{etapas.map(e=>(<SelectItem key={e} value={e}>{e}</SelectItem>))}</SelectContent>
+                <SelectContent>{(etapas as string[]).map((e: string)=>(<SelectItem key={e} value={e}>{e}</SelectItem>))}</SelectContent>
               </Select>
             ) : (
               <Input value={etapa} onChange={(e)=>setEtapa(e.target.value)} placeholder="Crie uma etapa primeiro" />
