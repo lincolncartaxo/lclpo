@@ -74,7 +74,6 @@ function Editor() {
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="cronograma">Cronograma F/F</TabsTrigger>
             <TabsTrigger value="qci">QCI</TabsTrigger>
-            <TabsTrigger value="art">ART</TabsTrigger>
           </TabsList>
 
           <TabsContent value="capa"><CapaTab orc={orc} onSaved={load} /></TabsContent>
