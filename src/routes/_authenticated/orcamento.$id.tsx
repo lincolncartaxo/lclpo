@@ -254,6 +254,35 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
     toast.success("Etapa criada. Adicione itens a ela.");
   };
 
+  // Extrai o prefixo hierárquico do nome da etapa (ex.: "1 - Serviços" -> "1")
+  const etapaPrefix = (etapa: string) => {
+    const m = etapa.trim().match(/^([0-9]+(?:\.[0-9]+)*)/);
+    return m ? m[1] : "";
+  };
+  // Somatório dos itens-filhos baseado no prefixo do item (ex.: prefixo "1" agrega "1.1", "1.2.3"…)
+  const totalEtapa = (etapa: string, list: Item[]) => {
+    const pfx = etapaPrefix(etapa);
+    const base = pfx
+      ? items.filter(i => (i.item || "").trim().startsWith(pfx + ".") || (i.item || "").trim() === pfx)
+      : list;
+    return base.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario) * (1 + bdiPct), 0);
+  };
+
+  const renameEtapa = async (oldName: string, newName: string) => {
+    const nn = newName.trim();
+    if (!nn || nn === oldName) return;
+    if (etapasExistentes.includes(nn)) return toast.error("Já existe uma etapa com esse nome");
+    const affected = items.filter(i => (i.etapa || "") === oldName);
+    if (affected.length > 0) {
+      const { error } = await (supabase.from("orcamento_itens") as any)
+        .update({ etapa: nn }).eq("orcamento_id", orcId).eq("etapa", oldName);
+      if (error) return toast.error(error.message);
+    }
+    setEtapasExtra(prev => prev.map(e => e === oldName ? nn : e).filter((e, i, a) => a.indexOf(e) === i));
+    toast.success("Etapa renomeada");
+    reload();
+  };
+
   return (
     <div className="mt-4">
       <div className="flex flex-wrap justify-between items-center gap-3 mb-3">
