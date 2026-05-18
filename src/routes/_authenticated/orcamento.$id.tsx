@@ -63,7 +63,7 @@ function Editor() {
       </header>
 
       <div className="p-6">
-        <Tabs defaultValue="capa">
+        <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="flex-wrap h-auto">
             <TabsTrigger value="capa">Dados Gerais</TabsTrigger>
             <TabsTrigger value="encargos">Encargos</TabsTrigger>
