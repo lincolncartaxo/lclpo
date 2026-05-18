@@ -31,6 +31,15 @@ function Editor() {
   const [orc, setOrc] = useState<Orc | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
+  const tabKey = `orc_tab_${id}`;
+  const [tab, setTabState] = useState<string>(() => {
+    if (typeof window === "undefined") return "capa";
+    return window.localStorage.getItem(tabKey) || "capa";
+  });
+  const setTab = (v: string) => {
+    setTabState(v);
+    if (typeof window !== "undefined") window.localStorage.setItem(tabKey, v);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -63,7 +72,7 @@ function Editor() {
       </header>
 
       <div className="p-6">
-        <Tabs defaultValue="capa">
+        <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="flex-wrap h-auto">
             <TabsTrigger value="capa">Dados Gerais</TabsTrigger>
             <TabsTrigger value="encargos">Encargos</TabsTrigger>
@@ -245,6 +254,35 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
     toast.success("Etapa criada. Adicione itens a ela.");
   };
 
+  // Extrai o prefixo hierárquico do nome da etapa (ex.: "1 - Serviços" -> "1")
+  const etapaPrefix = (etapa: string) => {
+    const m = etapa.trim().match(/^([0-9]+(?:\.[0-9]+)*)/);
+    return m ? m[1] : "";
+  };
+  // Somatório dos itens-filhos baseado no prefixo do item (ex.: prefixo "1" agrega "1.1", "1.2.3"…)
+  const totalEtapa = (etapa: string, list: Item[]) => {
+    const pfx = etapaPrefix(etapa);
+    const base = pfx
+      ? items.filter(i => (i.item || "").trim().startsWith(pfx + ".") || (i.item || "").trim() === pfx)
+      : list;
+    return base.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario) * (1 + bdiPct), 0);
+  };
+
+  const renameEtapa = async (oldName: string, newName: string) => {
+    const nn = newName.trim();
+    if (!nn || nn === oldName) return;
+    if (etapasExistentes.includes(nn)) return toast.error("Já existe uma etapa com esse nome");
+    const affected = items.filter(i => (i.etapa || "") === oldName);
+    if (affected.length > 0) {
+      const { error } = await (supabase.from("orcamento_itens") as any)
+        .update({ etapa: nn }).eq("orcamento_id", orcId).eq("etapa", oldName);
+      if (error) return toast.error(error.message);
+    }
+    setEtapasExtra(prev => prev.map(e => e === oldName ? nn : e).filter((e, i, a) => a.indexOf(e) === i));
+    toast.success("Etapa renomeada");
+    reload();
+  };
+
   return (
     <div className="mt-4">
       <div className="flex flex-wrap justify-between items-center gap-3 mb-3">
@@ -267,7 +305,21 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
           <tbody>
             {Object.entries(grouped).map(([etapa, list]) => (
               <React.Fragment key={"g-"+etapa}>
-                <tr><td colSpan={11} className="bg-secondary/60 font-semibold">{etapa}</td></tr>
+                <tr className="bg-secondary/60">
+                  <td colSpan={9} className="font-semibold">
+                    {etapa === "Sem etapa" ? (
+                      <span className="text-muted-foreground italic">{etapa}</span>
+                    ) : (
+                      <input
+                        className="w-full bg-transparent outline-none font-semibold"
+                        defaultValue={etapa}
+                        onBlur={(e)=>renameEtapa(etapa, e.target.value)}
+                      />
+                    )}
+                  </td>
+                  <td className="num font-semibold">{fmtBRL(totalEtapa(etapa, list))}</td>
+                  <td></td>
+                </tr>
                 {list.map((i) => {
                   const pu = Number(i.preco_unitario);
                   const puBdi = pu * (1 + bdiPct);
