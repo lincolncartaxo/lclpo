@@ -31,6 +31,15 @@ function Editor() {
   const [orc, setOrc] = useState<Orc | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
+  const tabKey = `orc_tab_${id}`;
+  const [tab, setTabState] = useState<string>(() => {
+    if (typeof window === "undefined") return "capa";
+    return window.localStorage.getItem(tabKey) || "capa";
+  });
+  const setTab = (v: string) => {
+    setTabState(v);
+    if (typeof window !== "undefined") window.localStorage.setItem(tabKey, v);
+  };
 
   const load = async () => {
     setLoading(true);
