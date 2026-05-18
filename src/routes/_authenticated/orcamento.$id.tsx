@@ -305,7 +305,21 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
           <tbody>
             {Object.entries(grouped).map(([etapa, list]) => (
               <React.Fragment key={"g-"+etapa}>
-                <tr><td colSpan={11} className="bg-secondary/60 font-semibold">{etapa}</td></tr>
+                <tr className="bg-secondary/60">
+                  <td colSpan={9} className="font-semibold">
+                    {etapa === "Sem etapa" ? (
+                      <span className="text-muted-foreground italic">{etapa}</span>
+                    ) : (
+                      <input
+                        className="w-full bg-transparent outline-none font-semibold"
+                        defaultValue={etapa}
+                        onBlur={(e)=>renameEtapa(etapa, e.target.value)}
+                      />
+                    )}
+                  </td>
+                  <td className="num font-semibold">{fmtBRL(totalEtapa(etapa, list))}</td>
+                  <td></td>
+                </tr>
                 {list.map((i) => {
                   const pu = Number(i.preco_unitario);
                   const puBdi = pu * (1 + bdiPct);
