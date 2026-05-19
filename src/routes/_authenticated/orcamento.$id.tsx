@@ -259,12 +259,17 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
     const m = etapa.trim().match(/^([0-9]+(?:\.[0-9]+)*)/);
     return m ? m[1] : "";
   };
-  // Somatório dos itens-filhos baseado no prefixo do item (ex.: prefixo "1" agrega "1.1", "1.2.3"…)
+  // Somatório dos itens da etapa: usa prefixo hierárquico do item (ex.: "1" agrega "1.1", "1.2.3")
+  // ou, se não houver, soma todos os itens cuja coluna etapa coincide.
   const totalEtapa = (etapa: string, list: Item[]) => {
     const pfx = etapaPrefix(etapa);
-    const base = pfx
-      ? items.filter(i => (i.item || "").trim().startsWith(pfx + ".") || (i.item || "").trim() === pfx)
-      : list;
+    const byCode = pfx
+      ? items.filter(i => {
+          const code = (i.item || "").trim();
+          return code === pfx || code.startsWith(pfx + ".");
+        })
+      : [];
+    const base = byCode.length > 0 ? byCode : list;
     return base.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario) * (1 + bdiPct), 0);
   };
 
