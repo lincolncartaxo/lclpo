@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated")({
   beforeLoad: async () => {
+    // Skip auth check during SSR/prerender — there's no localStorage on the server,
+    // so the session would always appear missing and force a redirect loop.
+    if (typeof window === "undefined") return;
     const { data } = await supabase.auth.getSession();
     if (!data.session) throw redirect({ to: "/login" });
   },
