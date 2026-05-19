@@ -283,6 +283,18 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
     reload();
   };
 
+  const deleteEtapa = async (etapa: string) => {
+    const affected = items.filter(i => (i.etapa || "") === etapa);
+    if (affected.length > 0) {
+      if (!confirm(`Excluir a etapa "${etapa}" e seus ${affected.length} item(ns)?`)) return;
+      const { error } = await supabase.from("orcamento_itens").delete().eq("orcamento_id", orcId).eq("etapa", etapa);
+      if (error) return toast.error(error.message);
+    }
+    setEtapasExtra(prev => prev.filter(e => e !== etapa));
+    toast.success("Etapa excluída");
+    reload();
+  };
+
   return (
     <div className="mt-4">
       <div className="flex flex-wrap justify-between items-center gap-3 mb-3">
@@ -310,11 +322,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
                     {etapa === "Sem etapa" ? (
                       <span className="text-muted-foreground italic">{etapa}</span>
                     ) : (
-                      <input
-                        className="w-full bg-transparent outline-none font-semibold"
-                        defaultValue={etapa}
-                        onBlur={(e)=>renameEtapa(etapa, e.target.value)}
-                      />
+                      <EtapaEditor key={etapa} etapa={etapa} onRename={(nn)=>renameEtapa(etapa, nn)} onDelete={()=>deleteEtapa(etapa)} />
                     )}
                   </td>
                   <td className="num font-semibold">{fmtBRL(totalEtapa(etapa, list))}</td>
@@ -571,6 +579,27 @@ function Card({ label, value, hint, highlight }: any) {
       <div className={"text-xs " + (highlight ? "opacity-80" : "text-muted-foreground")}>{label}</div>
       <div className="text-xl font-bold mt-1">{value}</div>
       {hint && <div className={"text-xs mt-1 " + (highlight ? "opacity-80" : "text-muted-foreground")}>{hint}</div>}
+    </div>
+  );
+}
+
+function EtapaEditor({ etapa, onRename, onDelete }: { etapa: string; onRename: (n: string) => void; onDelete: () => void }) {
+  const [val, setVal] = useState(etapa);
+  const dirty = val.trim() !== etapa;
+  return (
+    <div className="flex items-center gap-2">
+      <Input
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") { (e.target as HTMLInputElement).blur(); } }}
+        className="h-8 font-semibold bg-background"
+      />
+      {dirty && (
+        <Button size="sm" variant="default" onClick={() => onRename(val)}>Salvar</Button>
+      )}
+      <Button size="sm" variant="ghost" onClick={onDelete} className="text-destructive">
+        <Trash2 className="size-4" />
+      </Button>
     </div>
   );
 }
