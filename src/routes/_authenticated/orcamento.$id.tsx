@@ -323,13 +323,13 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
             {Object.entries(grouped).map(([etapa, list]) => (
               <React.Fragment key={"g-"+etapa}>
                 <tr className="bg-secondary/60">
-                  <td colSpan={9} className="font-semibold">
-                    {etapa === "Sem etapa" ? (
+                  {etapa === "Sem etapa" ? (
+                    <td colSpan={9} className="font-semibold">
                       <span className="text-muted-foreground italic">{etapa}</span>
-                    ) : (
-                      <EtapaEditor key={etapa} etapa={etapa} onRename={(nn)=>renameEtapa(etapa, nn)} onDelete={()=>deleteEtapa(etapa)} />
-                    )}
-                  </td>
+                    </td>
+                  ) : (
+                    <EtapaEditor key={etapa} etapa={etapa} onRename={(nn)=>renameEtapa(etapa, nn)} onDelete={()=>deleteEtapa(etapa)} />
+                  )}
                   <td className="num font-semibold">{fmtBRL(totalEtapa(etapa, list))}</td>
                   <td></td>
                 </tr>
