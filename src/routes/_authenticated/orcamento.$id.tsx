@@ -310,11 +310,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
                     {etapa === "Sem etapa" ? (
                       <span className="text-muted-foreground italic">{etapa}</span>
                     ) : (
-                      <input
-                        className="w-full bg-transparent outline-none font-semibold"
-                        defaultValue={etapa}
-                        onBlur={(e)=>renameEtapa(etapa, e.target.value)}
-                      />
+                      <EtapaEditor key={etapa} etapa={etapa} onRename={(nn)=>renameEtapa(etapa, nn)} onDelete={()=>deleteEtapa(etapa)} />
                     )}
                   </td>
                   <td className="num font-semibold">{fmtBRL(totalEtapa(etapa, list))}</td>
