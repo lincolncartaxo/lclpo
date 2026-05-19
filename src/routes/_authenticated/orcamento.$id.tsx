@@ -283,6 +283,18 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
     reload();
   };
 
+  const deleteEtapa = async (etapa: string) => {
+    const affected = items.filter(i => (i.etapa || "") === etapa);
+    if (affected.length > 0) {
+      if (!confirm(`Excluir a etapa "${etapa}" e seus ${affected.length} item(ns)?`)) return;
+      const { error } = await supabase.from("orcamento_itens").delete().eq("orcamento_id", orcId).eq("etapa", etapa);
+      if (error) return toast.error(error.message);
+    }
+    setEtapasExtra(prev => prev.filter(e => e !== etapa));
+    toast.success("Etapa excluída");
+    reload();
+  };
+
   return (
     <div className="mt-4">
       <div className="flex flex-wrap justify-between items-center gap-3 mb-3">
