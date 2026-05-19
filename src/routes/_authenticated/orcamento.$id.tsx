@@ -582,3 +582,24 @@ function Card({ label, value, hint, highlight }: any) {
     </div>
   );
 }
+
+function EtapaEditor({ etapa, onRename, onDelete }: { etapa: string; onRename: (n: string) => void; onDelete: () => void }) {
+  const [val, setVal] = useState(etapa);
+  const dirty = val.trim() !== etapa;
+  return (
+    <div className="flex items-center gap-2">
+      <Input
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") { (e.target as HTMLInputElement).blur(); } }}
+        className="h-8 font-semibold bg-background"
+      />
+      {dirty && (
+        <Button size="sm" variant="default" onClick={() => onRename(val)}>Salvar</Button>
+      )}
+      <Button size="sm" variant="ghost" onClick={onDelete} className="text-destructive">
+        <Trash2 className="size-4" />
+      </Button>
+    </div>
+  );
+}
