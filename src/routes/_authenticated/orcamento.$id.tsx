@@ -349,7 +349,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
                       key={etapa}
                       etapa={etapa}
                       draftEtapa={group.label}
-                      onDraftChange={(draft)=>setEtapaDrafts(prev => ({ ...prev, [etapa]: draft }))}
+                      onDraftChange={(draft: string)=>setEtapaDrafts(prev => ({ ...prev, [etapa]: draft }))}
                       onRename={(nn)=>{
                         setEtapaDrafts(prev => { const next = { ...prev }; delete next[etapa]; return next; });
                         renameEtapa(etapa, nn);
