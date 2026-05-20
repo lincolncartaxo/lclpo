@@ -598,16 +598,22 @@ function Card({ label, value, hint, highlight }: any) {
   );
 }
 
-function EtapaEditor({ etapa, onRename, onDelete }: { etapa: string; onRename: (n: string) => void; onDelete: () => void }) {
+function EtapaEditor({ etapa, draftEtapa = etapa, onDraftChange, onRename, onDelete }: { etapa: string; draftEtapa?: string; onDraftChange?: (n: string) => void; onRename: (n: string) => void; onDelete: () => void }) {
   // Divide "1 - Serviços Preliminares" em prefixo "1" + nome "Serviços Preliminares"
   const split = (s: string) => {
     const m = s.trim().match(/^([0-9]+(?:\.[0-9]+)*)\s*[-–:.]?\s*(.*)$/);
     return m ? { code: m[1], name: m[2] } : { code: "", name: s };
   };
-  const initial = split(etapa);
+  const compose = (nextCode: string, nextName: string) => nextCode.trim() ? `${nextCode.trim()} - ${nextName.trim()}` : nextName.trim();
+  const initial = split(draftEtapa);
   const [code, setCode] = useState(initial.code);
   const [name, setName] = useState(initial.name);
-  const composed = (code.trim() ? `${code.trim()} - ${name.trim()}` : name.trim());
+  useEffect(() => {
+    const next = split(draftEtapa);
+    setCode(next.code);
+    setName(next.name);
+  }, [draftEtapa]);
+  const composed = compose(code, name);
   const dirty = composed !== etapa;
   const save = () => { if (dirty) onRename(composed); };
   return (
@@ -615,7 +621,7 @@ function EtapaEditor({ etapa, onRename, onDelete }: { etapa: string; onRename: (
       <td className="font-semibold">
         <Input
           value={code}
-          onChange={(e) => setCode(e.target.value)}
+          onChange={(e) => { setCode(e.target.value); onDraftChange?.(compose(e.target.value, name)); }}
           onBlur={save}
           onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
           placeholder="1"
@@ -626,7 +632,7 @@ function EtapaEditor({ etapa, onRename, onDelete }: { etapa: string; onRename: (
         <div className="flex items-center gap-2">
           <Input
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => { setName(e.target.value); onDraftChange?.(compose(code, e.target.value)); }}
             onBlur={save}
             onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
             placeholder="Nome da etapa"
