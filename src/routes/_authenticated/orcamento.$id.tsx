@@ -339,7 +339,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
                   ) : (
                     <EtapaEditor key={etapa} etapa={etapa} onRename={(nn)=>renameEtapa(etapa, nn)} onDelete={()=>deleteEtapa(etapa)} />
                   )}
-                  <td className="num font-semibold">{fmtBRL(totalEtapa(etapa, list))}</td>
+                  <td className="num font-semibold">{fmtBRL(totalEtapa(list))}</td>
                   <td></td>
                 </tr>
                 {list.map((i) => {
