@@ -218,7 +218,14 @@ function CotacaoTab() {
 function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: Item[]; reload: () => void; bdiPct: number }) {
   const [open, setOpen] = useState(false);
   const [novaEtapa, setNovaEtapa] = useState("");
-  const [etapasExtra, setEtapasExtra] = useState<string[]>([]);
+  const etapasKey = `orc_etapas_${orcId}`;
+  const [etapasExtra, setEtapasExtra] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try { return JSON.parse(window.localStorage.getItem(etapasKey) || "[]"); } catch { return []; }
+  });
+  useEffect(() => {
+    if (typeof window !== "undefined") window.localStorage.setItem(etapasKey, JSON.stringify(etapasExtra));
+  }, [etapasExtra, etapasKey]);
 
   const etapasExistentes = useMemo(() => {
     const set = new Set<string>();
