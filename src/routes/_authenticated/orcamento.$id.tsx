@@ -227,10 +227,28 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
     return Array.from(set);
   }, [items, etapasExtra]);
 
+  // Extrai prefixo hierárquico de uma string (etapa ou código de item)
+  const prefixOf = (s: string) => {
+    const m = (s || "").trim().match(/^([0-9]+(?:\.[0-9]+)*)/);
+    return m ? m[1] : "";
+  };
+
+  // Agrupa cada item à etapa cujo prefixo corresponde ao prefixo do item.
+  // Ex.: item "1.1" entra na etapa que começa com "1".
+  // Quando há múltiplas etapas casando, vence a de prefixo mais longo (mais específica).
   const grouped = useMemo(() => {
     const map: Record<string, Item[]> = {};
+    const etapasPfx = etapasExistentes
+      .map(e => ({ etapa: e, pfx: prefixOf(e) }))
+      .filter(x => x.pfx)
+      .sort((a, b) => b.pfx.length - a.pfx.length);
     etapasExistentes.forEach(e => { map[e] = []; });
-    items.forEach(i => { const k = i.etapa || "Sem etapa"; (map[k] ??= []).push(i); });
+    items.forEach(i => {
+      const code = (i.item || "").trim();
+      const match = etapasPfx.find(({ pfx }) => code === pfx || code.startsWith(pfx + "."));
+      const k = match ? match.etapa : "Sem etapa";
+      (map[k] ??= []).push(i);
+    });
     return map;
   }, [items, etapasExistentes]);
 
@@ -259,40 +277,31 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
     const m = etapa.trim().match(/^([0-9]+(?:\.[0-9]+)*)/);
     return m ? m[1] : "";
   };
-  // Somatório dos itens da etapa: usa prefixo hierárquico do item (ex.: "1" agrega "1.1", "1.2.3")
-  // ou, se não houver, soma todos os itens cuja coluna etapa coincide.
-  const totalEtapa = (etapa: string, list: Item[]) => {
-    const pfx = etapaPrefix(etapa);
-    const byCode = pfx
-      ? items.filter(i => {
-          const code = (i.item || "").trim();
-          return code === pfx || code.startsWith(pfx + ".");
-        })
-      : [];
-    const base = byCode.length > 0 ? byCode : list;
-    return base.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario) * (1 + bdiPct), 0);
-  };
+  // Somatório dos itens da etapa (já agrupados por prefixo)
+  const totalEtapa = (list: Item[]) =>
+    list.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario) * (1 + bdiPct), 0);
 
   const renameEtapa = async (oldName: string, newName: string) => {
     const nn = newName.trim();
     if (!nn || nn === oldName) return;
     if (etapasExistentes.includes(nn)) return toast.error("Já existe uma etapa com esse nome");
-    const affected = items.filter(i => (i.etapa || "") === oldName);
-    if (affected.length > 0) {
-      const { error } = await (supabase.from("orcamento_itens") as any)
-        .update({ etapa: nn }).eq("orcamento_id", orcId).eq("etapa", oldName);
-      if (error) return toast.error(error.message);
-    }
-    setEtapasExtra(prev => prev.map(e => e === oldName ? nn : e).filter((e, i, a) => a.indexOf(e) === i));
+    setEtapasExtra(prev => {
+      const exists = prev.includes(oldName);
+      const next = exists ? prev.map(e => e === oldName ? nn : e) : [...prev, nn];
+      return Array.from(new Set(next));
+    });
     toast.success("Etapa renomeada");
-    reload();
   };
 
   const deleteEtapa = async (etapa: string) => {
-    const affected = items.filter(i => (i.etapa || "") === etapa);
+    const pfx = prefixOf(etapa);
+    const affected = pfx
+      ? items.filter(i => { const c = (i.item||"").trim(); return c === pfx || c.startsWith(pfx + "."); })
+      : [];
     if (affected.length > 0) {
       if (!confirm(`Excluir a etapa "${etapa}" e seus ${affected.length} item(ns)?`)) return;
-      const { error } = await supabase.from("orcamento_itens").delete().eq("orcamento_id", orcId).eq("etapa", etapa);
+      const ids = affected.map(i => i.id);
+      const { error } = await supabase.from("orcamento_itens").delete().in("id", ids);
       if (error) return toast.error(error.message);
     }
     setEtapasExtra(prev => prev.filter(e => e !== etapa));
@@ -307,7 +316,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
         <div className="flex gap-2 items-center">
           <Input className="w-64" placeholder="Nova etapa (ex.: 1 - Serviços Preliminares)" value={novaEtapa} onChange={(e)=>setNovaEtapa(e.target.value)} onKeyDown={(e)=>{ if(e.key==='Enter') addEtapa(); }} />
           <Button variant="secondary" onClick={addEtapa}><Plus className="mr-1 size-4"/>Etapa</Button>
-          <AddItemDialog orcId={orcId} open={open} setOpen={setOpen} onAdded={reload} nextOrdem={items.length+1} etapas={etapasExistentes} items={items} />
+          <AddItemDialog orcId={orcId} open={open} setOpen={setOpen} onAdded={reload} nextOrdem={items.length+1} />
         </div>
       </div>
       <div className="overflow-x-auto rounded border bg-card">
@@ -330,7 +339,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
                   ) : (
                     <EtapaEditor key={etapa} etapa={etapa} onRename={(nn)=>renameEtapa(etapa, nn)} onDelete={()=>deleteEtapa(etapa)} />
                   )}
-                  <td className="num font-semibold">{fmtBRL(totalEtapa(etapa, list))}</td>
+                  <td className="num font-semibold">{fmtBRL(totalEtapa(list))}</td>
                   <td></td>
                 </tr>
                 {list.map((i) => {
@@ -365,12 +374,11 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
   );
 }
 
-function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, etapas = [], items: allItems = [] }: any) {
+function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem }: any) {
   const [tab, setTab] = useState("base");
   const [fonte, setFonte] = useState<"SINAPI"|"DER">("SINAPI");
   const [q, setQ] = useState("");
   const [results, setResults] = useState<any[]>([]);
-  const [etapa, setEtapa] = useState("");
   const [item, setItem] = useState("");
   const [quant, setQuant] = useState("1");
 
@@ -389,7 +397,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, etapas = [], 
 
   const addFromBase = async (r: any) => {
     await supabase.from("orcamento_itens").insert({
-      orcamento_id: orcId, ordem: nextOrdem, etapa: etapa || null, item: item || null,
+      orcamento_id: orcId, ordem: nextOrdem, etapa: null, item: item || null,
       fonte, codigo: String(r.codigo), descricao: r.descricao, unidade: r.unidade,
       quantidade: Number(quant.replace(",",".") || 1), preco_unitario: Number(r.custo_unitario || 0),
     });
@@ -398,37 +406,21 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, etapas = [], 
   const addManual = async () => {
     if (!m.descricao) return toast.error("Descrição obrigatória");
     await supabase.from("orcamento_itens").insert({
-      orcamento_id: orcId, ordem: nextOrdem, etapa: etapa || null, item: item || null,
+      orcamento_id: orcId, ordem: nextOrdem, etapa: null, item: item || null,
       fonte: "COMP", descricao: m.descricao, unidade: m.unidade,
       quantidade: Number(quant.replace(",",".") || 1), preco_unitario: Number(m.preco_unitario.replace(",",".") || 0),
     });
     toast.success("Item adicionado"); setOpen(false); onAdded();
   };
 
-  // auto suggest item nº based on count within selected etapa
-  useEffect(() => {
-    if (!etapa) return;
-    const count = (allItems as Item[]).filter((i: Item) => (i.etapa || "") === etapa).length;
-    setItem(String(count + 1));
-  }, [etapa]);
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild><Button><Plus className="mr-2 size-4"/>Adicionar item</Button></DialogTrigger>
       <DialogContent className="max-w-3xl">
         <DialogHeader><DialogTitle>Adicionar item</DialogTitle></DialogHeader>
-        <div className="grid grid-cols-3 gap-3">
-          <Field label="Etapa">
-            {etapas.length > 0 ? (
-              <Select value={etapa} onValueChange={setEtapa}>
-                <SelectTrigger><SelectValue placeholder="Selecione uma etapa" /></SelectTrigger>
-                <SelectContent>{(etapas as string[]).map((e: string)=>(<SelectItem key={e} value={e}>{e}</SelectItem>))}</SelectContent>
-              </Select>
-            ) : (
-              <Input value={etapa} onChange={(e)=>setEtapa(e.target.value)} placeholder="Crie uma etapa primeiro" />
-            )}
-          </Field>
-          <Field label="Item nº"><Input value={item} onChange={(e)=>setItem(e.target.value)} placeholder="auto" /></Field>
+        <p className="text-xs text-muted-foreground -mt-2">O item é agrupado automaticamente na etapa cujo prefixo corresponde (ex.: item “1.1” entra na etapa “1 - …”).</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Item nº (prefixo hierárquico)"><Input value={item} onChange={(e)=>setItem(e.target.value)} placeholder="Ex.: 1.1" /></Field>
           <Field label="Quantidade"><Input value={quant} onChange={(e)=>setQuant(e.target.value)} /></Field>
         </div>
         <Tabs value={tab} onValueChange={setTab}>
