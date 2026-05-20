@@ -277,40 +277,31 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
     const m = etapa.trim().match(/^([0-9]+(?:\.[0-9]+)*)/);
     return m ? m[1] : "";
   };
-  // Somatório dos itens da etapa: usa prefixo hierárquico do item (ex.: "1" agrega "1.1", "1.2.3")
-  // ou, se não houver, soma todos os itens cuja coluna etapa coincide.
-  const totalEtapa = (etapa: string, list: Item[]) => {
-    const pfx = etapaPrefix(etapa);
-    const byCode = pfx
-      ? items.filter(i => {
-          const code = (i.item || "").trim();
-          return code === pfx || code.startsWith(pfx + ".");
-        })
-      : [];
-    const base = byCode.length > 0 ? byCode : list;
-    return base.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario) * (1 + bdiPct), 0);
-  };
+  // Somatório dos itens da etapa (já agrupados por prefixo)
+  const totalEtapa = (list: Item[]) =>
+    list.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario) * (1 + bdiPct), 0);
 
   const renameEtapa = async (oldName: string, newName: string) => {
     const nn = newName.trim();
     if (!nn || nn === oldName) return;
     if (etapasExistentes.includes(nn)) return toast.error("Já existe uma etapa com esse nome");
-    const affected = items.filter(i => (i.etapa || "") === oldName);
-    if (affected.length > 0) {
-      const { error } = await (supabase.from("orcamento_itens") as any)
-        .update({ etapa: nn }).eq("orcamento_id", orcId).eq("etapa", oldName);
-      if (error) return toast.error(error.message);
-    }
-    setEtapasExtra(prev => prev.map(e => e === oldName ? nn : e).filter((e, i, a) => a.indexOf(e) === i));
+    setEtapasExtra(prev => {
+      const exists = prev.includes(oldName);
+      const next = exists ? prev.map(e => e === oldName ? nn : e) : [...prev, nn];
+      return Array.from(new Set(next));
+    });
     toast.success("Etapa renomeada");
-    reload();
   };
 
   const deleteEtapa = async (etapa: string) => {
-    const affected = items.filter(i => (i.etapa || "") === etapa);
+    const pfx = prefixOf(etapa);
+    const affected = pfx
+      ? items.filter(i => { const c = (i.item||"").trim(); return c === pfx || c.startsWith(pfx + "."); })
+      : [];
     if (affected.length > 0) {
       if (!confirm(`Excluir a etapa "${etapa}" e seus ${affected.length} item(ns)?`)) return;
-      const { error } = await supabase.from("orcamento_itens").delete().eq("orcamento_id", orcId).eq("etapa", etapa);
+      const ids = affected.map(i => i.id);
+      const { error } = await supabase.from("orcamento_itens").delete().in("id", ids);
       if (error) return toast.error(error.message);
     }
     setEtapasExtra(prev => prev.filter(e => e !== etapa));
@@ -325,7 +316,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
         <div className="flex gap-2 items-center">
           <Input className="w-64" placeholder="Nova etapa (ex.: 1 - Serviços Preliminares)" value={novaEtapa} onChange={(e)=>setNovaEtapa(e.target.value)} onKeyDown={(e)=>{ if(e.key==='Enter') addEtapa(); }} />
           <Button variant="secondary" onClick={addEtapa}><Plus className="mr-1 size-4"/>Etapa</Button>
-          <AddItemDialog orcId={orcId} open={open} setOpen={setOpen} onAdded={reload} nextOrdem={items.length+1} etapas={etapasExistentes} items={items} />
+          <AddItemDialog orcId={orcId} open={open} setOpen={setOpen} onAdded={reload} nextOrdem={items.length+1} />
         </div>
       </div>
       <div className="overflow-x-auto rounded border bg-card">
