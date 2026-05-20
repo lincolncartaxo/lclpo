@@ -374,12 +374,11 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
   );
 }
 
-function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, etapas = [], items: allItems = [] }: any) {
+function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem }: any) {
   const [tab, setTab] = useState("base");
   const [fonte, setFonte] = useState<"SINAPI"|"DER">("SINAPI");
   const [q, setQ] = useState("");
   const [results, setResults] = useState<any[]>([]);
-  const [etapa, setEtapa] = useState("");
   const [item, setItem] = useState("");
   const [quant, setQuant] = useState("1");
 
@@ -398,7 +397,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, etapas = [], 
 
   const addFromBase = async (r: any) => {
     await supabase.from("orcamento_itens").insert({
-      orcamento_id: orcId, ordem: nextOrdem, etapa: etapa || null, item: item || null,
+      orcamento_id: orcId, ordem: nextOrdem, etapa: null, item: item || null,
       fonte, codigo: String(r.codigo), descricao: r.descricao, unidade: r.unidade,
       quantidade: Number(quant.replace(",",".") || 1), preco_unitario: Number(r.custo_unitario || 0),
     });
@@ -407,37 +406,21 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, etapas = [], 
   const addManual = async () => {
     if (!m.descricao) return toast.error("Descrição obrigatória");
     await supabase.from("orcamento_itens").insert({
-      orcamento_id: orcId, ordem: nextOrdem, etapa: etapa || null, item: item || null,
+      orcamento_id: orcId, ordem: nextOrdem, etapa: null, item: item || null,
       fonte: "COMP", descricao: m.descricao, unidade: m.unidade,
       quantidade: Number(quant.replace(",",".") || 1), preco_unitario: Number(m.preco_unitario.replace(",",".") || 0),
     });
     toast.success("Item adicionado"); setOpen(false); onAdded();
   };
 
-  // auto suggest item nº based on count within selected etapa
-  useEffect(() => {
-    if (!etapa) return;
-    const count = (allItems as Item[]).filter((i: Item) => (i.etapa || "") === etapa).length;
-    setItem(String(count + 1));
-  }, [etapa]);
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild><Button><Plus className="mr-2 size-4"/>Adicionar item</Button></DialogTrigger>
       <DialogContent className="max-w-3xl">
         <DialogHeader><DialogTitle>Adicionar item</DialogTitle></DialogHeader>
-        <div className="grid grid-cols-3 gap-3">
-          <Field label="Etapa">
-            {etapas.length > 0 ? (
-              <Select value={etapa} onValueChange={setEtapa}>
-                <SelectTrigger><SelectValue placeholder="Selecione uma etapa" /></SelectTrigger>
-                <SelectContent>{(etapas as string[]).map((e: string)=>(<SelectItem key={e} value={e}>{e}</SelectItem>))}</SelectContent>
-              </Select>
-            ) : (
-              <Input value={etapa} onChange={(e)=>setEtapa(e.target.value)} placeholder="Crie uma etapa primeiro" />
-            )}
-          </Field>
-          <Field label="Item nº"><Input value={item} onChange={(e)=>setItem(e.target.value)} placeholder="auto" /></Field>
+        <p className="text-xs text-muted-foreground -mt-2">O item é agrupado automaticamente na etapa cujo prefixo corresponde (ex.: item “1.1” entra na etapa “1 - …”).</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Item nº (prefixo hierárquico)"><Input value={item} onChange={(e)=>setItem(e.target.value)} placeholder="Ex.: 1.1" /></Field>
           <Field label="Quantidade"><Input value={quant} onChange={(e)=>setQuant(e.target.value)} /></Field>
         </div>
         <Tabs value={tab} onValueChange={setTab}>
