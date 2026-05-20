@@ -227,10 +227,28 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
     return Array.from(set);
   }, [items, etapasExtra]);
 
+  // Extrai prefixo hierárquico de uma string (etapa ou código de item)
+  const prefixOf = (s: string) => {
+    const m = (s || "").trim().match(/^([0-9]+(?:\.[0-9]+)*)/);
+    return m ? m[1] : "";
+  };
+
+  // Agrupa cada item à etapa cujo prefixo corresponde ao prefixo do item.
+  // Ex.: item "1.1" entra na etapa que começa com "1".
+  // Quando há múltiplas etapas casando, vence a de prefixo mais longo (mais específica).
   const grouped = useMemo(() => {
     const map: Record<string, Item[]> = {};
+    const etapasPfx = etapasExistentes
+      .map(e => ({ etapa: e, pfx: prefixOf(e) }))
+      .filter(x => x.pfx)
+      .sort((a, b) => b.pfx.length - a.pfx.length);
     etapasExistentes.forEach(e => { map[e] = []; });
-    items.forEach(i => { const k = i.etapa || "Sem etapa"; (map[k] ??= []).push(i); });
+    items.forEach(i => {
+      const code = (i.item || "").trim();
+      const match = etapasPfx.find(({ pfx }) => code === pfx || code.startsWith(pfx + "."));
+      const k = match ? match.etapa : "Sem etapa";
+      (map[k] ??= []).push(i);
+    });
     return map;
   }, [items, etapasExistentes]);
 
