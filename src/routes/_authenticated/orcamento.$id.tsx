@@ -223,6 +223,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
     if (typeof window === "undefined") return [];
     try { return JSON.parse(window.localStorage.getItem(etapasKey) || "[]"); } catch { return []; }
   });
+  const [etapaDrafts, setEtapaDrafts] = useState<Record<string, string>>({});
   useEffect(() => {
     if (typeof window !== "undefined") window.localStorage.setItem(etapasKey, JSON.stringify(etapasExtra));
   }, [etapasExtra, etapasKey]);
@@ -244,20 +245,20 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
   // Ex.: item "1.1" entra na etapa que começa com "1".
   // Quando há múltiplas etapas casando, vence a de prefixo mais longo (mais específica).
   const grouped = useMemo(() => {
-    const map: Record<string, Item[]> = {};
+    const map: Record<string, { label: string; list: Item[] }> = {};
     const etapasPfx = etapasExistentes
-      .map(e => ({ etapa: e, pfx: prefixOf(e) }))
+      .map(e => ({ etapa: e, label: etapaDrafts[e] ?? e, pfx: prefixOf(etapaDrafts[e] ?? e) }))
       .filter(x => x.pfx)
       .sort((a, b) => b.pfx.length - a.pfx.length);
-    etapasExistentes.forEach(e => { map[e] = []; });
+    etapasExistentes.forEach(e => { map[e] = { label: etapaDrafts[e] ?? e, list: [] }; });
     items.forEach(i => {
       const code = (i.item || "").trim();
       const match = etapasPfx.find(({ pfx }) => code === pfx || code.startsWith(pfx + "."));
       const k = match ? match.etapa : "Sem etapa";
-      (map[k] ??= []).push(i);
+      (map[k] ??= { label: "Sem etapa", list: [] }).list.push(i);
     });
     return map;
-  }, [items, etapasExistentes]);
+  }, [items, etapasExistentes, etapaDrafts]);
 
   const total = items.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario) * (1 + bdiPct), 0);
 
@@ -336,20 +337,30 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
             <th className="num" style={{width:130}}>Total</th><th style={{width:40}}></th>
           </tr></thead>
           <tbody>
-            {Object.entries(grouped).map(([etapa, list]) => (
+            {Object.entries(grouped).map(([etapa, group]) => (
               <React.Fragment key={"g-"+etapa}>
                 <tr className="bg-secondary/60">
                   {etapa === "Sem etapa" ? (
                     <td colSpan={9} className="font-semibold">
-                      <span className="text-muted-foreground italic">{etapa}</span>
+                      <span className="text-muted-foreground italic">{group.label}</span>
                     </td>
                   ) : (
-                    <EtapaEditor key={etapa} etapa={etapa} onRename={(nn)=>renameEtapa(etapa, nn)} onDelete={()=>deleteEtapa(etapa)} />
+                    <EtapaEditor
+                      key={etapa}
+                      etapa={etapa}
+                      draftEtapa={group.label}
+                      onDraftChange={(draft)=>setEtapaDrafts(prev => ({ ...prev, [etapa]: draft }))}
+                      onRename={(nn)=>{
+                        setEtapaDrafts(prev => { const next = { ...prev }; delete next[etapa]; return next; });
+                        renameEtapa(etapa, nn);
+                      }}
+                      onDelete={()=>deleteEtapa(etapa)}
+                    />
                   )}
-                  <td className="num font-semibold">{fmtBRL(totalEtapa(list))}</td>
+                  <td className="num font-semibold">{fmtBRL(totalEtapa(group.list))}</td>
                   <td></td>
                 </tr>
-                {list.map((i) => {
+                {group.list.map((i) => {
                   const pu = Number(i.preco_unitario);
                   const puBdi = pu * (1 + bdiPct);
                   const tot = Number(i.quantidade) * puBdi;
@@ -369,7 +380,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
                     </tr>
                   );
                 })}
-                {list.length===0 && <tr><td colSpan={11} className="text-center text-muted-foreground py-3 text-xs italic">Etapa vazia — adicione itens a ela.</td></tr>}
+                {group.list.length===0 && <tr><td colSpan={11} className="text-center text-muted-foreground py-3 text-xs italic">Etapa vazia — adicione itens a ela.</td></tr>}
               </React.Fragment>
             ))}
             {items.length===0 && etapasExistentes.length===0 && <tr><td colSpan={11} className="text-center text-muted-foreground py-8">Crie uma etapa e adicione o primeiro item.</td></tr>}
