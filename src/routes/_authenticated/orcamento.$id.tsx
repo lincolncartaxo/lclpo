@@ -119,6 +119,7 @@ function Editor() {
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="cronograma">Cronograma F/F</TabsTrigger>
             <TabsTrigger value="qci">QCI</TabsTrigger>
+            <TabsTrigger value="relatorio">Relatório</TabsTrigger>
           </TabsList>
 
           <TabsContent value="capa"><CapaTab orc={orc} onSaved={load} /></TabsContent>
@@ -127,9 +128,10 @@ function Editor() {
           <TabsContent value="composicao"><ComposicaoTab items={items} /></TabsContent>
           <TabsContent value="cotacao"><CotacaoTab /></TabsContent>
           <TabsContent value="planilha"><PlanilhaTab orcId={id} items={items} reload={load} bdiPct={Number(orc.bdi_pct)} /></TabsContent>
-          <TabsContent value="resumo"><ResumoTab items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
+          <TabsContent value="resumo"><ResumoTab orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
           <TabsContent value="cronograma"><CronogramaTab orcId={id} items={items} totalComBdi={totalComBdi} /></TabsContent>
           <TabsContent value="qci"><QciTab subtotal={subtotal} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
+          <TabsContent value="relatorio"><RelatorioTab orc={orc} orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} /></TabsContent>
         </Tabs>
       </div>
     </div>
