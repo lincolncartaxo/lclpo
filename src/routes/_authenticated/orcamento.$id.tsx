@@ -478,11 +478,18 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem }: any) {
 }
 
 /* ---------- RESUMO ---------- */
-function ResumoTab({ items, subtotal, totalEncargos, totalComBdi, orc }: any) {
+function ResumoTab({ orcId, items, subtotal, totalEncargos, totalComBdi, orc }: any) {
+  const [etapasExtra] = useEtapasExtra(orcId);
+  const etapasExistentes = useMemo(() => {
+    const set = new Set<string>();
+    (items as Item[]).forEach(i => { if (i.etapa) set.add(i.etapa); });
+    etapasExtra.forEach(e => set.add(e));
+    return Array.from(set);
+  }, [items, etapasExtra]);
+  const groups = useMemo(() => groupItemsByEtapa(items, etapasExistentes), [items, etapasExistentes]);
   const grouped: Record<string, number> = {};
-  items.forEach((i: Item) => {
-    const k = i.etapa || "Sem etapa";
-    grouped[k] = (grouped[k] ?? 0) + Number(i.quantidade) * Number(i.preco_unitario);
+  Object.values(groups).forEach((g) => {
+    grouped[g.label] = (grouped[g.label] ?? 0) + g.list.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario), 0);
   });
   const totGrupos = Object.values(grouped).reduce((a, b) => a + b, 0) || 1;
   return (
@@ -510,7 +517,26 @@ function ResumoTab({ items, subtotal, totalEncargos, totalComBdi, orc }: any) {
 
 /* ---------- CRONOGRAMA F/F ---------- */
 function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: Item[]; totalComBdi: number }) {
-  const etapas = useMemo(() => Array.from(new Set(items.map(i => i.etapa || "Sem etapa"))), [items]);
+  const [etapasExtra] = useEtapasExtra(orcId);
+  const etapasExistentes = useMemo(() => {
+    const set = new Set<string>();
+    items.forEach(i => { if (i.etapa) set.add(i.etapa); });
+    etapasExtra.forEach(e => set.add(e));
+    return Array.from(set);
+  }, [items, etapasExtra]);
+  const groups = useMemo(() => groupItemsByEtapa(items, etapasExistentes), [items, etapasExistentes]);
+  const etapas = useMemo(
+    () => Object.values(groups).map(g => g.label).filter(l => l !== "Sem etapa" || (groups["Sem etapa"]?.list.length ?? 0) > 0),
+    [groups]
+  );
+  const totaisPorEtapa = useMemo(() => {
+    const m: Record<string, number> = {};
+    Object.values(groups).forEach(g => {
+      m[g.label] = g.list.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario), 0);
+    });
+    return m;
+  }, [groups]);
+  const subtotalAll = Object.values(totaisPorEtapa).reduce((a, b) => a + b, 0);
   const [meses, setMeses] = useState(6);
   const [grid, setGrid] = useState<Record<string, Record<number, number>>>({});
 
@@ -528,8 +554,9 @@ function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: It
     await supabase.from("orcamento_cronograma").upsert({ orcamento_id: orcId, etapa, mes, percentual: val }, { onConflict: "orcamento_id,etapa,mes" });
   };
 
-  const totalEtapa = (e: string) => items.filter(i => (i.etapa||"Sem etapa")===e).reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario),0) * (totalComBdi / Math.max(items.reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario),0),1));
+  const totalEtapa = (e: string) => (totaisPorEtapa[e] || 0) * (totalComBdi / Math.max(subtotalAll, 1));
   const valorMes = (mes: number) => etapas.reduce((s,e)=>s + (grid[e]?.[mes]||0) * totalEtapa(e), 0);
+
 
   return (
     <div className="mt-4">
