@@ -255,16 +255,9 @@ function CotacaoTab() {
 /* ---------- PLANILHA ORÇAMENTÁRIA ---------- */
 function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: Item[]; reload: () => void; bdiPct: number }) {
   const [open, setOpen] = useState(false);
-  const [novaEtapa, setNovaEtapa] = useState("");
-  const etapasKey = `orc_etapas_${orcId}`;
-  const [etapasExtra, setEtapasExtra] = useState<string[]>(() => {
-    if (typeof window === "undefined") return [];
-    try { return JSON.parse(window.localStorage.getItem(etapasKey) || "[]"); } catch { return []; }
-  });
+  const [openEtapa, setOpenEtapa] = useState(false);
+  const [etapasExtra, setEtapasExtra] = useEtapasExtra(orcId);
   const [etapaDrafts, setEtapaDrafts] = useState<Record<string, string>>({});
-  useEffect(() => {
-    if (typeof window !== "undefined") window.localStorage.setItem(etapasKey, JSON.stringify(etapasExtra));
-  }, [etapasExtra, etapasKey]);
 
   const etapasExistentes = useMemo(() => {
     const set = new Set<string>();
@@ -273,30 +266,10 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
     return Array.from(set);
   }, [items, etapasExtra]);
 
-  // Extrai prefixo hierárquico de uma string (etapa ou código de item)
-  const prefixOf = (s: string) => {
-    const m = (s || "").trim().match(/^([0-9]+(?:\.[0-9]+)*)/);
-    return m ? m[1] : "";
-  };
-
-  // Agrupa cada item à etapa cujo prefixo corresponde ao prefixo do item.
-  // Ex.: item "1.1" entra na etapa que começa com "1".
-  // Quando há múltiplas etapas casando, vence a de prefixo mais longo (mais específica).
-  const grouped = useMemo(() => {
-    const map: Record<string, { label: string; list: Item[] }> = {};
-    const etapasPfx = etapasExistentes
-      .map(e => ({ etapa: e, label: etapaDrafts[e] ?? e, pfx: prefixOf(etapaDrafts[e] ?? e) }))
-      .filter(x => x.pfx)
-      .sort((a, b) => b.pfx.length - a.pfx.length);
-    etapasExistentes.forEach(e => { map[e] = { label: etapaDrafts[e] ?? e, list: [] }; });
-    items.forEach(i => {
-      const code = (i.item || "").trim();
-      const match = etapasPfx.find(({ pfx }) => code === pfx || code.startsWith(pfx + "."));
-      const k = match ? match.etapa : "Sem etapa";
-      (map[k] ??= { label: "Sem etapa", list: [] }).list.push(i);
-    });
-    return map;
-  }, [items, etapasExistentes, etapaDrafts]);
+  const grouped = useMemo(
+    () => groupItemsByEtapa(items, etapasExistentes, etapaDrafts),
+    [items, etapasExistentes, etapaDrafts]
+  );
 
   const total = items.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario) * (1 + bdiPct), 0);
 
@@ -309,23 +282,17 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
     reload();
   };
 
-  const addEtapa = () => {
-    const e = novaEtapa.trim();
+  const addEtapa = (nome: string) => {
+    const e = nome.trim();
     if (!e) return toast.error("Informe o nome da etapa");
     if (etapasExistentes.includes(e)) return toast.error("Etapa já existe");
     setEtapasExtra(prev => [...prev, e]);
-    setNovaEtapa("");
-    toast.success("Etapa criada. Adicione itens a ela.");
+    toast.success("Etapa criada");
   };
 
-  // Extrai o prefixo hierárquico do nome da etapa (ex.: "1 - Serviços" -> "1")
-  const etapaPrefix = (etapa: string) => {
-    const m = etapa.trim().match(/^([0-9]+(?:\.[0-9]+)*)/);
-    return m ? m[1] : "";
-  };
-  // Somatório dos itens da etapa (já agrupados por prefixo)
   const totalEtapa = (list: Item[]) =>
     list.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario) * (1 + bdiPct), 0);
+
 
   const renameEtapa = async (oldName: string, newName: string) => {
     const nn = newName.trim();
