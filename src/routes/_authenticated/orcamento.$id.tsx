@@ -679,3 +679,183 @@ function EtapaEditor({ etapa, draftEtapa = etapa, onDraftChange, onRename, onDel
     </>
   );
 }
+
+/* ---------- ADICIONAR ETAPA (MODAL) ---------- */
+function AddEtapaDialog({ open, setOpen, onAdd }: { open: boolean; setOpen: (v: boolean) => void; onAdd: (nome: string) => void }) {
+  const [item, setItem] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const submit = () => {
+    const nome = item.trim() ? `${item.trim()} - ${descricao.trim()}` : descricao.trim();
+    if (!nome) return toast.error("Informe ao menos a descrição");
+    onAdd(nome);
+    setItem(""); setDescricao(""); setOpen(false);
+  };
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild><Button variant="secondary"><Plus className="mr-1 size-4"/>Etapa</Button></DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Adicionar etapa</DialogTitle></DialogHeader>
+        <div className="grid gap-3">
+          <Field label="Item nº (prefixo hierárquico)">
+            <Input value={item} onChange={(e)=>setItem(e.target.value)} placeholder="Ex.: 1" />
+          </Field>
+          <Field label="Descrição">
+            <Input value={descricao} onChange={(e)=>setDescricao(e.target.value)} placeholder="Ex.: Serviços Preliminares" onKeyDown={(e)=>{ if(e.key==='Enter') submit(); }} />
+          </Field>
+        </div>
+        <DialogFooter><Button onClick={submit}>Adicionar etapa</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ---------- RELATÓRIO ---------- */
+const RELATORIO_TABS = [
+  { key: "capa", label: "Dados Gerais" },
+  { key: "encargos", label: "Encargos" },
+  { key: "bdi", label: "BDI" },
+  { key: "composicao", label: "Composições" },
+  { key: "planilha", label: "Planilha Orçamentária" },
+  { key: "resumo", label: "Resumo" },
+  { key: "cronograma", label: "Cronograma F/F" },
+  { key: "qci", label: "QCI" },
+];
+
+function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi }: any) {
+  const [sel, setSel] = useState<Record<string, boolean>>(
+    Object.fromEntries(RELATORIO_TABS.map(t => [t.key, true]))
+  );
+  const [etapasExtra] = useEtapasExtra(orcId);
+  const etapasExistentes = useMemo(() => {
+    const set = new Set<string>();
+    (items as Item[]).forEach(i => { if (i.etapa) set.add(i.etapa); });
+    etapasExtra.forEach((e: string) => set.add(e));
+    return Array.from(set);
+  }, [items, etapasExtra]);
+  const groups = useMemo(() => groupItemsByEtapa(items, etapasExistentes), [items, etapasExistentes]);
+
+  const toggle = (k: string) => setSel(prev => ({ ...prev, [k]: !prev[k] }));
+  const all = (v: boolean) => setSel(Object.fromEntries(RELATORIO_TABS.map(t => [t.key, v])));
+
+  const sections = () => {
+    const out: { key: string; title: string; rows: (string|number)[][] }[] = [];
+    const bdiPct = Number(orc.bdi_pct);
+    if (sel.capa) out.push({ key: "capa", title: "Dados Gerais", rows: [
+      ["Nome", orc.nome ?? ""], ["Contrato", orc.contrato ?? ""], ["Município/UF", `${orc.municipio ?? ""} / ${orc.uf ?? ""}`],
+      ["Órgão", orc.orgao ?? ""], ["Referência de Preços", orc.ref_precos ?? ""], ["Engenheiro", orc.engenheiro ?? ""],
+      ["CREA", orc.crea ?? ""], ["Objeto", orc.objeto ?? ""],
+    ]});
+    if (sel.encargos) out.push({ key: "encargos", title: "Encargos", rows: [
+      ["Encargos sobre M.O. (%)", fmtPct(Number(orc.encargos_pct))],
+      ["Total de encargos referenciais", fmtBRL(totalEncargos)],
+    ]});
+    if (sel.bdi) out.push({ key: "bdi", title: "BDI", rows: [
+      ["BDI aplicado", fmtPct(bdiPct)],
+      ["Valor de BDI", fmtBRL(totalComBdi - subtotal)],
+    ]});
+    if (sel.composicao) {
+      const linked = (items as Item[]).filter(i => i.fonte && i.codigo);
+      out.push({ key: "composicao", title: "Composições", rows: [
+        ["Item","Fonte","Código","Descrição","Un.","Quant.","Custo Unit."],
+        ...linked.map(i => [i.item ?? "", i.fonte ?? "", i.codigo ?? "", i.descricao, i.unidade ?? "", Number(i.quantidade), Number(i.preco_unitario)]),
+      ]});
+    }
+    if (sel.planilha) {
+      const rows: (string|number)[][] = [["Item","Fonte","Código","Descrição","Un.","Quant.","Preço Unit.","Preço Unit. c/ BDI","Total"]];
+      Object.values(groups).forEach(g => {
+        rows.push([g.label, "", "", "", "", "", "", "", g.list.reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario)*(1+bdiPct),0)]);
+        g.list.forEach(i => {
+          const pu = Number(i.preco_unitario); const puBdi = pu*(1+bdiPct);
+          rows.push([i.item ?? "", i.fonte ?? "", i.codigo ?? "", i.descricao, i.unidade ?? "", Number(i.quantidade), pu, puBdi, Number(i.quantidade)*puBdi]);
+        });
+      });
+      rows.push(["", "", "", "", "", "", "", "TOTAL c/ BDI", totalComBdi]);
+      out.push({ key: "planilha", title: "Planilha Orçamentária", rows });
+    }
+    if (sel.resumo) {
+      const grouped: Record<string, number> = {};
+      Object.values(groups).forEach(g => { grouped[g.label] = g.list.reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario),0); });
+      const tot = Object.values(grouped).reduce((a,b)=>a+b,0) || 1;
+      const rows: (string|number)[][] = [["Etapa","Total","% Obra"]];
+      Object.entries(grouped).forEach(([k,v]) => rows.push([k, v, `${(v/tot*100).toFixed(2)}%`]));
+      rows.push(["SUBTOTAL", subtotal, "100,00%"]);
+      rows.push([`BDI (${fmtPct(bdiPct)})`, totalComBdi - subtotal, ""]);
+      rows.push(["TOTAL GERAL", totalComBdi, ""]);
+      out.push({ key: "resumo", title: "Resumo", rows });
+    }
+    if (sel.cronograma) {
+      out.push({ key: "cronograma", title: "Cronograma F/F", rows: [
+        ["Etapa","Total estimado"],
+        ...Object.values(groups).map(g => [g.label, g.list.reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario)*(1+bdiPct),0)]),
+      ]});
+    }
+    if (sel.qci) {
+      const repasse = totalComBdi * 0.95;
+      out.push({ key: "qci", title: "QCI", rows: [
+        ["Investimento total", totalComBdi],
+        ["Custo direto (sem BDI)", subtotal],
+        [`BDI (${fmtPct(bdiPct)})`, totalComBdi - subtotal],
+        ["Repasse (95%)", repasse],
+        ["Contrapartida (5%)", totalComBdi - repasse],
+      ]});
+    }
+    return out;
+  };
+
+  const exportXlsx = async () => {
+    const XLSX = await import("xlsx");
+    const wb = XLSX.utils.book_new();
+    sections().forEach(s => {
+      const ws = XLSX.utils.aoa_to_sheet(s.rows);
+      XLSX.utils.book_append_sheet(wb, ws, s.title.substring(0, 31));
+    });
+    if (wb.SheetNames.length === 0) return toast.error("Selecione ao menos uma aba");
+    XLSX.writeFile(wb, `${orc.nome || "orcamento"}.xlsx`);
+  };
+
+  const exportPdf = async () => {
+    const { default: jsPDF } = await import("jspdf");
+    const autoTable = (await import("jspdf-autotable")).default;
+    const doc = new jsPDF({ orientation: "landscape" });
+    const secs = sections();
+    if (secs.length === 0) return toast.error("Selecione ao menos uma aba");
+    doc.setFontSize(14);
+    doc.text(orc.nome || "Orçamento", 14, 14);
+    let y = 22;
+    secs.forEach((s, idx) => {
+      if (idx > 0) doc.addPage();
+      doc.setFontSize(12);
+      doc.text(s.title, 14, y);
+      const head = Array.isArray(s.rows[0]) && typeof s.rows[0][0] === "string" && s.rows.length > 1
+        ? [s.rows[0].map(String)]
+        : undefined;
+      const body = (head ? s.rows.slice(1) : s.rows).map(r => r.map(c => typeof c === "number" ? c.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(c)));
+      autoTable(doc, { startY: y + 4, head, body, styles: { fontSize: 8 } });
+      y = 14;
+    });
+    doc.save(`${orc.nome || "orcamento"}.pdf`);
+  };
+
+  return (
+    <div className="mt-4 max-w-2xl space-y-4">
+      <p className="text-sm text-muted-foreground">Selecione as abas que devem compor o relatório. Por padrão todas estão selecionadas.</p>
+      <div className="flex gap-2 text-xs">
+        <button className="underline text-muted-foreground" onClick={()=>all(true)}>Selecionar todas</button>
+        <button className="underline text-muted-foreground" onClick={()=>all(false)}>Limpar</button>
+      </div>
+      <div className="rounded-lg border bg-card divide-y">
+        {RELATORIO_TABS.map(t => (
+          <label key={t.key} className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/40">
+            <Checkbox checked={!!sel[t.key]} onCheckedChange={()=>toggle(t.key)} />
+            <span className="text-sm">{t.label}</span>
+          </label>
+        ))}
+      </div>
+      <div className="flex gap-3">
+        <Button onClick={exportXlsx}><FileDown className="mr-2 size-4"/>Exportar .xlsx</Button>
+        <Button variant="secondary" onClick={exportPdf}><FileDown className="mr-2 size-4"/>Exportar .pdf</Button>
+      </div>
+    </div>
+  );
+}
+
