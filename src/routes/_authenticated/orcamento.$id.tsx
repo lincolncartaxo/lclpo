@@ -327,9 +327,9 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
       <div className="flex flex-wrap justify-between items-center gap-3 mb-3">
         <p className="text-sm text-muted-foreground">{items.length} itens · Total c/ BDI {fmtBRL(total)}</p>
         <div className="flex gap-2 items-center">
-          <Input className="w-64" placeholder="Nova etapa (ex.: 1 - Serviços Preliminares)" value={novaEtapa} onChange={(e)=>setNovaEtapa(e.target.value)} onKeyDown={(e)=>{ if(e.key==='Enter') addEtapa(); }} />
-          <Button variant="secondary" onClick={addEtapa}><Plus className="mr-1 size-4"/>Etapa</Button>
+          <AddEtapaDialog open={openEtapa} setOpen={setOpenEtapa} onAdd={addEtapa} />
           <AddItemDialog orcId={orcId} open={open} setOpen={setOpen} onAdded={reload} nextOrdem={items.length+1} />
+
         </div>
       </div>
       <div className="overflow-x-auto rounded border bg-card">
