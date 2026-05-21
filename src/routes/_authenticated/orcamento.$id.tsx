@@ -4,13 +4,49 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Save, Plus, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, Save, Plus, Search, Trash2, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { fmtBRL, fmtPct, fmtNum } from "@/lib/format";
+
+/* ---------- HELPERS COMPARTILHADOS ---------- */
+const prefixOf = (s: string) => {
+  const m = (s || "").trim().match(/^([0-9]+(?:\.[0-9]+)*)/);
+  return m ? m[1] : "";
+};
+
+function useEtapasExtra(orcId: string) {
+  const key = `orc_etapas_${orcId}`;
+  const [etapasExtra, setEtapasExtra] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try { return JSON.parse(window.localStorage.getItem(key) || "[]"); } catch { return []; }
+  });
+  useEffect(() => {
+    if (typeof window !== "undefined") window.localStorage.setItem(key, JSON.stringify(etapasExtra));
+  }, [etapasExtra, key]);
+  return [etapasExtra, setEtapasExtra] as const;
+}
+
+/** Agrupa itens nas etapas casando o prefixo do código do item com o prefixo da etapa. */
+function groupItemsByEtapa(items: Item[], etapas: string[], drafts: Record<string,string> = {}) {
+  const map: Record<string, { label: string; list: Item[] }> = {};
+  const etapasPfx = etapas
+    .map(e => ({ etapa: e, label: drafts[e] ?? e, pfx: prefixOf(drafts[e] ?? e) }))
+    .filter(x => x.pfx)
+    .sort((a, b) => b.pfx.length - a.pfx.length);
+  etapas.forEach(e => { map[e] = { label: drafts[e] ?? e, list: [] }; });
+  items.forEach(i => {
+    const code = (i.item || "").trim();
+    const match = etapasPfx.find(({ pfx }) => code === pfx || code.startsWith(pfx + "."));
+    const k = match ? match.etapa : "Sem etapa";
+    (map[k] ??= { label: "Sem etapa", list: [] }).list.push(i);
+  });
+  return map;
+}
 
 export const Route = createFileRoute("/_authenticated/orcamento/$id")({
   head: () => ({ meta: [{ title: "Editor de Orçamento — Orça" }] }),
