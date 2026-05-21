@@ -4,13 +4,49 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Save, Plus, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, Save, Plus, Search, Trash2, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { fmtBRL, fmtPct, fmtNum } from "@/lib/format";
+
+/* ---------- HELPERS COMPARTILHADOS ---------- */
+const prefixOf = (s: string) => {
+  const m = (s || "").trim().match(/^([0-9]+(?:\.[0-9]+)*)/);
+  return m ? m[1] : "";
+};
+
+function useEtapasExtra(orcId: string) {
+  const key = `orc_etapas_${orcId}`;
+  const [etapasExtra, setEtapasExtra] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try { return JSON.parse(window.localStorage.getItem(key) || "[]"); } catch { return []; }
+  });
+  useEffect(() => {
+    if (typeof window !== "undefined") window.localStorage.setItem(key, JSON.stringify(etapasExtra));
+  }, [etapasExtra, key]);
+  return [etapasExtra, setEtapasExtra] as const;
+}
+
+/** Agrupa itens nas etapas casando o prefixo do código do item com o prefixo da etapa. */
+function groupItemsByEtapa(items: Item[], etapas: string[], drafts: Record<string,string> = {}) {
+  const map: Record<string, { label: string; list: Item[] }> = {};
+  const etapasPfx = etapas
+    .map(e => ({ etapa: e, label: drafts[e] ?? e, pfx: prefixOf(drafts[e] ?? e) }))
+    .filter(x => x.pfx)
+    .sort((a, b) => b.pfx.length - a.pfx.length);
+  etapas.forEach(e => { map[e] = { label: drafts[e] ?? e, list: [] }; });
+  items.forEach(i => {
+    const code = (i.item || "").trim();
+    const match = etapasPfx.find(({ pfx }) => code === pfx || code.startsWith(pfx + "."));
+    const k = match ? match.etapa : "Sem etapa";
+    (map[k] ??= { label: "Sem etapa", list: [] }).list.push(i);
+  });
+  return map;
+}
 
 export const Route = createFileRoute("/_authenticated/orcamento/$id")({
   head: () => ({ meta: [{ title: "Editor de Orçamento — Orça" }] }),
@@ -83,6 +119,7 @@ function Editor() {
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="cronograma">Cronograma F/F</TabsTrigger>
             <TabsTrigger value="qci">QCI</TabsTrigger>
+            <TabsTrigger value="relatorio">Relatório</TabsTrigger>
           </TabsList>
 
           <TabsContent value="capa"><CapaTab orc={orc} onSaved={load} /></TabsContent>
@@ -91,9 +128,10 @@ function Editor() {
           <TabsContent value="composicao"><ComposicaoTab items={items} /></TabsContent>
           <TabsContent value="cotacao"><CotacaoTab /></TabsContent>
           <TabsContent value="planilha"><PlanilhaTab orcId={id} items={items} reload={load} bdiPct={Number(orc.bdi_pct)} /></TabsContent>
-          <TabsContent value="resumo"><ResumoTab items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
+          <TabsContent value="resumo"><ResumoTab orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
           <TabsContent value="cronograma"><CronogramaTab orcId={id} items={items} totalComBdi={totalComBdi} /></TabsContent>
           <TabsContent value="qci"><QciTab subtotal={subtotal} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
+          <TabsContent value="relatorio"><RelatorioTab orc={orc} orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} /></TabsContent>
         </Tabs>
       </div>
     </div>
@@ -217,16 +255,9 @@ function CotacaoTab() {
 /* ---------- PLANILHA ORÇAMENTÁRIA ---------- */
 function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: Item[]; reload: () => void; bdiPct: number }) {
   const [open, setOpen] = useState(false);
-  const [novaEtapa, setNovaEtapa] = useState("");
-  const etapasKey = `orc_etapas_${orcId}`;
-  const [etapasExtra, setEtapasExtra] = useState<string[]>(() => {
-    if (typeof window === "undefined") return [];
-    try { return JSON.parse(window.localStorage.getItem(etapasKey) || "[]"); } catch { return []; }
-  });
+  const [openEtapa, setOpenEtapa] = useState(false);
+  const [etapasExtra, setEtapasExtra] = useEtapasExtra(orcId);
   const [etapaDrafts, setEtapaDrafts] = useState<Record<string, string>>({});
-  useEffect(() => {
-    if (typeof window !== "undefined") window.localStorage.setItem(etapasKey, JSON.stringify(etapasExtra));
-  }, [etapasExtra, etapasKey]);
 
   const etapasExistentes = useMemo(() => {
     const set = new Set<string>();
@@ -235,30 +266,10 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
     return Array.from(set);
   }, [items, etapasExtra]);
 
-  // Extrai prefixo hierárquico de uma string (etapa ou código de item)
-  const prefixOf = (s: string) => {
-    const m = (s || "").trim().match(/^([0-9]+(?:\.[0-9]+)*)/);
-    return m ? m[1] : "";
-  };
-
-  // Agrupa cada item à etapa cujo prefixo corresponde ao prefixo do item.
-  // Ex.: item "1.1" entra na etapa que começa com "1".
-  // Quando há múltiplas etapas casando, vence a de prefixo mais longo (mais específica).
-  const grouped = useMemo(() => {
-    const map: Record<string, { label: string; list: Item[] }> = {};
-    const etapasPfx = etapasExistentes
-      .map(e => ({ etapa: e, label: etapaDrafts[e] ?? e, pfx: prefixOf(etapaDrafts[e] ?? e) }))
-      .filter(x => x.pfx)
-      .sort((a, b) => b.pfx.length - a.pfx.length);
-    etapasExistentes.forEach(e => { map[e] = { label: etapaDrafts[e] ?? e, list: [] }; });
-    items.forEach(i => {
-      const code = (i.item || "").trim();
-      const match = etapasPfx.find(({ pfx }) => code === pfx || code.startsWith(pfx + "."));
-      const k = match ? match.etapa : "Sem etapa";
-      (map[k] ??= { label: "Sem etapa", list: [] }).list.push(i);
-    });
-    return map;
-  }, [items, etapasExistentes, etapaDrafts]);
+  const grouped = useMemo(
+    () => groupItemsByEtapa(items, etapasExistentes, etapaDrafts),
+    [items, etapasExistentes, etapaDrafts]
+  );
 
   const total = items.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario) * (1 + bdiPct), 0);
 
@@ -271,23 +282,17 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
     reload();
   };
 
-  const addEtapa = () => {
-    const e = novaEtapa.trim();
+  const addEtapa = (nome: string) => {
+    const e = nome.trim();
     if (!e) return toast.error("Informe o nome da etapa");
     if (etapasExistentes.includes(e)) return toast.error("Etapa já existe");
     setEtapasExtra(prev => [...prev, e]);
-    setNovaEtapa("");
-    toast.success("Etapa criada. Adicione itens a ela.");
+    toast.success("Etapa criada");
   };
 
-  // Extrai o prefixo hierárquico do nome da etapa (ex.: "1 - Serviços" -> "1")
-  const etapaPrefix = (etapa: string) => {
-    const m = etapa.trim().match(/^([0-9]+(?:\.[0-9]+)*)/);
-    return m ? m[1] : "";
-  };
-  // Somatório dos itens da etapa (já agrupados por prefixo)
   const totalEtapa = (list: Item[]) =>
     list.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario) * (1 + bdiPct), 0);
+
 
   const renameEtapa = async (oldName: string, newName: string) => {
     const nn = newName.trim();
@@ -322,9 +327,9 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
       <div className="flex flex-wrap justify-between items-center gap-3 mb-3">
         <p className="text-sm text-muted-foreground">{items.length} itens · Total c/ BDI {fmtBRL(total)}</p>
         <div className="flex gap-2 items-center">
-          <Input className="w-64" placeholder="Nova etapa (ex.: 1 - Serviços Preliminares)" value={novaEtapa} onChange={(e)=>setNovaEtapa(e.target.value)} onKeyDown={(e)=>{ if(e.key==='Enter') addEtapa(); }} />
-          <Button variant="secondary" onClick={addEtapa}><Plus className="mr-1 size-4"/>Etapa</Button>
+          <AddEtapaDialog open={openEtapa} setOpen={setOpenEtapa} onAdd={addEtapa} />
           <AddItemDialog orcId={orcId} open={open} setOpen={setOpen} onAdded={reload} nextOrdem={items.length+1} />
+
         </div>
       </div>
       <div className="overflow-x-auto rounded border bg-card">
@@ -473,11 +478,18 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem }: any) {
 }
 
 /* ---------- RESUMO ---------- */
-function ResumoTab({ items, subtotal, totalEncargos, totalComBdi, orc }: any) {
+function ResumoTab({ orcId, items, subtotal, totalEncargos, totalComBdi, orc }: any) {
+  const [etapasExtra] = useEtapasExtra(orcId);
+  const etapasExistentes = useMemo(() => {
+    const set = new Set<string>();
+    (items as Item[]).forEach(i => { if (i.etapa) set.add(i.etapa); });
+    etapasExtra.forEach(e => set.add(e));
+    return Array.from(set);
+  }, [items, etapasExtra]);
+  const groups = useMemo(() => groupItemsByEtapa(items, etapasExistentes), [items, etapasExistentes]);
   const grouped: Record<string, number> = {};
-  items.forEach((i: Item) => {
-    const k = i.etapa || "Sem etapa";
-    grouped[k] = (grouped[k] ?? 0) + Number(i.quantidade) * Number(i.preco_unitario);
+  Object.values(groups).forEach((g) => {
+    grouped[g.label] = (grouped[g.label] ?? 0) + g.list.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario), 0);
   });
   const totGrupos = Object.values(grouped).reduce((a, b) => a + b, 0) || 1;
   return (
@@ -505,7 +517,26 @@ function ResumoTab({ items, subtotal, totalEncargos, totalComBdi, orc }: any) {
 
 /* ---------- CRONOGRAMA F/F ---------- */
 function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: Item[]; totalComBdi: number }) {
-  const etapas = useMemo(() => Array.from(new Set(items.map(i => i.etapa || "Sem etapa"))), [items]);
+  const [etapasExtra] = useEtapasExtra(orcId);
+  const etapasExistentes = useMemo(() => {
+    const set = new Set<string>();
+    items.forEach(i => { if (i.etapa) set.add(i.etapa); });
+    etapasExtra.forEach(e => set.add(e));
+    return Array.from(set);
+  }, [items, etapasExtra]);
+  const groups = useMemo(() => groupItemsByEtapa(items, etapasExistentes), [items, etapasExistentes]);
+  const etapas = useMemo(
+    () => Object.values(groups).map(g => g.label).filter(l => l !== "Sem etapa" || (groups["Sem etapa"]?.list.length ?? 0) > 0),
+    [groups]
+  );
+  const totaisPorEtapa = useMemo(() => {
+    const m: Record<string, number> = {};
+    Object.values(groups).forEach(g => {
+      m[g.label] = g.list.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario), 0);
+    });
+    return m;
+  }, [groups]);
+  const subtotalAll = Object.values(totaisPorEtapa).reduce((a, b) => a + b, 0);
   const [meses, setMeses] = useState(6);
   const [grid, setGrid] = useState<Record<string, Record<number, number>>>({});
 
@@ -523,8 +554,9 @@ function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: It
     await supabase.from("orcamento_cronograma").upsert({ orcamento_id: orcId, etapa, mes, percentual: val }, { onConflict: "orcamento_id,etapa,mes" });
   };
 
-  const totalEtapa = (e: string) => items.filter(i => (i.etapa||"Sem etapa")===e).reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario),0) * (totalComBdi / Math.max(items.reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario),0),1));
+  const totalEtapa = (e: string) => (totaisPorEtapa[e] || 0) * (totalComBdi / Math.max(subtotalAll, 1));
   const valorMes = (mes: number) => etapas.reduce((s,e)=>s + (grid[e]?.[mes]||0) * totalEtapa(e), 0);
+
 
   return (
     <div className="mt-4">
@@ -647,3 +679,183 @@ function EtapaEditor({ etapa, draftEtapa = etapa, onDraftChange, onRename, onDel
     </>
   );
 }
+
+/* ---------- ADICIONAR ETAPA (MODAL) ---------- */
+function AddEtapaDialog({ open, setOpen, onAdd }: { open: boolean; setOpen: (v: boolean) => void; onAdd: (nome: string) => void }) {
+  const [item, setItem] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const submit = () => {
+    const nome = item.trim() ? `${item.trim()} - ${descricao.trim()}` : descricao.trim();
+    if (!nome) return toast.error("Informe ao menos a descrição");
+    onAdd(nome);
+    setItem(""); setDescricao(""); setOpen(false);
+  };
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild><Button variant="secondary"><Plus className="mr-1 size-4"/>Etapa</Button></DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Adicionar etapa</DialogTitle></DialogHeader>
+        <div className="grid gap-3">
+          <Field label="Item nº (prefixo hierárquico)">
+            <Input value={item} onChange={(e)=>setItem(e.target.value)} placeholder="Ex.: 1" />
+          </Field>
+          <Field label="Descrição">
+            <Input value={descricao} onChange={(e)=>setDescricao(e.target.value)} placeholder="Ex.: Serviços Preliminares" onKeyDown={(e)=>{ if(e.key==='Enter') submit(); }} />
+          </Field>
+        </div>
+        <DialogFooter><Button onClick={submit}>Adicionar etapa</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ---------- RELATÓRIO ---------- */
+const RELATORIO_TABS = [
+  { key: "capa", label: "Dados Gerais" },
+  { key: "encargos", label: "Encargos" },
+  { key: "bdi", label: "BDI" },
+  { key: "composicao", label: "Composições" },
+  { key: "planilha", label: "Planilha Orçamentária" },
+  { key: "resumo", label: "Resumo" },
+  { key: "cronograma", label: "Cronograma F/F" },
+  { key: "qci", label: "QCI" },
+];
+
+function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi }: any) {
+  const [sel, setSel] = useState<Record<string, boolean>>(
+    Object.fromEntries(RELATORIO_TABS.map(t => [t.key, true]))
+  );
+  const [etapasExtra] = useEtapasExtra(orcId);
+  const etapasExistentes = useMemo(() => {
+    const set = new Set<string>();
+    (items as Item[]).forEach(i => { if (i.etapa) set.add(i.etapa); });
+    etapasExtra.forEach((e: string) => set.add(e));
+    return Array.from(set);
+  }, [items, etapasExtra]);
+  const groups = useMemo(() => groupItemsByEtapa(items, etapasExistentes), [items, etapasExistentes]);
+
+  const toggle = (k: string) => setSel(prev => ({ ...prev, [k]: !prev[k] }));
+  const all = (v: boolean) => setSel(Object.fromEntries(RELATORIO_TABS.map(t => [t.key, v])));
+
+  const sections = () => {
+    const out: { key: string; title: string; rows: (string|number)[][] }[] = [];
+    const bdiPct = Number(orc.bdi_pct);
+    if (sel.capa) out.push({ key: "capa", title: "Dados Gerais", rows: [
+      ["Nome", orc.nome ?? ""], ["Contrato", orc.contrato ?? ""], ["Município/UF", `${orc.municipio ?? ""} / ${orc.uf ?? ""}`],
+      ["Órgão", orc.orgao ?? ""], ["Referência de Preços", orc.ref_precos ?? ""], ["Engenheiro", orc.engenheiro ?? ""],
+      ["CREA", orc.crea ?? ""], ["Objeto", orc.objeto ?? ""],
+    ]});
+    if (sel.encargos) out.push({ key: "encargos", title: "Encargos", rows: [
+      ["Encargos sobre M.O. (%)", fmtPct(Number(orc.encargos_pct))],
+      ["Total de encargos referenciais", fmtBRL(totalEncargos)],
+    ]});
+    if (sel.bdi) out.push({ key: "bdi", title: "BDI", rows: [
+      ["BDI aplicado", fmtPct(bdiPct)],
+      ["Valor de BDI", fmtBRL(totalComBdi - subtotal)],
+    ]});
+    if (sel.composicao) {
+      const linked = (items as Item[]).filter(i => i.fonte && i.codigo);
+      out.push({ key: "composicao", title: "Composições", rows: [
+        ["Item","Fonte","Código","Descrição","Un.","Quant.","Custo Unit."],
+        ...linked.map(i => [i.item ?? "", i.fonte ?? "", i.codigo ?? "", i.descricao, i.unidade ?? "", Number(i.quantidade), Number(i.preco_unitario)]),
+      ]});
+    }
+    if (sel.planilha) {
+      const rows: (string|number)[][] = [["Item","Fonte","Código","Descrição","Un.","Quant.","Preço Unit.","Preço Unit. c/ BDI","Total"]];
+      Object.values(groups).forEach(g => {
+        rows.push([g.label, "", "", "", "", "", "", "", g.list.reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario)*(1+bdiPct),0)]);
+        g.list.forEach(i => {
+          const pu = Number(i.preco_unitario); const puBdi = pu*(1+bdiPct);
+          rows.push([i.item ?? "", i.fonte ?? "", i.codigo ?? "", i.descricao, i.unidade ?? "", Number(i.quantidade), pu, puBdi, Number(i.quantidade)*puBdi]);
+        });
+      });
+      rows.push(["", "", "", "", "", "", "", "TOTAL c/ BDI", totalComBdi]);
+      out.push({ key: "planilha", title: "Planilha Orçamentária", rows });
+    }
+    if (sel.resumo) {
+      const grouped: Record<string, number> = {};
+      Object.values(groups).forEach(g => { grouped[g.label] = g.list.reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario),0); });
+      const tot = Object.values(grouped).reduce((a,b)=>a+b,0) || 1;
+      const rows: (string|number)[][] = [["Etapa","Total","% Obra"]];
+      Object.entries(grouped).forEach(([k,v]) => rows.push([k, v, `${(v/tot*100).toFixed(2)}%`]));
+      rows.push(["SUBTOTAL", subtotal, "100,00%"]);
+      rows.push([`BDI (${fmtPct(bdiPct)})`, totalComBdi - subtotal, ""]);
+      rows.push(["TOTAL GERAL", totalComBdi, ""]);
+      out.push({ key: "resumo", title: "Resumo", rows });
+    }
+    if (sel.cronograma) {
+      out.push({ key: "cronograma", title: "Cronograma F/F", rows: [
+        ["Etapa","Total estimado"],
+        ...Object.values(groups).map(g => [g.label, g.list.reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario)*(1+bdiPct),0)]),
+      ]});
+    }
+    if (sel.qci) {
+      const repasse = totalComBdi * 0.95;
+      out.push({ key: "qci", title: "QCI", rows: [
+        ["Investimento total", totalComBdi],
+        ["Custo direto (sem BDI)", subtotal],
+        [`BDI (${fmtPct(bdiPct)})`, totalComBdi - subtotal],
+        ["Repasse (95%)", repasse],
+        ["Contrapartida (5%)", totalComBdi - repasse],
+      ]});
+    }
+    return out;
+  };
+
+  const exportXlsx = async () => {
+    const XLSX = await import("xlsx");
+    const wb = XLSX.utils.book_new();
+    sections().forEach(s => {
+      const ws = XLSX.utils.aoa_to_sheet(s.rows);
+      XLSX.utils.book_append_sheet(wb, ws, s.title.substring(0, 31));
+    });
+    if (wb.SheetNames.length === 0) return toast.error("Selecione ao menos uma aba");
+    XLSX.writeFile(wb, `${orc.nome || "orcamento"}.xlsx`);
+  };
+
+  const exportPdf = async () => {
+    const { default: jsPDF } = await import("jspdf");
+    const autoTable = (await import("jspdf-autotable")).default;
+    const doc = new jsPDF({ orientation: "landscape" });
+    const secs = sections();
+    if (secs.length === 0) return toast.error("Selecione ao menos uma aba");
+    doc.setFontSize(14);
+    doc.text(orc.nome || "Orçamento", 14, 14);
+    let y = 22;
+    secs.forEach((s, idx) => {
+      if (idx > 0) doc.addPage();
+      doc.setFontSize(12);
+      doc.text(s.title, 14, y);
+      const head = Array.isArray(s.rows[0]) && typeof s.rows[0][0] === "string" && s.rows.length > 1
+        ? [s.rows[0].map(String)]
+        : undefined;
+      const body = (head ? s.rows.slice(1) : s.rows).map(r => r.map(c => typeof c === "number" ? c.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(c)));
+      autoTable(doc, { startY: y + 4, head, body, styles: { fontSize: 8 } });
+      y = 14;
+    });
+    doc.save(`${orc.nome || "orcamento"}.pdf`);
+  };
+
+  return (
+    <div className="mt-4 max-w-2xl space-y-4">
+      <p className="text-sm text-muted-foreground">Selecione as abas que devem compor o relatório. Por padrão todas estão selecionadas.</p>
+      <div className="flex gap-2 text-xs">
+        <button className="underline text-muted-foreground" onClick={()=>all(true)}>Selecionar todas</button>
+        <button className="underline text-muted-foreground" onClick={()=>all(false)}>Limpar</button>
+      </div>
+      <div className="rounded-lg border bg-card divide-y">
+        {RELATORIO_TABS.map(t => (
+          <label key={t.key} className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/40">
+            <Checkbox checked={!!sel[t.key]} onCheckedChange={()=>toggle(t.key)} />
+            <span className="text-sm">{t.label}</span>
+          </label>
+        ))}
+      </div>
+      <div className="flex gap-3">
+        <Button onClick={exportXlsx}><FileDown className="mr-2 size-4"/>Exportar .xlsx</Button>
+        <Button variant="secondary" onClick={exportPdf}><FileDown className="mr-2 size-4"/>Exportar .pdf</Button>
+      </div>
+    </div>
+  );
+}
+
