@@ -19,6 +19,21 @@ const prefixOf = (s: string) => {
   return m ? m[1] : "";
 };
 
+/** Compara códigos hierárquicos numericamente: "1" < "1.2" < "1.10" < "2". */
+export const cmpCode = (a: string, b: string) => {
+  const pa = (a || "").split(".").map(n => parseInt(n, 10));
+  const pb = (b || "").split(".").map(n => parseInt(n, 10));
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const x = pa[i]; const y = pb[i];
+    if (isNaN(x) && isNaN(y)) continue;
+    if (isNaN(x)) return -1;
+    if (isNaN(y)) return 1;
+    if (x !== y) return x - y;
+  }
+  return 0;
+};
+
 function useEtapasExtra(orcId: string) {
   const key = `orc_etapas_${orcId}`;
   const [etapasExtra, setEtapasExtra] = useState<string[]>(() => {
@@ -31,19 +46,31 @@ function useEtapasExtra(orcId: string) {
   return [etapasExtra, setEtapasExtra] as const;
 }
 
-/** Agrupa itens nas etapas casando o prefixo do código do item com o prefixo da etapa. */
+/** Agrupa itens nas etapas casando o prefixo do código do item com o prefixo da etapa.
+ *  Ordena etapas e itens hierarquicamente (1 → 1.2 → 1.10 → 2). */
 function groupItemsByEtapa(items: Item[], etapas: string[], drafts: Record<string,string> = {}) {
-  const map: Record<string, { label: string; list: Item[] }> = {};
-  const etapasPfx = etapas
-    .map(e => ({ etapa: e, label: drafts[e] ?? e, pfx: prefixOf(drafts[e] ?? e) }))
+  const etapasInfo = etapas.map(e => ({ etapa: e, label: drafts[e] ?? e, pfx: prefixOf(drafts[e] ?? e) }));
+  const etapasPfx = etapasInfo
     .filter(x => x.pfx)
     .sort((a, b) => b.pfx.length - a.pfx.length);
-  etapas.forEach(e => { map[e] = { label: drafts[e] ?? e, list: [] }; });
+  // ordena etapas por prefixo numérico para inserção
+  const etapasOrdenadas = [...etapasInfo].sort((a, b) => {
+    if (a.pfx && b.pfx) return cmpCode(a.pfx, b.pfx);
+    if (a.pfx) return -1;
+    if (b.pfx) return 1;
+    return a.label.localeCompare(b.label);
+  });
+  const map: Record<string, { label: string; list: Item[] }> = {};
+  etapasOrdenadas.forEach(e => { map[e.etapa] = { label: e.label, list: [] }; });
   items.forEach(i => {
     const code = (i.item || "").trim();
     const match = etapasPfx.find(({ pfx }) => code === pfx || code.startsWith(pfx + "."));
     const k = match ? match.etapa : "Sem etapa";
     (map[k] ??= { label: "Sem etapa", list: [] }).list.push(i);
+  });
+  // ordena itens dentro de cada etapa
+  Object.values(map).forEach(g => {
+    g.list.sort((a, b) => cmpCode((a.item || "").trim(), (b.item || "").trim()));
   });
   return map;
 }
