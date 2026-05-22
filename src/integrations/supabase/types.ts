@@ -19,33 +19,42 @@ export type Database = {
           classe: string | null
           codigo: string
           created_at: string
+          custo_desonerado: number | null
+          custo_nao_desonerado: number | null
           custo_unitario: number | null
           descricao: string
           fonte: string
           id: number
           mes_ref: string | null
+          uf: string | null
           unidade: string | null
         }
         Insert: {
           classe?: string | null
           codigo: string
           created_at?: string
+          custo_desonerado?: number | null
+          custo_nao_desonerado?: number | null
           custo_unitario?: number | null
           descricao: string
           fonte: string
           id?: number
           mes_ref?: string | null
+          uf?: string | null
           unidade?: string | null
         }
         Update: {
           classe?: string | null
           codigo?: string
           created_at?: string
+          custo_desonerado?: number | null
+          custo_nao_desonerado?: number | null
           custo_unitario?: number | null
           descricao?: string
           fonte?: string
           id?: number
           mes_ref?: string | null
+          uf?: string | null
           unidade?: string | null
         }
         Relationships: []
@@ -60,6 +69,9 @@ export type Database = {
           mes_ref: string | null
           origem: string | null
           preco: number | null
+          preco_desonerado: number | null
+          preco_nao_desonerado: number | null
+          uf: string | null
           unidade: string | null
         }
         Insert: {
@@ -71,6 +83,9 @@ export type Database = {
           mes_ref?: string | null
           origem?: string | null
           preco?: number | null
+          preco_desonerado?: number | null
+          preco_nao_desonerado?: number | null
+          uf?: string | null
           unidade?: string | null
         }
         Update: {
@@ -82,6 +97,9 @@ export type Database = {
           mes_ref?: string | null
           origem?: string | null
           preco?: number | null
+          preco_desonerado?: number | null
+          preco_nao_desonerado?: number | null
+          uf?: string | null
           unidade?: string | null
         }
         Relationships: []
