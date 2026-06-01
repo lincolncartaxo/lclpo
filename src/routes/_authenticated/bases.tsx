@@ -3,10 +3,11 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtBRL } from "@/lib/format";
-import { Search } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/bases")({
   head: () => ({ meta: [{ title: "Bases SINAPI/DER — Orça" }] }),
@@ -15,14 +16,14 @@ export const Route = createFileRoute("/_authenticated/bases")({
 
 const UFS = ["AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT","PA","PB","PE","PI","PR","RJ","RN","RO","RR","RS","SC","SE","SP","TO"];
 const FONTES = ["SINAPI", "DER", "SICRO3", "SBC", "ORSE", "Outras"];
+const PAGE_SIZE = 10;
 
 function Filtros({
-  uf, setUf, mes, setMes, fonte, setFonte, showFonte = true,
+  uf, setUf, mes, setMes, fonte, setFonte,
 }: {
   uf: string; setUf: (v: string) => void;
   mes: string; setMes: (v: string) => void;
   fonte: string; setFonte: (v: string) => void;
-  showFonte?: boolean;
 }) {
   return (
     <div className="flex flex-wrap gap-3 items-end mb-4">
@@ -40,18 +41,16 @@ function Filtros({
         <Label className="text-xs text-muted-foreground">Mês de Referência</Label>
         <Input type="month" className="w-40" value={mes} onChange={e => setMes(e.target.value)} />
       </div>
-      {showFonte && (
-        <div className="grid gap-1">
-          <Label className="text-xs text-muted-foreground">Fonte</Label>
-          <Select value={fonte} onValueChange={setFonte}>
-            <SelectTrigger className="w-36"><SelectValue placeholder="Fonte" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all">Todas</SelectItem>
-              {FONTES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+      <div className="grid gap-1">
+        <Label className="text-xs text-muted-foreground">Fonte</Label>
+        <Select value={fonte} onValueChange={setFonte}>
+          <SelectTrigger className="w-36"><SelectValue placeholder="Fonte" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all">Todas</SelectItem>
+            {FONTES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
 }
@@ -80,33 +79,56 @@ function Bases() {
   );
 }
 
-function useFiltered<T = any>(
+function usePaged<T = any>(
   table: "base_composicoes" | "base_insumos",
   columns: string,
-  { uf, mes, fonte, q }: { uf: string; mes: string; fonte: string; q: string },
+  { uf, mes, fonte, q, page }: { uf: string; mes: string; fonte: string; q: string; page: number },
 ) {
   const [rows, setRows] = useState<T[]>([]);
+  const [count, setCount] = useState(0);
   useEffect(() => {
     const t = setTimeout(async () => {
-      let query: any = supabase.from(table).select(columns).limit(200);
+      const from = (page - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      let query: any = supabase.from(table).select(columns, { count: "exact" }).range(from, to);
       if (fonte !== "__all") query = query.eq("fonte", fonte);
       if (uf !== "__all") query = query.eq("uf", uf);
       if (mes) query = query.eq("mes_ref", mes);
       if (q.trim()) query = query.or(`descricao.ilike.%${q}%,codigo.ilike.%${q}%`);
-      const { data } = await query;
+      const { data, count: c } = await query;
       setRows((data as T[]) ?? []);
+      setCount(c ?? 0);
     }, 250);
     return () => clearTimeout(t);
-  }, [table, columns, uf, mes, fonte, q]);
-  return rows;
+  }, [table, columns, uf, mes, fonte, q, page]);
+  return { rows, count };
+}
+
+function Pager({ page, setPage, count }: { page: number; setPage: (n: number) => void; count: number }) {
+  const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
+  return (
+    <div className="flex items-center justify-between p-2 text-sm">
+      <span className="text-muted-foreground">{count} registro(s) · página {page} de {totalPages}</span>
+      <div className="flex gap-1">
+        <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+          <ChevronLeft className="size-4" />
+        </Button>
+        <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+          <ChevronRight className="size-4" />
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function CompList({ uf, mes, fonte }: { uf: string; mes: string; fonte: string }) {
   const [q, setQ] = useState("");
-  const rows = useFiltered<any>(
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [uf, mes, fonte, q]);
+  const { rows, count } = usePaged<any>(
     "base_composicoes",
-    "codigo,descricao,unidade,custo_unitario,custo_desonerado,custo_nao_desonerado,uf,mes_ref,fonte",
-    { uf, mes, fonte, q },
+    "codigo,descricao,unidade,custo_desonerado,custo_nao_desonerado,uf,mes_ref,fonte",
+    { uf, mes, fonte, q, page },
   );
   return (
     <div className="mt-4">
@@ -124,12 +146,13 @@ function CompList({ uf, mes, fonte }: { uf: string; mes: string; fonte: string }
             <tr key={i}>
               <td>{r.fonte}</td><td>{r.uf ?? "—"}</td><td>{r.mes_ref ?? "—"}</td>
               <td>{r.codigo}</td><td>{r.descricao}</td><td>{r.unidade}</td>
-              <td className="num">{fmtBRL(r.custo_desonerado ?? r.custo_unitario)}</td>
-              <td className="num">{fmtBRL(r.custo_nao_desonerado ?? r.custo_unitario)}</td>
+              <td className="num">{fmtBRL(r.custo_desonerado)}</td>
+              <td className="num">{fmtBRL(r.custo_nao_desonerado)}</td>
             </tr>
           ))}</tbody>
         </table>
         {rows.length === 0 && <div className="p-6 text-center text-sm text-muted-foreground">Nenhum registro para os filtros selecionados.</div>}
+        <Pager page={page} setPage={setPage} count={count} />
       </div>
     </div>
   );
@@ -137,10 +160,12 @@ function CompList({ uf, mes, fonte }: { uf: string; mes: string; fonte: string }
 
 function InsList({ uf, mes, fonte }: { uf: string; mes: string; fonte: string }) {
   const [q, setQ] = useState("");
-  const rows = useFiltered<any>(
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [uf, mes, fonte, q]);
+  const { rows, count } = usePaged<any>(
     "base_insumos",
-    "codigo,descricao,unidade,preco,preco_desonerado,preco_nao_desonerado,origem,uf,mes_ref,fonte",
-    { uf, mes, fonte, q },
+    "codigo,descricao,unidade,preco_desonerado,preco_nao_desonerado,origem,uf,mes_ref,fonte",
+    { uf, mes, fonte, q, page },
   );
   return (
     <div className="mt-4">
@@ -158,12 +183,13 @@ function InsList({ uf, mes, fonte }: { uf: string; mes: string; fonte: string })
             <tr key={i}>
               <td>{r.fonte}</td><td>{r.uf ?? "—"}</td><td>{r.mes_ref ?? "—"}</td>
               <td>{r.codigo}</td><td>{r.descricao}</td><td>{r.unidade}</td><td>{r.origem ?? "—"}</td>
-              <td className="num">{fmtBRL(r.preco_desonerado ?? r.preco)}</td>
-              <td className="num">{fmtBRL(r.preco_nao_desonerado ?? r.preco)}</td>
+              <td className="num">{fmtBRL(r.preco_desonerado)}</td>
+              <td className="num">{fmtBRL(r.preco_nao_desonerado)}</td>
             </tr>
           ))}</tbody>
         </table>
         {rows.length === 0 && <div className="p-6 text-center text-sm text-muted-foreground">Nenhum registro para os filtros selecionados.</div>}
+        <Pager page={page} setPage={setPage} count={count} />
       </div>
     </div>
   );
