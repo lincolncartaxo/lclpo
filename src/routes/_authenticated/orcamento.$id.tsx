@@ -8,8 +8,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Save, Plus, Search, Trash2, FileDown } from "lucide-react";
+import { ArrowLeft, Save, Plus, Search, Trash2, FileDown, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { fmtBRL, fmtPct, fmtNum } from "@/lib/format";
 
@@ -154,7 +155,7 @@ function Editor() {
           <TabsContent value="bdi"><BdiTab orc={orc} onSaved={load} /></TabsContent>
           <TabsContent value="composicao"><ComposicaoTab items={items} /></TabsContent>
           <TabsContent value="cotacao"><CotacaoTab /></TabsContent>
-          <TabsContent value="planilha"><PlanilhaTab orcId={id} items={items} reload={load} bdiPct={Number(orc.bdi_pct)} /></TabsContent>
+          <TabsContent value="planilha"><PlanilhaTab orcId={id} items={items} reload={load} bdiPct={Number(orc.bdi_pct)} regime={orc.regime ?? "nao_desonerado"} /></TabsContent>
           <TabsContent value="resumo"><ResumoTab orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
           <TabsContent value="cronograma"><CronogramaTab orcId={id} items={items} totalComBdi={totalComBdi} /></TabsContent>
           <TabsContent value="qci"><QciTab subtotal={subtotal} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
@@ -172,7 +173,8 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
     const { error } = await supabase.from("orcamentos").update({
       nome: f.nome, objeto: f.objeto, contrato: f.contrato, orgao: f.orgao,
       municipio: f.municipio, uf: f.uf, engenheiro: f.engenheiro, crea: f.crea, ref_precos: f.ref_precos,
-    }).eq("id", orc.id);
+      regime: f.regime ?? "nao_desonerado",
+    } as any).eq("id", orc.id);
     if (error) return toast.error(error.message);
     toast.success("Dados Gerais salvos"); onSaved();
   };
@@ -187,6 +189,15 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
         <Field label="Referência de Preços"><Input value={f.ref_precos ?? ""} placeholder="Ex.: SINAPI PB - Janeiro/2026" onChange={(e)=>setF({...f,ref_precos:e.target.value})} /></Field>
         <Field label="Engenheiro Responsável"><Input value={f.engenheiro ?? ""} onChange={(e)=>setF({...f,engenheiro:e.target.value})} /></Field>
         <Field label="CREA"><Input value={f.crea ?? ""} onChange={(e)=>setF({...f,crea:e.target.value})} /></Field>
+        <Field label="Regime Tributário">
+          <Select value={f.regime ?? "nao_desonerado"} onValueChange={(v)=>setF({...f, regime: v})}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="nao_desonerado">Não Desonerado</SelectItem>
+              <SelectItem value="desonerado">Desonerado</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
       </div>
       <Field label="Objeto"><Textarea rows={4} value={f.objeto ?? ""} onChange={(e)=>setF({...f,objeto:e.target.value})} /></Field>
       <Button onClick={save}><Save className="mr-2 size-4" />Salvar Dados Gerais</Button>
@@ -280,9 +291,10 @@ function CotacaoTab() {
 }
 
 /* ---------- PLANILHA ORÇAMENTÁRIA ---------- */
-function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: Item[]; reload: () => void; bdiPct: number }) {
+function PlanilhaTab({ orcId, items, reload, bdiPct, regime }: { orcId: string; items: Item[]; reload: () => void; bdiPct: number; regime: string }) {
   const [open, setOpen] = useState(false);
   const [openEtapa, setOpenEtapa] = useState(false);
+  const [explodeRow, setExplodeRow] = useState<Item | null>(null);
   const [etapasExtra, setEtapasExtra] = useEtapasExtra(orcId);
   const [etapaDrafts, setEtapaDrafts] = useState<Record<string, string>>({});
 
@@ -355,7 +367,8 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
         <p className="text-sm text-muted-foreground">{items.length} itens · Total c/ BDI {fmtBRL(total)}</p>
         <div className="flex gap-2 items-center">
           <AddEtapaDialog open={openEtapa} setOpen={setOpenEtapa} onAdd={addEtapa} />
-          <AddItemDialog orcId={orcId} open={open} setOpen={setOpen} onAdded={reload} nextOrdem={items.length+1} />
+          <AddItemDialog orcId={orcId} open={open} setOpen={setOpen} onAdded={reload} nextOrdem={items.length+1} regime={regime} />
+
 
         </div>
       </div>
@@ -397,14 +410,20 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
                   const puBdi = pu * (1 + bdiPct);
                   const tot = Number(i.quantidade) * puBdi;
                   return (
-                    <tr key={i.id}>
-                      <td><input className="w-full bg-transparent outline-none" defaultValue={i.item ?? ""} onBlur={(e)=>updateField(i.id,"item",e.target.value)} /></td>
-                      <td>{i.fonte || "—"}</td>
-                      <td>{i.codigo || "—"}</td>
-                      <td><input className="w-full bg-transparent outline-none" defaultValue={i.descricao} onBlur={(e)=>updateField(i.id,"descricao",e.target.value)} /></td>
-                      <td><input className="w-full bg-transparent outline-none" defaultValue={i.unidade ?? ""} onBlur={(e)=>updateField(i.id,"unidade",e.target.value)} /></td>
-                      <td className="num"><input className="w-full text-right bg-transparent outline-none" type="number" step="0.01" defaultValue={i.quantidade} onBlur={(e)=>updateField(i.id,"quantidade",Number(e.target.value))} /></td>
-                      <td className="num"><input className="w-full text-right bg-transparent outline-none" type="number" step="0.01" defaultValue={i.preco_unitario} onBlur={(e)=>updateField(i.id,"preco_unitario",Number(e.target.value))} /></td>
+                    <tr key={i.id} className={i.fonte && i.codigo ? "cursor-pointer hover:bg-muted/40" : ""}>
+                      <td onClick={(e)=>e.stopPropagation()}><input className="w-full bg-transparent outline-none" defaultValue={i.item ?? ""} onBlur={(e)=>updateField(i.id,"item",e.target.value)} /></td>
+                      <td>
+                        {i.fonte && i.codigo ? (
+                          <button type="button" className="inline-flex items-center gap-1 text-primary hover:underline" onClick={()=>setExplodeRow(i)} title="Explosão de insumos">
+                            <Layers className="size-3" />{i.fonte}
+                          </button>
+                        ) : (i.fonte || "—")}
+                      </td>
+                      <td className="text-muted-foreground">{i.codigo || "—"}</td>
+                      <td className="text-muted-foreground">{i.descricao}</td>
+                      <td className="text-muted-foreground">{i.unidade ?? "—"}</td>
+                      <td className="num" onClick={(e)=>e.stopPropagation()}><input className="w-full text-right bg-transparent outline-none" type="number" step="0.01" defaultValue={i.quantidade} onBlur={(e)=>updateField(i.id,"quantidade",Number(e.target.value))} /></td>
+                      <td className="num text-muted-foreground">{fmtBRL(pu)}</td>
                       <td className="num text-muted-foreground">{fmtPct(bdiPct)}</td>
                       <td className="num">{fmtBRL(puBdi)}</td>
                       <td className="num font-medium">{fmtBRL(tot)}</td>
@@ -420,13 +439,81 @@ function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: I
           </tbody>
         </table>
       </div>
+      <ExplosaoSheet row={explodeRow} onClose={()=>setExplodeRow(null)} regime={regime} />
     </div>
   );
 }
 
-function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem }: any) {
+function ExplosaoSheet({ row, onClose, regime }: { row: Item | null; onClose: () => void; regime: string }) {
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!row) return;
+    setLoading(true);
+    (async () => {
+      const { data } = await supabase
+        .from("base_composicao_itens")
+        .select("*")
+        .eq("fonte", row.fonte!)
+        .eq("composicao_codigo", row.codigo!);
+      setRows(data ?? []);
+      setLoading(false);
+    })();
+  }, [row]);
+  const priceOf = (r: any) => Number((regime === "desonerado" ? r.preco_desonerado : r.preco_nao_desonerado) ?? 0);
+  const total = rows.reduce((s, r) => s + Number(r.coeficiente) * priceOf(r), 0);
+  return (
+    <Sheet open={!!row} onOpenChange={(o)=>{ if (!o) onClose(); }}>
+      <SheetContent side="right" className="sm:max-w-2xl w-full overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>Explosão de insumos</SheetTitle>
+          <SheetDescription>
+            {row ? <>{row.fonte} · {row.codigo} — {row.descricao}</> : null}
+          </SheetDescription>
+        </SheetHeader>
+        <div className="mt-4 overflow-x-auto rounded border">
+          <table className="budget-table">
+            <thead><tr>
+              <th>Tipo</th><th>Código</th><th>Descrição</th><th>Un.</th>
+              <th className="num">Coef.</th><th className="num">Preço Unit.</th><th className="num">Subtotal</th>
+            </tr></thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.tipo ?? "—"}</td>
+                  <td>{r.insumo_codigo ?? "—"}</td>
+                  <td>{r.descricao}</td>
+                  <td>{r.unidade ?? "—"}</td>
+                  <td className="num">{Number(r.coeficiente).toLocaleString("pt-BR",{minimumFractionDigits:4,maximumFractionDigits:6})}</td>
+                  <td className="num">{fmtBRL(priceOf(r))}</td>
+                  <td className="num">{fmtBRL(Number(r.coeficiente) * priceOf(r))}</td>
+                </tr>
+              ))}
+              {!loading && rows.length === 0 && (
+                <tr><td colSpan={7} className="text-center text-muted-foreground py-6 text-xs italic">
+                  Nenhuma composição cadastrada para este código.
+                </td></tr>
+              )}
+            </tbody>
+            {rows.length > 0 && (
+              <tfoot>
+                <tr className="font-semibold bg-secondary/40">
+                  <td colSpan={6} className="text-right">Custo total da composição</td>
+                  <td className="num">{fmtBRL(total)}</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime }: any) {
+  const FONTES_ALL = ["SINAPI","DER","SICRO3","SBC","ORSE","Outras"];
   const [tab, setTab] = useState("base");
-  const [fonte, setFonte] = useState<"SINAPI"|"DER">("SINAPI");
+  const [fonte, setFonte] = useState<string>("__all");
   const [q, setQ] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [item, setItem] = useState("");
@@ -435,9 +522,15 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem }: any) {
   // manual fields
   const [m, setM] = useState({ descricao: "", unidade: "un", preco_unitario: "0" });
 
+  const priceField = regime === "desonerado" ? "custo_desonerado" : "custo_nao_desonerado";
+
   useEffect(() => {
     const t = setTimeout(async () => {
-      let qb = supabase.from("base_composicoes").select("codigo,descricao,unidade,custo_unitario").eq("fonte", fonte).limit(30);
+      let qb: any = supabase
+        .from("base_composicoes")
+        .select("codigo,descricao,unidade,custo_desonerado,custo_nao_desonerado,fonte")
+        .limit(30);
+      if (fonte !== "__all") qb = qb.eq("fonte", fonte);
       if (q.trim()) qb = qb.or(`descricao.ilike.%${q}%,codigo.ilike.%${q}%`);
       const { data } = await qb;
       setResults(data ?? []);
@@ -448,8 +541,9 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem }: any) {
   const addFromBase = async (r: any) => {
     await supabase.from("orcamento_itens").insert({
       orcamento_id: orcId, ordem: nextOrdem, etapa: null, item: item || null,
-      fonte, codigo: String(r.codigo), descricao: r.descricao, unidade: r.unidade,
-      quantidade: Number(quant.replace(",",".") || 1), preco_unitario: Number(r.custo_unitario || 0),
+      fonte: r.fonte, codigo: String(r.codigo), descricao: r.descricao, unidade: r.unidade,
+      quantidade: Number(quant.replace(",",".") || 1),
+      preco_unitario: Number(r[priceField] ?? 0),
     });
     toast.success("Item adicionado"); setOpen(false); onAdded();
   };
@@ -468,25 +562,28 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem }: any) {
       <DialogTrigger asChild><Button><Plus className="mr-2 size-4"/>Adicionar item</Button></DialogTrigger>
       <DialogContent className="max-w-3xl">
         <DialogHeader><DialogTitle>Adicionar item</DialogTitle></DialogHeader>
-        <p className="text-xs text-muted-foreground -mt-2">O item é agrupado automaticamente na etapa cujo prefixo corresponde (ex.: item “1.1” entra na etapa “1 - …”).</p>
+        <p className="text-xs text-muted-foreground -mt-2">O item é agrupado automaticamente na etapa cujo prefixo corresponde (ex.: item “1.1” entra na etapa “1 - …”). Preço aplicado conforme regime: <strong>{regime === "desonerado" ? "Desonerado" : "Não Desonerado"}</strong>.</p>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Item nº (prefixo hierárquico)"><Input value={item} onChange={(e)=>setItem(e.target.value)} placeholder="Ex.: 1.1" /></Field>
           <Field label="Quantidade"><Input value={quant} onChange={(e)=>setQuant(e.target.value)} /></Field>
         </div>
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList><TabsTrigger value="base">Da base SINAPI/DER</TabsTrigger><TabsTrigger value="manual">Item manual</TabsTrigger></TabsList>
+          <TabsList><TabsTrigger value="base">Das bases de preços</TabsTrigger><TabsTrigger value="manual">Item manual</TabsTrigger></TabsList>
           <TabsContent value="base">
             <div className="flex gap-2 mt-2">
-              <Select value={fonte} onValueChange={(v)=>setFonte(v as any)}>
-                <SelectTrigger className="w-32"><SelectValue/></SelectTrigger>
-                <SelectContent><SelectItem value="SINAPI">SINAPI</SelectItem><SelectItem value="DER">DER</SelectItem></SelectContent>
+              <Select value={fonte} onValueChange={(v)=>setFonte(v)}>
+                <SelectTrigger className="w-40"><SelectValue/></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all">Todas as fontes</SelectItem>
+                  {FONTES_ALL.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                </SelectContent>
               </Select>
               <div className="relative flex-1"><Search className="absolute left-2 top-2.5 size-4 text-muted-foreground"/><Input className="pl-8" placeholder="Buscar código ou descrição…" value={q} onChange={(e)=>setQ(e.target.value)} /></div>
             </div>
             <div className="mt-3 max-h-80 overflow-auto rounded border">
               <table className="budget-table">
-                <thead><tr><th>Cód.</th><th>Descrição</th><th>Un.</th><th className="num">Custo</th><th></th></tr></thead>
-                <tbody>{results.map((r,i)=>(<tr key={i}><td>{r.codigo}</td><td>{r.descricao}</td><td>{r.unidade}</td><td className="num">{fmtBRL(r.custo_unitario)}</td><td><Button size="sm" variant="secondary" onClick={()=>addFromBase(r)}>Adicionar</Button></td></tr>))}</tbody>
+                <thead><tr><th>Fonte</th><th>Cód.</th><th>Descrição</th><th>Un.</th><th className="num">Preço</th><th></th></tr></thead>
+                <tbody>{results.map((r,i)=>(<tr key={i}><td>{r.fonte}</td><td>{r.codigo}</td><td>{r.descricao}</td><td>{r.unidade}</td><td className="num">{fmtBRL(Number(r[priceField] ?? 0))}</td><td><Button size="sm" variant="secondary" onClick={()=>addFromBase(r)}>Adicionar</Button></td></tr>))}</tbody>
               </table>
             </div>
           </TabsContent>

@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      base_composicao_itens: {
+        Row: {
+          coeficiente: number
+          composicao_codigo: string
+          created_at: string
+          descricao: string
+          fonte: string
+          id: number
+          insumo_codigo: string | null
+          mes_ref: string | null
+          preco_desonerado: number | null
+          preco_nao_desonerado: number | null
+          tipo: string | null
+          uf: string | null
+          unidade: string | null
+        }
+        Insert: {
+          coeficiente?: number
+          composicao_codigo: string
+          created_at?: string
+          descricao: string
+          fonte: string
+          id?: number
+          insumo_codigo?: string | null
+          mes_ref?: string | null
+          preco_desonerado?: number | null
+          preco_nao_desonerado?: number | null
+          tipo?: string | null
+          uf?: string | null
+          unidade?: string | null
+        }
+        Update: {
+          coeficiente?: number
+          composicao_codigo?: string
+          created_at?: string
+          descricao?: string
+          fonte?: string
+          id?: number
+          insumo_codigo?: string | null
+          mes_ref?: string | null
+          preco_desonerado?: number | null
+          preco_nao_desonerado?: number | null
+          tipo?: string | null
+          uf?: string | null
+          unidade?: string | null
+        }
+        Relationships: []
+      }
       base_composicoes: {
         Row: {
           classe: string | null
@@ -21,7 +69,6 @@ export type Database = {
           created_at: string
           custo_desonerado: number | null
           custo_nao_desonerado: number | null
-          custo_unitario: number | null
           descricao: string
           fonte: string
           id: number
@@ -35,7 +82,6 @@ export type Database = {
           created_at?: string
           custo_desonerado?: number | null
           custo_nao_desonerado?: number | null
-          custo_unitario?: number | null
           descricao: string
           fonte: string
           id?: number
@@ -49,7 +95,6 @@ export type Database = {
           created_at?: string
           custo_desonerado?: number | null
           custo_nao_desonerado?: number | null
-          custo_unitario?: number | null
           descricao?: string
           fonte?: string
           id?: number
@@ -68,7 +113,6 @@ export type Database = {
           id: number
           mes_ref: string | null
           origem: string | null
-          preco: number | null
           preco_desonerado: number | null
           preco_nao_desonerado: number | null
           uf: string | null
@@ -82,7 +126,6 @@ export type Database = {
           id?: number
           mes_ref?: string | null
           origem?: string | null
-          preco?: number | null
           preco_desonerado?: number | null
           preco_nao_desonerado?: number | null
           uf?: string | null
@@ -96,7 +139,6 @@ export type Database = {
           id?: number
           mes_ref?: string | null
           origem?: string | null
-          preco?: number | null
           preco_desonerado?: number | null
           preco_nao_desonerado?: number | null
           uf?: string | null
@@ -206,6 +248,7 @@ export type Database = {
           objeto: string | null
           orgao: string | null
           ref_precos: string | null
+          regime: string
           status: string
           uf: string | null
           updated_at: string
@@ -224,6 +267,7 @@ export type Database = {
           objeto?: string | null
           orgao?: string | null
           ref_precos?: string | null
+          regime?: string
           status?: string
           uf?: string | null
           updated_at?: string
@@ -242,6 +286,7 @@ export type Database = {
           objeto?: string | null
           orgao?: string | null
           ref_precos?: string | null
+          regime?: string
           status?: string
           uf?: string | null
           updated_at?: string
