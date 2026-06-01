@@ -439,7 +439,74 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime }: { orcId: string; 
           </tbody>
         </table>
       </div>
+      <ExplosaoSheet row={explodeRow} onClose={()=>setExplodeRow(null)} regime={regime} />
     </div>
+  );
+}
+
+function ExplosaoSheet({ row, onClose, regime }: { row: Item | null; onClose: () => void; regime: string }) {
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!row) return;
+    setLoading(true);
+    (async () => {
+      const { data } = await supabase
+        .from("base_composicao_itens")
+        .select("*")
+        .eq("fonte", row.fonte!)
+        .eq("composicao_codigo", row.codigo!);
+      setRows(data ?? []);
+      setLoading(false);
+    })();
+  }, [row]);
+  const priceOf = (r: any) => Number((regime === "desonerado" ? r.preco_desonerado : r.preco_nao_desonerado) ?? 0);
+  const total = rows.reduce((s, r) => s + Number(r.coeficiente) * priceOf(r), 0);
+  return (
+    <Sheet open={!!row} onOpenChange={(o)=>{ if (!o) onClose(); }}>
+      <SheetContent side="right" className="sm:max-w-2xl w-full overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>Explosão de insumos</SheetTitle>
+          <SheetDescription>
+            {row ? <>{row.fonte} · {row.codigo} — {row.descricao}</> : null}
+          </SheetDescription>
+        </SheetHeader>
+        <div className="mt-4 overflow-x-auto rounded border">
+          <table className="budget-table">
+            <thead><tr>
+              <th>Tipo</th><th>Código</th><th>Descrição</th><th>Un.</th>
+              <th className="num">Coef.</th><th className="num">Preço Unit.</th><th className="num">Subtotal</th>
+            </tr></thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.tipo ?? "—"}</td>
+                  <td>{r.insumo_codigo ?? "—"}</td>
+                  <td>{r.descricao}</td>
+                  <td>{r.unidade ?? "—"}</td>
+                  <td className="num">{Number(r.coeficiente).toLocaleString("pt-BR",{minimumFractionDigits:4,maximumFractionDigits:6})}</td>
+                  <td className="num">{fmtBRL(priceOf(r))}</td>
+                  <td className="num">{fmtBRL(Number(r.coeficiente) * priceOf(r))}</td>
+                </tr>
+              ))}
+              {!loading && rows.length === 0 && (
+                <tr><td colSpan={7} className="text-center text-muted-foreground py-6 text-xs italic">
+                  Nenhuma composição cadastrada para este código.
+                </td></tr>
+              )}
+            </tbody>
+            {rows.length > 0 && (
+              <tfoot>
+                <tr className="font-semibold bg-secondary/40">
+                  <td colSpan={6} className="text-right">Custo total da composição</td>
+                  <td className="num">{fmtBRL(total)}</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
