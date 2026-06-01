@@ -510,9 +510,10 @@ function ExplosaoSheet({ row, onClose, regime }: { row: Item | null; onClose: ()
   );
 }
 
-function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem }: any) {
+function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime }: any) {
+  const FONTES_ALL = ["SINAPI","DER","SICRO3","SBC","ORSE","Outras"];
   const [tab, setTab] = useState("base");
-  const [fonte, setFonte] = useState<"SINAPI"|"DER">("SINAPI");
+  const [fonte, setFonte] = useState<string>("__all");
   const [q, setQ] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [item, setItem] = useState("");
@@ -521,9 +522,15 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem }: any) {
   // manual fields
   const [m, setM] = useState({ descricao: "", unidade: "un", preco_unitario: "0" });
 
+  const priceField = regime === "desonerado" ? "custo_desonerado" : "custo_nao_desonerado";
+
   useEffect(() => {
     const t = setTimeout(async () => {
-      let qb = supabase.from("base_composicoes").select("codigo,descricao,unidade,custo_unitario").eq("fonte", fonte).limit(30);
+      let qb: any = supabase
+        .from("base_composicoes")
+        .select("codigo,descricao,unidade,custo_desonerado,custo_nao_desonerado,fonte")
+        .limit(30);
+      if (fonte !== "__all") qb = qb.eq("fonte", fonte);
       if (q.trim()) qb = qb.or(`descricao.ilike.%${q}%,codigo.ilike.%${q}%`);
       const { data } = await qb;
       setResults(data ?? []);
@@ -534,8 +541,9 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem }: any) {
   const addFromBase = async (r: any) => {
     await supabase.from("orcamento_itens").insert({
       orcamento_id: orcId, ordem: nextOrdem, etapa: null, item: item || null,
-      fonte, codigo: String(r.codigo), descricao: r.descricao, unidade: r.unidade,
-      quantidade: Number(quant.replace(",",".") || 1), preco_unitario: Number(r.custo_unitario || 0),
+      fonte: r.fonte, codigo: String(r.codigo), descricao: r.descricao, unidade: r.unidade,
+      quantidade: Number(quant.replace(",",".") || 1),
+      preco_unitario: Number(r[priceField] ?? 0),
     });
     toast.success("Item adicionado"); setOpen(false); onAdded();
   };
@@ -554,25 +562,28 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem }: any) {
       <DialogTrigger asChild><Button><Plus className="mr-2 size-4"/>Adicionar item</Button></DialogTrigger>
       <DialogContent className="max-w-3xl">
         <DialogHeader><DialogTitle>Adicionar item</DialogTitle></DialogHeader>
-        <p className="text-xs text-muted-foreground -mt-2">O item é agrupado automaticamente na etapa cujo prefixo corresponde (ex.: item “1.1” entra na etapa “1 - …”).</p>
+        <p className="text-xs text-muted-foreground -mt-2">O item é agrupado automaticamente na etapa cujo prefixo corresponde (ex.: item “1.1” entra na etapa “1 - …”). Preço aplicado conforme regime: <strong>{regime === "desonerado" ? "Desonerado" : "Não Desonerado"}</strong>.</p>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Item nº (prefixo hierárquico)"><Input value={item} onChange={(e)=>setItem(e.target.value)} placeholder="Ex.: 1.1" /></Field>
           <Field label="Quantidade"><Input value={quant} onChange={(e)=>setQuant(e.target.value)} /></Field>
         </div>
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList><TabsTrigger value="base">Da base SINAPI/DER</TabsTrigger><TabsTrigger value="manual">Item manual</TabsTrigger></TabsList>
+          <TabsList><TabsTrigger value="base">Das bases de preços</TabsTrigger><TabsTrigger value="manual">Item manual</TabsTrigger></TabsList>
           <TabsContent value="base">
             <div className="flex gap-2 mt-2">
-              <Select value={fonte} onValueChange={(v)=>setFonte(v as any)}>
-                <SelectTrigger className="w-32"><SelectValue/></SelectTrigger>
-                <SelectContent><SelectItem value="SINAPI">SINAPI</SelectItem><SelectItem value="DER">DER</SelectItem></SelectContent>
+              <Select value={fonte} onValueChange={(v)=>setFonte(v)}>
+                <SelectTrigger className="w-40"><SelectValue/></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all">Todas as fontes</SelectItem>
+                  {FONTES_ALL.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                </SelectContent>
               </Select>
               <div className="relative flex-1"><Search className="absolute left-2 top-2.5 size-4 text-muted-foreground"/><Input className="pl-8" placeholder="Buscar código ou descrição…" value={q} onChange={(e)=>setQ(e.target.value)} /></div>
             </div>
             <div className="mt-3 max-h-80 overflow-auto rounded border">
               <table className="budget-table">
-                <thead><tr><th>Cód.</th><th>Descrição</th><th>Un.</th><th className="num">Custo</th><th></th></tr></thead>
-                <tbody>{results.map((r,i)=>(<tr key={i}><td>{r.codigo}</td><td>{r.descricao}</td><td>{r.unidade}</td><td className="num">{fmtBRL(r.custo_unitario)}</td><td><Button size="sm" variant="secondary" onClick={()=>addFromBase(r)}>Adicionar</Button></td></tr>))}</tbody>
+                <thead><tr><th>Fonte</th><th>Cód.</th><th>Descrição</th><th>Un.</th><th className="num">Preço</th><th></th></tr></thead>
+                <tbody>{results.map((r,i)=>(<tr key={i}><td>{r.fonte}</td><td>{r.codigo}</td><td>{r.descricao}</td><td>{r.unidade}</td><td className="num">{fmtBRL(Number(r[priceField] ?? 0))}</td><td><Button size="sm" variant="secondary" onClick={()=>addFromBase(r)}>Adicionar</Button></td></tr>))}</tbody>
               </table>
             </div>
           </TabsContent>
