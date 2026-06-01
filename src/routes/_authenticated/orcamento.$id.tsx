@@ -367,7 +367,8 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime }: { orcId: string; 
         <p className="text-sm text-muted-foreground">{items.length} itens · Total c/ BDI {fmtBRL(total)}</p>
         <div className="flex gap-2 items-center">
           <AddEtapaDialog open={openEtapa} setOpen={setOpenEtapa} onAdd={addEtapa} />
-          <AddItemDialog orcId={orcId} open={open} setOpen={setOpen} onAdded={reload} nextOrdem={items.length+1} />
+          <AddItemDialog orcId={orcId} open={open} setOpen={setOpen} onAdded={reload} nextOrdem={items.length+1} regime={regime} />
+
 
         </div>
       </div>
