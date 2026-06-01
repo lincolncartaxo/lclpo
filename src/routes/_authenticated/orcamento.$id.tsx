@@ -8,8 +8,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Save, Plus, Search, Trash2, FileDown } from "lucide-react";
+import { ArrowLeft, Save, Plus, Search, Trash2, FileDown, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { fmtBRL, fmtPct, fmtNum } from "@/lib/format";
 
