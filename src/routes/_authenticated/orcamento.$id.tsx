@@ -291,7 +291,7 @@ function CotacaoTab() {
 }
 
 /* ---------- PLANILHA ORÇAMENTÁRIA ---------- */
-function PlanilhaTab({ orcId, items, reload, bdiPct }: { orcId: string; items: Item[]; reload: () => void; bdiPct: number }) {
+function PlanilhaTab({ orcId, items, reload, bdiPct, regime }: { orcId: string; items: Item[]; reload: () => void; bdiPct: number; regime: string }) {
   const [open, setOpen] = useState(false);
   const [openEtapa, setOpenEtapa] = useState(false);
   const [etapasExtra, setEtapasExtra] = useEtapasExtra(orcId);
