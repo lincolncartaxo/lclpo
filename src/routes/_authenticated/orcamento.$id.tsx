@@ -410,14 +410,20 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime }: { orcId: string; 
                   const puBdi = pu * (1 + bdiPct);
                   const tot = Number(i.quantidade) * puBdi;
                   return (
-                    <tr key={i.id}>
-                      <td><input className="w-full bg-transparent outline-none" defaultValue={i.item ?? ""} onBlur={(e)=>updateField(i.id,"item",e.target.value)} /></td>
-                      <td>{i.fonte || "—"}</td>
-                      <td>{i.codigo || "—"}</td>
-                      <td><input className="w-full bg-transparent outline-none" defaultValue={i.descricao} onBlur={(e)=>updateField(i.id,"descricao",e.target.value)} /></td>
-                      <td><input className="w-full bg-transparent outline-none" defaultValue={i.unidade ?? ""} onBlur={(e)=>updateField(i.id,"unidade",e.target.value)} /></td>
-                      <td className="num"><input className="w-full text-right bg-transparent outline-none" type="number" step="0.01" defaultValue={i.quantidade} onBlur={(e)=>updateField(i.id,"quantidade",Number(e.target.value))} /></td>
-                      <td className="num"><input className="w-full text-right bg-transparent outline-none" type="number" step="0.01" defaultValue={i.preco_unitario} onBlur={(e)=>updateField(i.id,"preco_unitario",Number(e.target.value))} /></td>
+                    <tr key={i.id} className={i.fonte && i.codigo ? "cursor-pointer hover:bg-muted/40" : ""}>
+                      <td onClick={(e)=>e.stopPropagation()}><input className="w-full bg-transparent outline-none" defaultValue={i.item ?? ""} onBlur={(e)=>updateField(i.id,"item",e.target.value)} /></td>
+                      <td>
+                        {i.fonte && i.codigo ? (
+                          <button type="button" className="inline-flex items-center gap-1 text-primary hover:underline" onClick={()=>setExplodeRow(i)} title="Explosão de insumos">
+                            <Layers className="size-3" />{i.fonte}
+                          </button>
+                        ) : (i.fonte || "—")}
+                      </td>
+                      <td className="text-muted-foreground">{i.codigo || "—"}</td>
+                      <td className="text-muted-foreground">{i.descricao}</td>
+                      <td className="text-muted-foreground">{i.unidade ?? "—"}</td>
+                      <td className="num" onClick={(e)=>e.stopPropagation()}><input className="w-full text-right bg-transparent outline-none" type="number" step="0.01" defaultValue={i.quantidade} onBlur={(e)=>updateField(i.id,"quantidade",Number(e.target.value))} /></td>
+                      <td className="num text-muted-foreground">{fmtBRL(pu)}</td>
                       <td className="num text-muted-foreground">{fmtPct(bdiPct)}</td>
                       <td className="num">{fmtBRL(puBdi)}</td>
                       <td className="num font-medium">{fmtBRL(tot)}</td>
