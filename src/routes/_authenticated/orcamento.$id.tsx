@@ -173,7 +173,8 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
     const { error } = await supabase.from("orcamentos").update({
       nome: f.nome, objeto: f.objeto, contrato: f.contrato, orgao: f.orgao,
       municipio: f.municipio, uf: f.uf, engenheiro: f.engenheiro, crea: f.crea, ref_precos: f.ref_precos,
-    }).eq("id", orc.id);
+      regime: f.regime ?? "nao_desonerado",
+    } as any).eq("id", orc.id);
     if (error) return toast.error(error.message);
     toast.success("Dados Gerais salvos"); onSaved();
   };
@@ -188,6 +189,15 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
         <Field label="Referência de Preços"><Input value={f.ref_precos ?? ""} placeholder="Ex.: SINAPI PB - Janeiro/2026" onChange={(e)=>setF({...f,ref_precos:e.target.value})} /></Field>
         <Field label="Engenheiro Responsável"><Input value={f.engenheiro ?? ""} onChange={(e)=>setF({...f,engenheiro:e.target.value})} /></Field>
         <Field label="CREA"><Input value={f.crea ?? ""} onChange={(e)=>setF({...f,crea:e.target.value})} /></Field>
+        <Field label="Regime Tributário">
+          <Select value={f.regime ?? "nao_desonerado"} onValueChange={(v)=>setF({...f, regime: v})}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="nao_desonerado">Não Desonerado</SelectItem>
+              <SelectItem value="desonerado">Desonerado</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
       </div>
       <Field label="Objeto"><Textarea rows={4} value={f.objeto ?? ""} onChange={(e)=>setF({...f,objeto:e.target.value})} /></Field>
       <Button onClick={save}><Save className="mr-2 size-4" />Salvar Dados Gerais</Button>
