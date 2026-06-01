@@ -294,6 +294,7 @@ function CotacaoTab() {
 function PlanilhaTab({ orcId, items, reload, bdiPct, regime }: { orcId: string; items: Item[]; reload: () => void; bdiPct: number; regime: string }) {
   const [open, setOpen] = useState(false);
   const [openEtapa, setOpenEtapa] = useState(false);
+  const [explodeRow, setExplodeRow] = useState<Item | null>(null);
   const [etapasExtra, setEtapasExtra] = useEtapasExtra(orcId);
   const [etapaDrafts, setEtapaDrafts] = useState<Record<string, string>>({});
 
