@@ -407,7 +407,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf }: { orcId: stri
                         setEtapaDrafts(prev => { const next = { ...prev }; delete next[etapa]; return next; });
                         renameEtapa(etapa, nn);
                       }}
-                      onDelete={()=>deleteEtapa(etapa)}
+                      onDelete={()=>askDeleteEtapa(etapa)}
                     />
                   )}
                   <td className="num font-semibold">{fmtBRL(totalEtapa(group.list))}</td>
