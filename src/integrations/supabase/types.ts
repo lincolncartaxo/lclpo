@@ -24,8 +24,6 @@ export type Database = {
           id: number
           insumo_codigo: string | null
           mes_ref: string | null
-          preco_desonerado: number | null
-          preco_nao_desonerado: number | null
           tipo: string | null
           uf: string | null
           unidade: string | null
@@ -39,8 +37,6 @@ export type Database = {
           id?: number
           insumo_codigo?: string | null
           mes_ref?: string | null
-          preco_desonerado?: number | null
-          preco_nao_desonerado?: number | null
           tipo?: string | null
           uf?: string | null
           unidade?: string | null
@@ -54,8 +50,6 @@ export type Database = {
           id?: number
           insumo_codigo?: string | null
           mes_ref?: string | null
-          preco_desonerado?: number | null
-          preco_nao_desonerado?: number | null
           tipo?: string | null
           uf?: string | null
           unidade?: string | null
