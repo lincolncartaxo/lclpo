@@ -347,18 +347,24 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf }: { orcId: stri
     toast.success("Etapa renomeada");
   };
 
-  const deleteEtapa = async (etapa: string) => {
+  const askDeleteEtapa = (etapa: string) => {
     const pfx = prefixOf(etapa);
     const affected = pfx
       ? items.filter(i => { const c = (i.item||"").trim(); return c === pfx || c.startsWith(pfx + "."); })
       : [];
+    setConfirmEtapa({ etapa, affected });
+  };
+
+  const doDeleteEtapa = async () => {
+    if (!confirmEtapa) return;
+    const { etapa, affected } = confirmEtapa;
     if (affected.length > 0) {
-      if (!confirm(`Excluir a etapa "${etapa}" e seus ${affected.length} item(ns)?`)) return;
       const ids = affected.map(i => i.id);
       const { error } = await supabase.from("orcamento_itens").delete().in("id", ids);
       if (error) return toast.error(error.message);
     }
     setEtapasExtra(prev => prev.filter(e => e !== etapa));
+    setConfirmEtapa(null);
     toast.success("Etapa excluída");
     reload();
   };
