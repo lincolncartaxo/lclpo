@@ -871,6 +871,22 @@ function AddEtapaDialog({ open, setOpen, onAdd }: { open: boolean; setOpen: (v: 
   );
 }
 
+/* ---------- CONFIRMAÇÃO DE EXCLUSÃO ---------- */
+function ConfirmDialog({ open, title, message, onCancel, onConfirm }: { open: boolean; title: string; message: string; onCancel: () => void; onConfirm: () => void }) {
+  return (
+    <Dialog open={open} onOpenChange={(o)=>{ if (!o) onCancel(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">{message}</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+          <Button variant="destructive" onClick={onConfirm}>Excluir</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /* ---------- RELATÓRIO ---------- */
 const RELATORIO_TABS = [
   { key: "capa", label: "Dados Gerais" },
