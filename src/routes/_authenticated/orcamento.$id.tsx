@@ -482,7 +482,7 @@ function ExplosaoSheet({ row, onClose, regime, uf }: { row: Item | null; onClose
     <Sheet open={!!row} onOpenChange={(o)=>{ if (!o) onClose(); }}>
       <SheetContent side="right" className="sm:max-w-2xl w-full overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Explosão de insumos</SheetTitle>
+          <SheetTitle>Composição de Preço Unitário</SheetTitle>
           <SheetDescription>
             {row ? <>{row.fonte} · {row.codigo} — {row.descricao}</> : null}
           </SheetDescription>
