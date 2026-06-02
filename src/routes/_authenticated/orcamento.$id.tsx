@@ -295,6 +295,8 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf }: { orcId: stri
   const [open, setOpen] = useState(false);
   const [openEtapa, setOpenEtapa] = useState(false);
   const [explodeRow, setExplodeRow] = useState<Item | null>(null);
+  const [confirmItem, setConfirmItem] = useState<Item | null>(null);
+  const [confirmEtapa, setConfirmEtapa] = useState<{ etapa: string; affected: Item[] } | null>(null);
   const [etapasExtra, setEtapasExtra] = useEtapasExtra(orcId);
   const [etapaDrafts, setEtapaDrafts] = useState<Record<string, string>>({});
 
@@ -345,18 +347,24 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf }: { orcId: stri
     toast.success("Etapa renomeada");
   };
 
-  const deleteEtapa = async (etapa: string) => {
+  const askDeleteEtapa = (etapa: string) => {
     const pfx = prefixOf(etapa);
     const affected = pfx
       ? items.filter(i => { const c = (i.item||"").trim(); return c === pfx || c.startsWith(pfx + "."); })
       : [];
+    setConfirmEtapa({ etapa, affected });
+  };
+
+  const doDeleteEtapa = async () => {
+    if (!confirmEtapa) return;
+    const { etapa, affected } = confirmEtapa;
     if (affected.length > 0) {
-      if (!confirm(`Excluir a etapa "${etapa}" e seus ${affected.length} item(ns)?`)) return;
       const ids = affected.map(i => i.id);
       const { error } = await supabase.from("orcamento_itens").delete().in("id", ids);
       if (error) return toast.error(error.message);
     }
     setEtapasExtra(prev => prev.filter(e => e !== etapa));
+    setConfirmEtapa(null);
     toast.success("Etapa excluída");
     reload();
   };
@@ -399,7 +407,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf }: { orcId: stri
                         setEtapaDrafts(prev => { const next = { ...prev }; delete next[etapa]; return next; });
                         renameEtapa(etapa, nn);
                       }}
-                      onDelete={()=>deleteEtapa(etapa)}
+                      onDelete={()=>askDeleteEtapa(etapa)}
                     />
                   )}
                   <td className="num font-semibold">{fmtBRL(totalEtapa(group.list))}</td>
@@ -414,7 +422,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf }: { orcId: stri
                       <td onClick={(e)=>e.stopPropagation()}><input className="w-full bg-transparent outline-none" defaultValue={i.item ?? ""} onBlur={(e)=>updateField(i.id,"item",e.target.value)} /></td>
                       <td>
                         {i.fonte && i.codigo ? (
-                          <button type="button" className="inline-flex items-center gap-1 text-primary hover:underline" onClick={()=>setExplodeRow(i)} title="Explosão de insumos">
+                          <button type="button" className="inline-flex items-center gap-1 text-primary hover:underline" onClick={()=>setExplodeRow(i)} title="Composição de Preço Unitário">
                             <Layers className="size-3" />{i.fonte}
                           </button>
                         ) : (i.fonte || "—")}
@@ -427,7 +435,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf }: { orcId: stri
                       <td className="num text-muted-foreground">{fmtPct(bdiPct)}</td>
                       <td className="num">{fmtBRL(puBdi)}</td>
                       <td className="num font-medium">{fmtBRL(tot)}</td>
-                      <td><button onClick={()=>remove(i.id)} className="text-destructive hover:opacity-70"><Trash2 className="size-4"/></button></td>
+                      <td><button onClick={()=>setConfirmItem(i)} className="text-destructive hover:opacity-70"><Trash2 className="size-4"/></button></td>
                     </tr>
                   );
                 })}
@@ -440,6 +448,20 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf }: { orcId: stri
         </table>
       </div>
       <ExplosaoSheet row={explodeRow} onClose={()=>setExplodeRow(null)} regime={regime} uf={uf} />
+      <ConfirmDialog
+        open={!!confirmItem}
+        title="Excluir item"
+        message={confirmItem ? `Excluir o item "${confirmItem.item ?? ""} — ${confirmItem.descricao}"?` : ""}
+        onCancel={()=>setConfirmItem(null)}
+        onConfirm={async ()=>{ if (confirmItem) { await remove(confirmItem.id); setConfirmItem(null); } }}
+      />
+      <ConfirmDialog
+        open={!!confirmEtapa}
+        title="Excluir etapa"
+        message={confirmEtapa ? `Excluir a etapa "${confirmEtapa.etapa}"${confirmEtapa.affected.length ? ` e seus ${confirmEtapa.affected.length} item(ns) vinculado(s)` : ""}?` : ""}
+        onCancel={()=>setConfirmEtapa(null)}
+        onConfirm={doDeleteEtapa}
+      />
     </div>
   );
 }
@@ -482,7 +504,7 @@ function ExplosaoSheet({ row, onClose, regime, uf }: { row: Item | null; onClose
     <Sheet open={!!row} onOpenChange={(o)=>{ if (!o) onClose(); }}>
       <SheetContent side="right" className="sm:max-w-2xl w-full overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Explosão de insumos</SheetTitle>
+          <SheetTitle>Composição de Preço Unitário</SheetTitle>
           <SheetDescription>
             {row ? <>{row.fonte} · {row.codigo} — {row.descricao}</> : null}
           </SheetDescription>
@@ -844,6 +866,22 @@ function AddEtapaDialog({ open, setOpen, onAdd }: { open: boolean; setOpen: (v: 
           </Field>
         </div>
         <DialogFooter><Button onClick={submit}>Adicionar etapa</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ---------- CONFIRMAÇÃO DE EXCLUSÃO ---------- */
+function ConfirmDialog({ open, title, message, onCancel, onConfirm }: { open: boolean; title: string; message: string; onCancel: () => void; onConfirm: () => void }) {
+  return (
+    <Dialog open={open} onOpenChange={(o)=>{ if (!o) onCancel(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">{message}</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+          <Button variant="destructive" onClick={onConfirm}>Excluir</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

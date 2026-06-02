@@ -29,7 +29,7 @@ function AuthLayout() {
         </div>
         <nav className="flex-1 px-3 py-4 space-y-1 text-sm">
           <NavItem to="/dashboard" icon={LayoutDashboard}>Orçamentos</NavItem>
-          <NavItem to="/bases" icon={Database}>Bases (SINAPI/DER)</NavItem>
+          <NavItem to="/bases" icon={Database}>Bases</NavItem>
         </nav>
         <div className="p-3 border-t border-sidebar-border">
           <div className="px-2 py-2 text-xs text-sidebar-foreground/70 truncate">{user?.email}</div>
