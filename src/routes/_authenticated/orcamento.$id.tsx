@@ -439,13 +439,14 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf }: { orcId: stri
           </tbody>
         </table>
       </div>
-      <ExplosaoSheet row={explodeRow} onClose={()=>setExplodeRow(null)} regime={regime} />
+      <ExplosaoSheet row={explodeRow} onClose={()=>setExplodeRow(null)} regime={regime} uf={uf} />
     </div>
   );
 }
 
-function ExplosaoSheet({ row, onClose, regime }: { row: Item | null; onClose: () => void; regime: string }) {
+function ExplosaoSheet({ row, onClose, regime, uf }: { row: Item | null; onClose: () => void; regime: string; uf: string | null }) {
   const [rows, setRows] = useState<any[]>([]);
+  const [precos, setPrecos] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   useEffect(() => {
     if (!row) return;
@@ -456,11 +457,26 @@ function ExplosaoSheet({ row, onClose, regime }: { row: Item | null; onClose: ()
         .select("*")
         .eq("fonte", row.fonte!)
         .eq("composicao_codigo", row.codigo!);
-      setRows(data ?? []);
+      const items = data ?? [];
+      setRows(items);
+
+      // Busca preços dos insumos automaticamente (regime + uf do orçamento)
+      const codigos = Array.from(new Set(items.map((r: any) => r.insumo_codigo).filter(Boolean)));
+      const map: Record<string, number> = {};
+      if (codigos.length) {
+        const priceCol = regime === "desonerado" ? "preco_desonerado" : "preco_nao_desonerado";
+        let q: any = supabase.from("base_insumos").select(`codigo,fonte,uf,${priceCol}`).in("codigo", codigos as string[]);
+        if (uf) q = q.eq("uf", uf);
+        const { data: ins } = await q;
+        (ins ?? []).forEach((r: any) => {
+          if (r.codigo && map[r.codigo] == null) map[r.codigo] = Number(r[priceCol] ?? 0);
+        });
+      }
+      setPrecos(map);
       setLoading(false);
     })();
-  }, [row]);
-  const priceOf = (r: any) => Number((regime === "desonerado" ? r.preco_desonerado : r.preco_nao_desonerado) ?? 0);
+  }, [row, regime, uf]);
+  const priceOf = (r: any) => Number(precos[r.insumo_codigo ?? ""] ?? 0);
   const total = rows.reduce((s, r) => s + Number(r.coeficiente) * priceOf(r), 0);
   return (
     <Sheet open={!!row} onOpenChange={(o)=>{ if (!o) onClose(); }}>
