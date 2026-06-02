@@ -414,7 +414,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf }: { orcId: stri
                       <td onClick={(e)=>e.stopPropagation()}><input className="w-full bg-transparent outline-none" defaultValue={i.item ?? ""} onBlur={(e)=>updateField(i.id,"item",e.target.value)} /></td>
                       <td>
                         {i.fonte && i.codigo ? (
-                          <button type="button" className="inline-flex items-center gap-1 text-primary hover:underline" onClick={()=>setExplodeRow(i)} title="Explosão de insumos">
+                          <button type="button" className="inline-flex items-center gap-1 text-primary hover:underline" onClick={()=>setExplodeRow(i)} title="Composição de Preço Unitário">
                             <Layers className="size-3" />{i.fonte}
                           </button>
                         ) : (i.fonte || "—")}
