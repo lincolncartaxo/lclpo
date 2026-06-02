@@ -448,6 +448,20 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf }: { orcId: stri
         </table>
       </div>
       <ExplosaoSheet row={explodeRow} onClose={()=>setExplodeRow(null)} regime={regime} uf={uf} />
+      <ConfirmDialog
+        open={!!confirmItem}
+        title="Excluir item"
+        message={confirmItem ? `Excluir o item "${confirmItem.item ?? ""} — ${confirmItem.descricao}"?` : ""}
+        onCancel={()=>setConfirmItem(null)}
+        onConfirm={async ()=>{ if (confirmItem) { await remove(confirmItem.id); setConfirmItem(null); } }}
+      />
+      <ConfirmDialog
+        open={!!confirmEtapa}
+        title="Excluir etapa"
+        message={confirmEtapa ? `Excluir a etapa "${confirmEtapa.etapa}"${confirmEtapa.affected.length ? ` e seus ${confirmEtapa.affected.length} item(ns) vinculado(s)` : ""}?` : ""}
+        onCancel={()=>setConfirmEtapa(null)}
+        onConfirm={doDeleteEtapa}
+      />
     </div>
   );
 }
