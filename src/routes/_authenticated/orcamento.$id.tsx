@@ -435,7 +435,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf }: { orcId: stri
                       <td className="num text-muted-foreground">{fmtPct(bdiPct)}</td>
                       <td className="num">{fmtBRL(puBdi)}</td>
                       <td className="num font-medium">{fmtBRL(tot)}</td>
-                      <td><button onClick={()=>remove(i.id)} className="text-destructive hover:opacity-70"><Trash2 className="size-4"/></button></td>
+                      <td><button onClick={()=>setConfirmItem(i)} className="text-destructive hover:opacity-70"><Trash2 className="size-4"/></button></td>
                     </tr>
                   );
                 })}
