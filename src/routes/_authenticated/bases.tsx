@@ -267,18 +267,63 @@ function CpuSheet({ row, onClose }: { row: any | null; onClose: () => void }) {
     if (!row) { setRows([]); return; }
     setLoading(true);
     (async () => {
-      const { data } = await supabase
+      const { data: itens } = await supabase
         .from("base_composicao_itens")
         .select("*")
         .eq("fonte", row.fonte)
         .eq("composicao_codigo", row.codigo);
-      setRows(data ?? []);
+
+      if (!itens || itens.length === 0) {
+        setRows([]);
+        setLoading(false);
+        return;
+      }
+
+      const insumoCodigos = itens.filter((i: any) => i.tipo !== 'COMPOSICAO').map((i: any) => i.insumo_codigo).filter(Boolean);
+      const compCodigos = itens.filter((i: any) => i.tipo === 'COMPOSICAO').map((i: any) => i.insumo_codigo).filter(Boolean);
+
+      let insumosPriceMap: Record<string, any> = {};
+      let compPriceMap: Record<string, any> = {};
+
+      if (insumoCodigos.length > 0) {
+        let q = supabase.from("base_insumos").select("codigo, preco_desonerado, preco_nao_desonerado").in("codigo", insumoCodigos);
+        if (row.uf) q = q.eq("uf", row.uf);
+        if (row.mes_ref) q = q.eq("mes_ref", row.mes_ref);
+        const { data: insData } = await q;
+        if (insData) insData.forEach(d => insumosPriceMap[d.codigo] = d);
+      }
+
+      if (compCodigos.length > 0) {
+        let q = supabase.from("base_composicoes").select("codigo, custo_desonerado, custo_nao_desonerado").in("codigo", compCodigos);
+        if (row.uf) q = q.eq("uf", row.uf);
+        if (row.mes_ref) q = q.eq("mes_ref", row.mes_ref);
+        const { data: compData } = await q;
+        if (compData) compData.forEach(d => compPriceMap[d.codigo] = {
+          preco_desonerado: d.custo_desonerado,
+          preco_nao_desonerado: d.custo_nao_desonerado
+        });
+      }
+
+      const rowsWithPrices = itens.map((i: any) => {
+        const p = i.tipo === 'COMPOSICAO' ? compPriceMap[i.insumo_codigo] : insumosPriceMap[i.insumo_codigo];
+        return {
+          ...i,
+          preco_desonerado: p?.preco_desonerado || 0,
+          preco_nao_desonerado: p?.preco_nao_desonerado || 0,
+        };
+      });
+
+      setRows(rowsWithPrices);
       setLoading(false);
     })();
   }, [row]);
+
+  const totalDeson = rows.reduce((acc, r) => acc + Number(r.coeficiente) * (r.preco_desonerado || 0), 0);
+  const totalNaoDeson = rows.reduce((acc, r) => acc + Number(r.coeficiente) * (r.preco_nao_desonerado || 0), 0);
+
   return (
     <Sheet open={!!row} onOpenChange={(o)=>{ if (!o) onClose(); }}>
-      <SheetContent side="right" className="sm:max-w-2xl w-full overflow-y-auto">
+      <SheetContent side="right" className="sm:max-w-4xl w-full overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Composição de Preço Unitário</SheetTitle>
           <SheetDescription>
@@ -289,6 +334,8 @@ function CpuSheet({ row, onClose }: { row: any | null; onClose: () => void }) {
           <table className="budget-table">
             <thead><tr>
               <th>Tipo</th><th>Código</th><th>Descrição</th><th>Un.</th><th className="num">Coef.</th>
+              <th className="num">Pr. Deson.</th><th className="num">Tot. Deson.</th>
+              <th className="num">Pr. Não Deson.</th><th className="num">Tot. Não Deson.</th>
             </tr></thead>
             <tbody>
               {rows.map((r) => (
@@ -298,14 +345,28 @@ function CpuSheet({ row, onClose }: { row: any | null; onClose: () => void }) {
                   <td>{r.descricao}</td>
                   <td>{r.unidade ?? "—"}</td>
                   <td className="num">{Number(r.coeficiente).toLocaleString("pt-BR",{minimumFractionDigits:4,maximumFractionDigits:6})}</td>
+                  <td className="num">{fmtBRL(r.preco_desonerado)}</td>
+                  <td className="num">{fmtBRL((r.preco_desonerado || 0) * Number(r.coeficiente))}</td>
+                  <td className="num">{fmtBRL(r.preco_nao_desonerado)}</td>
+                  <td className="num">{fmtBRL((r.preco_nao_desonerado || 0) * Number(r.coeficiente))}</td>
                 </tr>
               ))}
               {!loading && rows.length === 0 && (
-                <tr><td colSpan={5} className="text-center text-muted-foreground py-6 text-xs italic">
+                <tr><td colSpan={9} className="text-center text-muted-foreground py-6 text-xs italic">
                   Nenhum item de composição cadastrado para este código.
                 </td></tr>
               )}
             </tbody>
+            {rows.length > 0 && (
+              <tfoot>
+                <tr className="font-semibold bg-muted/50">
+                  <td colSpan={6} className="text-right">Total</td>
+                  <td className="num">{fmtBRL(totalDeson)}</td>
+                  <td></td>
+                  <td className="num">{fmtBRL(totalNaoDeson)}</td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
         <p className="text-xs text-muted-foreground mt-3">Os preços dos insumos são aplicados conforme regime, UF e mês do orçamento ao usar a composição.</p>
@@ -315,14 +376,53 @@ function CpuSheet({ row, onClose }: { row: any | null; onClose: () => void }) {
 }
 
 /* ---------- NOVA COMPOSIÇÃO (com CPU obrigatória) ---------- */
-type CpuLine = { tipo: string; insumo_codigo: string; descricao: string; unidade: string; coeficiente: string };
+type CpuLine = { tipo: string; insumo_codigo: string; descricao: string; unidade: string; coeficiente: string; preco_desonerado?: number; preco_nao_desonerado?: number; };
 
 function NovaComposicaoDialog({ open, setOpen, onCreated }: { open: boolean; setOpen: (v: boolean)=>void; onCreated: () => void }) {
-  const blank: CpuLine = { tipo: "INSUMO", insumo_codigo: "", descricao: "", unidade: "un", coeficiente: "1" };
-  const [f, setF] = useState({ codigo: "", descricao: "", unidade: "un", uf: "", mes_ref: "", custo_desonerado: "0", custo_nao_desonerado: "0" });
+  const blank: CpuLine = { tipo: "INSUMO", insumo_codigo: "", descricao: "", unidade: "un", coeficiente: "1", preco_desonerado: 0, preco_nao_desonerado: 0 };
+  const [f, setF] = useState({ codigo: "", descricao: "", unidade: "un", uf: "", mes_ref: "" });
+  const [isSearching, setIsSearching] = useState(false);
   const [lines, setLines] = useState<CpuLine[]>([{ ...blank }]);
 
-  const reset = () => { setF({ codigo: "", descricao: "", unidade: "un", uf: "", mes_ref: "", custo_desonerado: "0", custo_nao_desonerado: "0" }); setLines([{ ...blank }]); };
+  const reset = () => { setF({ codigo: "", descricao: "", unidade: "un", uf: "", mes_ref: "" }); setLines([{ ...blank }]); };
+  const totalDeson = lines.reduce((acc, l) => acc + (Number(l.coeficiente.replace(",", ".")) || 0) * (l.preco_desonerado || 0), 0);
+  const totalNaoDeson = lines.reduce((acc, l) => acc + (Number(l.coeficiente.replace(",", ".")) || 0) * (l.preco_nao_desonerado || 0), 0);
+
+  const buscarItem = async (index: number) => {
+    const line = lines[index];
+    if (!line.insumo_codigo && !line.descricao) return toast.error("Preencha código ou descrição para buscar");
+    
+    setIsSearching(true);
+    const table = line.tipo === "COMPOSICAO" ? "base_composicoes" : "base_insumos";
+    
+    let query = supabase.from(table).select("*");
+    if (f.uf) query = query.eq("uf", f.uf);
+    if (f.mes_ref) query = query.eq("mes_ref", f.mes_ref);
+    
+    if (line.insumo_codigo) {
+      query = query.eq("codigo", line.insumo_codigo);
+    } else {
+      query = query.ilike("descricao", `%${line.descricao}%`);
+    }
+    
+    const { data } = await query.limit(1);
+    setIsSearching(false);
+    
+    if (data && data.length > 0) {
+      const item = data[0] as any;
+      setLines(prev => prev.map((p, j) => j === index ? {
+        ...p,
+        insumo_codigo: item.codigo,
+        descricao: item.descricao,
+        unidade: item.unidade || "un",
+        preco_desonerado: item.preco_desonerado ?? item.custo_desonerado ?? 0,
+        preco_nao_desonerado: item.preco_nao_desonerado ?? item.custo_nao_desonerado ?? 0,
+      } : p));
+      toast.success("Item encontrado");
+    } else {
+      toast.error("Item não encontrado para esta UF/Mês");
+    }
+  };
 
   const submit = async () => {
     if (!f.codigo.trim() || !f.descricao.trim()) return toast.error("Código e descrição obrigatórios");
@@ -332,8 +432,8 @@ function NovaComposicaoDialog({ open, setOpen, onCreated }: { open: boolean; set
     const { error } = await supabase.from("base_composicoes").insert({
       fonte: PROPRIA, codigo: f.codigo.trim(), descricao: f.descricao.trim(), unidade: f.unidade.trim() || null,
       uf: f.uf || null, mes_ref: f.mes_ref || null,
-      custo_desonerado: Number(f.custo_desonerado.replace(",", ".")) || 0,
-      custo_nao_desonerado: Number(f.custo_nao_desonerado.replace(",", ".")) || 0,
+      custo_desonerado: totalDeson,
+      custo_nao_desonerado: totalNaoDeson,
     });
     if (error) return toast.error(error.message);
 
@@ -368,8 +468,8 @@ function NovaComposicaoDialog({ open, setOpen, onCreated }: { open: boolean; set
             </Select>
           </div>
           <div><Label>Mês de Referência</Label><Input type="month" value={f.mes_ref} onChange={(e)=>setF({...f, mes_ref: e.target.value})} /></div>
-          <div><Label>Custo Desonerado (R$)</Label><Input value={f.custo_desonerado} onChange={(e)=>setF({...f, custo_desonerado: e.target.value})} /></div>
-          <div><Label>Custo Não Desonerado (R$)</Label><Input value={f.custo_nao_desonerado} onChange={(e)=>setF({...f, custo_nao_desonerado: e.target.value})} /></div>
+          <div><Label>Custo Desonerado (R$)</Label><Input readOnly className="bg-muted" value={fmtBRL(totalDeson)} /></div>
+          <div><Label>Custo Não Desonerado (R$)</Label><Input readOnly className="bg-muted" value={fmtBRL(totalNaoDeson)} /></div>
         </div>
 
         <div className="mt-4">
@@ -381,7 +481,7 @@ function NovaComposicaoDialog({ open, setOpen, onCreated }: { open: boolean; set
             <table className="budget-table">
               <thead><tr>
                 <th style={{width:110}}>Tipo</th><th style={{width:120}}>Cód. insumo</th><th>Descrição</th>
-                <th style={{width:80}}>Un.</th><th className="num" style={{width:110}}>Coef.</th><th style={{width:40}}></th>
+                <th style={{width:80}}>Un.</th><th className="num" style={{width:110}}>Coef.</th><th style={{width:80}}>Ação</th><th style={{width:40}}></th>
               </tr></thead>
               <tbody>
                 {lines.map((l, i) => (
@@ -401,6 +501,7 @@ function NovaComposicaoDialog({ open, setOpen, onCreated }: { open: boolean; set
                     <td><Input className="h-8" value={l.descricao} onChange={(e)=>setLines(prev => prev.map((p,j)=> j===i ? {...p, descricao: e.target.value} : p))} /></td>
                     <td><Input className="h-8" value={l.unidade} onChange={(e)=>setLines(prev => prev.map((p,j)=> j===i ? {...p, unidade: e.target.value} : p))} /></td>
                     <td><Input className="h-8 text-right" value={l.coeficiente} onChange={(e)=>setLines(prev => prev.map((p,j)=> j===i ? {...p, coeficiente: e.target.value} : p))} /></td>
+                    <td><Button type="button" size="sm" variant="outline" className="h-8" onClick={()=>buscarItem(i)} disabled={isSearching}><Search className="size-3"/></Button></td>
                     <td><button className="text-destructive" onClick={()=>setLines(prev => prev.filter((_,j)=>j!==i))}><Trash2 className="size-4"/></button></td>
                   </tr>
                 ))}
