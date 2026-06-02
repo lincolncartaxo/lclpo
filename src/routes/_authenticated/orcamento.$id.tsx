@@ -295,6 +295,8 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf }: { orcId: stri
   const [open, setOpen] = useState(false);
   const [openEtapa, setOpenEtapa] = useState(false);
   const [explodeRow, setExplodeRow] = useState<Item | null>(null);
+  const [confirmItem, setConfirmItem] = useState<Item | null>(null);
+  const [confirmEtapa, setConfirmEtapa] = useState<{ etapa: string; affected: Item[] } | null>(null);
   const [etapasExtra, setEtapasExtra] = useEtapasExtra(orcId);
   const [etapaDrafts, setEtapaDrafts] = useState<Record<string, string>>({});
 
