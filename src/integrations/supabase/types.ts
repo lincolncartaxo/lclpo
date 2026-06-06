@@ -27,6 +27,7 @@ export type Database = {
           tipo: string | null
           uf: string | null
           unidade: string | null
+          user_id: string | null
         }
         Insert: {
           coeficiente?: number
@@ -40,6 +41,7 @@ export type Database = {
           tipo?: string | null
           uf?: string | null
           unidade?: string | null
+          user_id?: string | null
         }
         Update: {
           coeficiente?: number
@@ -53,6 +55,7 @@ export type Database = {
           tipo?: string | null
           uf?: string | null
           unidade?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -69,6 +72,7 @@ export type Database = {
           mes_ref: string | null
           uf: string | null
           unidade: string | null
+          user_id: string | null
         }
         Insert: {
           classe?: string | null
@@ -82,6 +86,7 @@ export type Database = {
           mes_ref?: string | null
           uf?: string | null
           unidade?: string | null
+          user_id?: string | null
         }
         Update: {
           classe?: string | null
@@ -95,6 +100,7 @@ export type Database = {
           mes_ref?: string | null
           uf?: string | null
           unidade?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -111,6 +117,7 @@ export type Database = {
           preco_nao_desonerado: number | null
           uf: string | null
           unidade: string | null
+          user_id: string | null
         }
         Insert: {
           codigo: string
@@ -124,6 +131,7 @@ export type Database = {
           preco_nao_desonerado?: number | null
           uf?: string | null
           unidade?: string | null
+          user_id?: string | null
         }
         Update: {
           codigo?: string
@@ -137,6 +145,7 @@ export type Database = {
           preco_nao_desonerado?: number | null
           uf?: string | null
           unidade?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
