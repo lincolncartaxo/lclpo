@@ -127,18 +127,69 @@ function Pager({ page, setPage, count }: { page: number; setPage: (n: number) =>
   );
 }
 
+async function computeCompTotals(comp: { codigo: string; fonte: string; uf?: string | null; mes_ref?: string | null }) {
+  const { data: itens } = await supabase
+    .from("base_composicao_itens")
+    .select("tipo,insumo_codigo,coeficiente")
+    .eq("composicao_codigo", comp.codigo)
+    .eq("fonte", comp.fonte);
+  if (!itens || itens.length === 0) return { deson: 0, nao_deson: 0 };
+
+  const insumoCodes = Array.from(new Set(itens.filter((i: any) => i.tipo !== "COMPOSICAO").map((i: any) => i.insumo_codigo).filter(Boolean)));
+  const compCodes = Array.from(new Set(itens.filter((i: any) => i.tipo === "COMPOSICAO").map((i: any) => i.insumo_codigo).filter(Boolean)));
+
+  const ins: Record<string, { d: number; n: number }> = {};
+  if (insumoCodes.length) {
+    let q = supabase.from("base_insumos").select("codigo,preco_desonerado,preco_nao_desonerado").in("codigo", insumoCodes);
+    if (comp.uf) q = q.eq("uf", comp.uf);
+    if (comp.mes_ref) q = q.eq("mes_ref", comp.mes_ref);
+    const { data } = await q;
+    data?.forEach((d: any) => { ins[d.codigo] = { d: Number(d.preco_desonerado) || 0, n: Number(d.preco_nao_desonerado) || 0 }; });
+  }
+  const comps: Record<string, { d: number; n: number }> = {};
+  if (compCodes.length) {
+    let q = supabase.from("base_composicoes").select("codigo,custo_desonerado,custo_nao_desonerado").in("codigo", compCodes);
+    if (comp.uf) q = q.eq("uf", comp.uf);
+    if (comp.mes_ref) q = q.eq("mes_ref", comp.mes_ref);
+    const { data } = await q;
+    data?.forEach((d: any) => { comps[d.codigo] = { d: Number(d.custo_desonerado) || 0, n: Number(d.custo_nao_desonerado) || 0 }; });
+  }
+
+  let deson = 0, nao_deson = 0;
+  for (const i of itens as any[]) {
+    const p = i.tipo === "COMPOSICAO" ? comps[i.insumo_codigo] : ins[i.insumo_codigo];
+    const coef = Number(i.coeficiente) || 0;
+    deson += coef * (p?.d ?? 0);
+    nao_deson += coef * (p?.n ?? 0);
+  }
+  return { deson, nao_deson };
+}
+
 function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: string; fonte: string; reloadKey: number; onReload: () => void }) {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [cpuRow, setCpuRow] = useState<any | null>(null);
   const [openNew, setOpenNew] = useState(false);
   const [confirmDel, setConfirmDel] = useState<any | null>(null);
+  const [computed, setComputed] = useState<Record<string, { deson: number; nao_deson: number }>>({});
   useEffect(() => { setPage(1); }, [uf, mes, fonte, q]);
   const { rows, count } = usePaged<any>(
     "base_composicoes",
     "id,codigo,descricao,unidade,custo_desonerado,custo_nao_desonerado,uf,mes_ref,fonte",
     { uf, mes, fonte, q, page, reloadKey },
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(rows.map(async (r: any) => [r.id, await computeCompTotals(r)] as const));
+      if (cancelled) return;
+      const map: Record<string, { deson: number; nao_deson: number }> = {};
+      entries.forEach(([id, v]) => { map[id] = v; });
+      setComputed(map);
+    })();
+    return () => { cancelled = true; };
+  }, [rows]);
 
   const remove = async (r: any) => {
     const { error } = await supabase.from("base_composicao_itens").delete().eq("fonte", PROPRIA).eq("composicao_codigo", r.codigo);
@@ -163,24 +214,29 @@ function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: st
             <th>Fonte</th><th>UF</th><th>Mês</th><th>Código</th><th>Descrição</th><th>Unid.</th>
             <th className="num">Desonerado</th><th className="num">Não Desonerado</th><th style={{width:90}}></th>
           </tr></thead>
-          <tbody>{rows.map((r,i)=>(
-            <tr key={i} className="hover:bg-muted/30">
-              <td>{r.fonte}</td><td>{r.uf ?? "—"}</td><td>{r.mes_ref ?? "—"}</td>
-              <td>
-                <button className="inline-flex items-center gap-1 text-primary hover:underline" onClick={()=>setCpuRow(r)} title="Composição de Preço Unitário">
-                  <Layers className="size-3" />{r.codigo}
-                </button>
-              </td>
-              <td>{r.descricao}</td><td>{r.unidade}</td>
-              <td className="num">{fmtBRL(r.custo_desonerado)}</td>
-              <td className="num">{fmtBRL(r.custo_nao_desonerado)}</td>
-              <td className="text-right">
-                {r.fonte === PROPRIA && (
-                  <button onClick={()=>setConfirmDel(r)} className="text-destructive hover:opacity-70"><Trash2 className="size-4"/></button>
-                )}
-              </td>
-            </tr>
-          ))}</tbody>
+          <tbody>{rows.map((r,i)=> {
+            const c = computed[r.id];
+            const d = c?.deson ?? Number(r.custo_desonerado) ?? 0;
+            const n = c?.nao_deson ?? Number(r.custo_nao_desonerado) ?? 0;
+            return (
+              <tr key={i} className="hover:bg-muted/30">
+                <td>{r.fonte}</td><td>{r.uf ?? "—"}</td><td>{r.mes_ref ?? "—"}</td>
+                <td>
+                  <button className="inline-flex items-center gap-1 text-primary hover:underline" onClick={()=>setCpuRow(r)} title="Composição de Preço Unitário">
+                    <Layers className="size-3" />{r.codigo}
+                  </button>
+                </td>
+                <td>{r.descricao}</td><td>{r.unidade}</td>
+                <td className="num">{fmtBRL(d)}</td>
+                <td className="num">{fmtBRL(n)}</td>
+                <td className="text-right">
+                  {r.fonte === PROPRIA && (
+                    <button onClick={()=>setConfirmDel(r)} className="text-destructive hover:opacity-70"><Trash2 className="size-4"/></button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}</tbody>
         </table>
         {rows.length === 0 && <div className="p-6 text-center text-sm text-muted-foreground">Nenhum registro para os filtros selecionados.</div>}
         <Pager page={page} setPage={setPage} count={count} />
