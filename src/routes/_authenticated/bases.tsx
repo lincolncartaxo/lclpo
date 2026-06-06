@@ -127,18 +127,69 @@ function Pager({ page, setPage, count }: { page: number; setPage: (n: number) =>
   );
 }
 
+async function computeCompTotals(comp: { codigo: string; fonte: string; uf?: string | null; mes_ref?: string | null }) {
+  const { data: itens } = await supabase
+    .from("base_composicao_itens")
+    .select("tipo,insumo_codigo,coeficiente")
+    .eq("composicao_codigo", comp.codigo)
+    .eq("fonte", comp.fonte);
+  if (!itens || itens.length === 0) return { deson: 0, nao_deson: 0 };
+
+  const insumoCodes = Array.from(new Set(itens.filter((i: any) => i.tipo !== "COMPOSICAO").map((i: any) => i.insumo_codigo).filter(Boolean)));
+  const compCodes = Array.from(new Set(itens.filter((i: any) => i.tipo === "COMPOSICAO").map((i: any) => i.insumo_codigo).filter(Boolean)));
+
+  const ins: Record<string, { d: number; n: number }> = {};
+  if (insumoCodes.length) {
+    let q = supabase.from("base_insumos").select("codigo,preco_desonerado,preco_nao_desonerado").in("codigo", insumoCodes);
+    if (comp.uf) q = q.eq("uf", comp.uf);
+    if (comp.mes_ref) q = q.eq("mes_ref", comp.mes_ref);
+    const { data } = await q;
+    data?.forEach((d: any) => { ins[d.codigo] = { d: Number(d.preco_desonerado) || 0, n: Number(d.preco_nao_desonerado) || 0 }; });
+  }
+  const comps: Record<string, { d: number; n: number }> = {};
+  if (compCodes.length) {
+    let q = supabase.from("base_composicoes").select("codigo,custo_desonerado,custo_nao_desonerado").in("codigo", compCodes);
+    if (comp.uf) q = q.eq("uf", comp.uf);
+    if (comp.mes_ref) q = q.eq("mes_ref", comp.mes_ref);
+    const { data } = await q;
+    data?.forEach((d: any) => { comps[d.codigo] = { d: Number(d.custo_desonerado) || 0, n: Number(d.custo_nao_desonerado) || 0 }; });
+  }
+
+  let deson = 0, nao_deson = 0;
+  for (const i of itens as any[]) {
+    const p = i.tipo === "COMPOSICAO" ? comps[i.insumo_codigo] : ins[i.insumo_codigo];
+    const coef = Number(i.coeficiente) || 0;
+    deson += coef * (p?.d ?? 0);
+    nao_deson += coef * (p?.n ?? 0);
+  }
+  return { deson, nao_deson };
+}
+
 function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: string; fonte: string; reloadKey: number; onReload: () => void }) {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [cpuRow, setCpuRow] = useState<any | null>(null);
   const [openNew, setOpenNew] = useState(false);
   const [confirmDel, setConfirmDel] = useState<any | null>(null);
+  const [computed, setComputed] = useState<Record<string, { deson: number; nao_deson: number }>>({});
   useEffect(() => { setPage(1); }, [uf, mes, fonte, q]);
   const { rows, count } = usePaged<any>(
     "base_composicoes",
     "id,codigo,descricao,unidade,custo_desonerado,custo_nao_desonerado,uf,mes_ref,fonte",
     { uf, mes, fonte, q, page, reloadKey },
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(rows.map(async (r: any) => [r.id, await computeCompTotals(r)] as const));
+      if (cancelled) return;
+      const map: Record<string, { deson: number; nao_deson: number }> = {};
+      entries.forEach(([id, v]) => { map[id] = v; });
+      setComputed(map);
+    })();
+    return () => { cancelled = true; };
+  }, [rows]);
 
   const remove = async (r: any) => {
     const { error } = await supabase.from("base_composicao_itens").delete().eq("fonte", PROPRIA).eq("composicao_codigo", r.codigo);
@@ -163,24 +214,29 @@ function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: st
             <th>Fonte</th><th>UF</th><th>Mês</th><th>Código</th><th>Descrição</th><th>Unid.</th>
             <th className="num">Desonerado</th><th className="num">Não Desonerado</th><th style={{width:90}}></th>
           </tr></thead>
-          <tbody>{rows.map((r,i)=>(
-            <tr key={i} className="hover:bg-muted/30">
-              <td>{r.fonte}</td><td>{r.uf ?? "—"}</td><td>{r.mes_ref ?? "—"}</td>
-              <td>
-                <button className="inline-flex items-center gap-1 text-primary hover:underline" onClick={()=>setCpuRow(r)} title="Composição de Preço Unitário">
-                  <Layers className="size-3" />{r.codigo}
-                </button>
-              </td>
-              <td>{r.descricao}</td><td>{r.unidade}</td>
-              <td className="num">{fmtBRL(r.custo_desonerado)}</td>
-              <td className="num">{fmtBRL(r.custo_nao_desonerado)}</td>
-              <td className="text-right">
-                {r.fonte === PROPRIA && (
-                  <button onClick={()=>setConfirmDel(r)} className="text-destructive hover:opacity-70"><Trash2 className="size-4"/></button>
-                )}
-              </td>
-            </tr>
-          ))}</tbody>
+          <tbody>{rows.map((r,i)=> {
+            const c = computed[r.id];
+            const d = c?.deson ?? Number(r.custo_desonerado) ?? 0;
+            const n = c?.nao_deson ?? Number(r.custo_nao_desonerado) ?? 0;
+            return (
+              <tr key={i} className="hover:bg-muted/30">
+                <td>{r.fonte}</td><td>{r.uf ?? "—"}</td><td>{r.mes_ref ?? "—"}</td>
+                <td>
+                  <button className="inline-flex items-center gap-1 text-primary hover:underline" onClick={()=>setCpuRow(r)} title="Composição de Preço Unitário">
+                    <Layers className="size-3" />{r.codigo}
+                  </button>
+                </td>
+                <td>{r.descricao}</td><td>{r.unidade}</td>
+                <td className="num">{fmtBRL(d)}</td>
+                <td className="num">{fmtBRL(n)}</td>
+                <td className="text-right">
+                  {r.fonte === PROPRIA && (
+                    <button onClick={()=>setConfirmDel(r)} className="text-destructive hover:opacity-70"><Trash2 className="size-4"/></button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}</tbody>
         </table>
         {rows.length === 0 && <div className="p-6 text-center text-sm text-muted-foreground">Nenhum registro para os filtros selecionados.</div>}
         <Pager page={page} setPage={setPage} count={count} />
@@ -375,59 +431,133 @@ function CpuSheet({ row, onClose }: { row: any | null; onClose: () => void }) {
   );
 }
 
-/* ---------- NOVA COMPOSIÇÃO (com CPU obrigatória) ---------- */
-type CpuLine = { tipo: string; insumo_codigo: string; descricao: string; unidade: string; coeficiente: string; preco_desonerado?: number; preco_nao_desonerado?: number; };
+/* ---------- ITEM PICKER (busca em base_insumos OU base_composicoes) ---------- */
+type PickedItem = {
+  tipo: "INSUMO" | "COMPOSICAO";
+  codigo: string;
+  descricao: string;
+  unidade: string | null;
+  preco_desonerado: number;
+  preco_nao_desonerado: number;
+};
+
+function ItemPickerDialog({
+  open, setOpen, uf, mes_ref, onPick,
+}: {
+  open: boolean; setOpen: (v: boolean) => void;
+  uf: string; mes_ref: string;
+  onPick: (item: PickedItem) => void;
+}) {
+  const [tipo, setTipo] = useState<"INSUMO" | "COMPOSICAO">("INSUMO");
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState<PickedItem[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => { if (!open) { setQ(""); setResults([]); } }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(async () => {
+      if (!q.trim()) { setResults([]); return; }
+      setLoading(true);
+      if (tipo === "INSUMO") {
+        let qy = supabase.from("base_insumos")
+          .select("codigo,descricao,unidade,preco_desonerado,preco_nao_desonerado")
+          .or(`codigo.ilike.%${q}%,descricao.ilike.%${q}%`).limit(20);
+        if (uf) qy = qy.eq("uf", uf);
+        if (mes_ref) qy = qy.eq("mes_ref", mes_ref);
+        const { data } = await qy;
+        setResults((data ?? []).map((d: any) => ({
+          tipo: "INSUMO", codigo: d.codigo, descricao: d.descricao, unidade: d.unidade,
+          preco_desonerado: Number(d.preco_desonerado) || 0,
+          preco_nao_desonerado: Number(d.preco_nao_desonerado) || 0,
+        })));
+      } else {
+        let qy = supabase.from("base_composicoes")
+          .select("codigo,descricao,unidade,custo_desonerado,custo_nao_desonerado")
+          .or(`codigo.ilike.%${q}%,descricao.ilike.%${q}%`).limit(20);
+        if (uf) qy = qy.eq("uf", uf);
+        if (mes_ref) qy = qy.eq("mes_ref", mes_ref);
+        const { data } = await qy;
+        setResults((data ?? []).map((d: any) => ({
+          tipo: "COMPOSICAO", codigo: d.codigo, descricao: d.descricao, unidade: d.unidade,
+          preco_desonerado: Number(d.custo_desonerado) || 0,
+          preco_nao_desonerado: Number(d.custo_nao_desonerado) || 0,
+        })));
+      }
+      setLoading(false);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [q, tipo, uf, mes_ref, open]);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader><DialogTitle>Selecionar item do banco</DialogTitle></DialogHeader>
+        <div className="flex gap-2 items-end mb-2">
+          <div className="grid gap-1">
+            <Label className="text-xs">Tipo</Label>
+            <Select value={tipo} onValueChange={(v) => setTipo(v as any)}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="INSUMO">Insumo</SelectItem>
+                <SelectItem value="COMPOSICAO">Composição</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-1 flex-1">
+            <Label className="text-xs">Código ou descrição</Label>
+            <Input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Digite para buscar…" />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">Filtrando por UF: {uf || "—"} · Mês: {mes_ref || "—"}</p>
+        <div className="rounded border max-h-80 overflow-y-auto mt-2">
+          <table className="budget-table">
+            <thead><tr><th>Código</th><th>Descrição</th><th>Un.</th><th className="num">Deson.</th><th className="num">Não Deson.</th><th style={{width:80}}></th></tr></thead>
+            <tbody>
+              {results.map((r) => (
+                <tr key={r.codigo}>
+                  <td>{r.codigo}</td><td>{r.descricao}</td><td>{r.unidade ?? "—"}</td>
+                  <td className="num">{fmtBRL(r.preco_desonerado)}</td>
+                  <td className="num">{fmtBRL(r.preco_nao_desonerado)}</td>
+                  <td className="text-right"><Button size="sm" onClick={() => { onPick(r); setOpen(false); }}>Selecionar</Button></td>
+                </tr>
+              ))}
+              {!loading && results.length === 0 && (
+                <tr><td colSpan={6} className="text-center text-muted-foreground py-4 text-xs italic">
+                  {q.trim() ? "Nenhum item encontrado para esta UF/Mês." : "Digite para buscar."}
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ---------- NOVA COMPOSIÇÃO (somente itens do banco, totais automáticos) ---------- */
+type CpuLine = PickedItem & { coeficiente: string };
 
 function NovaComposicaoDialog({ open, setOpen, onCreated }: { open: boolean; setOpen: (v: boolean)=>void; onCreated: () => void }) {
-  const blank: CpuLine = { tipo: "INSUMO", insumo_codigo: "", descricao: "", unidade: "un", coeficiente: "1", preco_desonerado: 0, preco_nao_desonerado: 0 };
   const [f, setF] = useState({ codigo: "", descricao: "", unidade: "un", uf: "", mes_ref: "" });
-  const [isSearching, setIsSearching] = useState(false);
-  const [lines, setLines] = useState<CpuLine[]>([{ ...blank }]);
+  const [lines, setLines] = useState<CpuLine[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
-  const reset = () => { setF({ codigo: "", descricao: "", unidade: "un", uf: "", mes_ref: "" }); setLines([{ ...blank }]); };
+  const reset = () => { setF({ codigo: "", descricao: "", unidade: "un", uf: "", mes_ref: "" }); setLines([]); };
   const totalDeson = lines.reduce((acc, l) => acc + (Number(l.coeficiente.replace(",", ".")) || 0) * (l.preco_desonerado || 0), 0);
   const totalNaoDeson = lines.reduce((acc, l) => acc + (Number(l.coeficiente.replace(",", ".")) || 0) * (l.preco_nao_desonerado || 0), 0);
 
-  const buscarItem = async (index: number) => {
-    const line = lines[index];
-    if (!line.insumo_codigo && !line.descricao) return toast.error("Preencha código ou descrição para buscar");
-    
-    setIsSearching(true);
-    const table = line.tipo === "COMPOSICAO" ? "base_composicoes" : "base_insumos";
-    
-    let query = supabase.from(table).select("*");
-    if (f.uf) query = query.eq("uf", f.uf);
-    if (f.mes_ref) query = query.eq("mes_ref", f.mes_ref);
-    
-    if (line.insumo_codigo) {
-      query = query.eq("codigo", line.insumo_codigo);
-    } else {
-      query = query.ilike("descricao", `%${line.descricao}%`);
+  const onPick = (item: PickedItem) => {
+    if (lines.some(l => l.codigo === item.codigo && l.tipo === item.tipo)) {
+      return toast.error("Item já adicionado");
     }
-    
-    const { data } = await query.limit(1);
-    setIsSearching(false);
-    
-    if (data && data.length > 0) {
-      const item = data[0] as any;
-      setLines(prev => prev.map((p, j) => j === index ? {
-        ...p,
-        insumo_codigo: item.codigo,
-        descricao: item.descricao,
-        unidade: item.unidade || "un",
-        preco_desonerado: item.preco_desonerado ?? item.custo_desonerado ?? 0,
-        preco_nao_desonerado: item.preco_nao_desonerado ?? item.custo_nao_desonerado ?? 0,
-      } : p));
-      toast.success("Item encontrado");
-    } else {
-      toast.error("Item não encontrado para esta UF/Mês");
-    }
+    setLines(prev => [...prev, { ...item, coeficiente: "1" }]);
   };
 
   const submit = async () => {
     if (!f.codigo.trim() || !f.descricao.trim()) return toast.error("Código e descrição obrigatórios");
-    const valid = lines.filter(l => l.descricao.trim());
-    if (valid.length === 0) return toast.error("Adicione pelo menos 1 item à CPU");
+    if (lines.length === 0) return toast.error("Adicione pelo menos 1 item à CPU (a partir do banco)");
 
     const { error } = await supabase.from("base_composicoes").insert({
       fonte: PROPRIA, codigo: f.codigo.trim(), descricao: f.descricao.trim(), unidade: f.unidade.trim() || null,
@@ -437,11 +567,11 @@ function NovaComposicaoDialog({ open, setOpen, onCreated }: { open: boolean; set
     });
     if (error) return toast.error(error.message);
 
-    const itens = valid.map(l => ({
+    const itens = lines.map(l => ({
       fonte: PROPRIA, composicao_codigo: f.codigo.trim(),
-      insumo_codigo: l.insumo_codigo.trim() || null, descricao: l.descricao.trim(),
-      unidade: l.unidade.trim() || null, coeficiente: Number(l.coeficiente.replace(",", ".")) || 0,
-      tipo: l.tipo || null, uf: f.uf || null, mes_ref: f.mes_ref || null,
+      insumo_codigo: l.codigo, descricao: l.descricao,
+      unidade: l.unidade || null, coeficiente: Number(l.coeficiente.replace(",", ".")) || 0,
+      tipo: l.tipo, uf: f.uf || null, mes_ref: f.mes_ref || null,
     }));
     const { error: e2 } = await supabase.from("base_composicao_itens").insert(itens);
     if (e2) return toast.error(e2.message);
@@ -458,7 +588,7 @@ function NovaComposicaoDialog({ open, setOpen, onCreated }: { open: boolean; set
           <div><Label>Código</Label><Input value={f.codigo} onChange={(e)=>setF({...f, codigo: e.target.value})} placeholder="Ex.: PROP-001" /></div>
           <div className="col-span-2"><Label>Descrição</Label><Input value={f.descricao} onChange={(e)=>setF({...f, descricao: e.target.value})} /></div>
           <div><Label>Unidade</Label><Input value={f.unidade} onChange={(e)=>setF({...f, unidade: e.target.value})} /></div>
-          <div><Label>UF</Label>
+          <div><Label>UF (data-base)</Label>
             <Select value={f.uf || "__none"} onValueChange={(v)=>setF({...f, uf: v === "__none" ? "" : v})}>
               <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
               <SelectContent>
@@ -475,42 +605,45 @@ function NovaComposicaoDialog({ open, setOpen, onCreated }: { open: boolean; set
         <div className="mt-4">
           <div className="flex items-center justify-between mb-2">
             <Label className="text-sm font-semibold">Composição de Preço Unitário</Label>
-            <Button size="sm" variant="secondary" onClick={()=>setLines(prev => [...prev, { ...blank }])}><Plus className="size-3 mr-1" />Linha</Button>
+            <Button size="sm" variant="secondary" onClick={()=>setPickerOpen(true)}><Plus className="size-3 mr-1" />Adicionar item do banco</Button>
           </div>
           <div className="rounded border overflow-x-auto max-h-72 overflow-y-auto">
             <table className="budget-table">
               <thead><tr>
-                <th style={{width:110}}>Tipo</th><th style={{width:120}}>Cód. insumo</th><th>Descrição</th>
-                <th style={{width:80}}>Un.</th><th className="num" style={{width:110}}>Coef.</th><th style={{width:80}}>Ação</th><th style={{width:40}}></th>
+                <th style={{width:110}}>Tipo</th><th style={{width:120}}>Código</th><th>Descrição</th>
+                <th style={{width:80}}>Un.</th>
+                <th className="num" style={{width:110}}>Coef.</th>
+                <th className="num" style={{width:110}}>Pr. Deson.</th>
+                <th className="num" style={{width:110}}>Pr. N/Deson.</th>
+                <th style={{width:40}}></th>
               </tr></thead>
               <tbody>
                 {lines.map((l, i) => (
-                  <tr key={i}>
-                    <td>
-                      <Select value={l.tipo} onValueChange={(v)=>setLines(prev => prev.map((p,j)=> j===i ? {...p, tipo: v} : p))}>
-                        <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="INSUMO">Insumo</SelectItem>
-                          <SelectItem value="MAO_OBRA">Mão de obra</SelectItem>
-                          <SelectItem value="EQUIPAMENTO">Equipamento</SelectItem>
-                          <SelectItem value="COMPOSICAO">Composição</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </td>
-                    <td><Input className="h-8" value={l.insumo_codigo} onChange={(e)=>setLines(prev => prev.map((p,j)=> j===i ? {...p, insumo_codigo: e.target.value} : p))} /></td>
-                    <td><Input className="h-8" value={l.descricao} onChange={(e)=>setLines(prev => prev.map((p,j)=> j===i ? {...p, descricao: e.target.value} : p))} /></td>
-                    <td><Input className="h-8" value={l.unidade} onChange={(e)=>setLines(prev => prev.map((p,j)=> j===i ? {...p, unidade: e.target.value} : p))} /></td>
+                  <tr key={`${l.tipo}-${l.codigo}`}>
+                    <td>{l.tipo === "COMPOSICAO" ? "Composição" : "Insumo"}</td>
+                    <td>{l.codigo}</td>
+                    <td>{l.descricao}</td>
+                    <td>{l.unidade ?? "—"}</td>
                     <td><Input className="h-8 text-right" value={l.coeficiente} onChange={(e)=>setLines(prev => prev.map((p,j)=> j===i ? {...p, coeficiente: e.target.value} : p))} /></td>
-                    <td><Button type="button" size="sm" variant="outline" className="h-8" onClick={()=>buscarItem(i)} disabled={isSearching}><Search className="size-3"/></Button></td>
+                    <td className="num">{fmtBRL(l.preco_desonerado)}</td>
+                    <td className="num">{fmtBRL(l.preco_nao_desonerado)}</td>
                     <td><button className="text-destructive" onClick={()=>setLines(prev => prev.filter((_,j)=>j!==i))}><Trash2 className="size-4"/></button></td>
                   </tr>
                 ))}
+                {lines.length === 0 && (
+                  <tr><td colSpan={8} className="text-center text-muted-foreground py-4 text-xs italic">
+                    Nenhum item adicionado. Use "Adicionar item do banco" para incluir insumos ou composições já cadastrados.
+                  </td></tr>
+                )}
               </tbody>
             </table>
           </div>
+          <p className="text-xs text-muted-foreground mt-2">Os preços são extraídos do banco conforme UF e Mês de Referência informados acima. Apenas o coeficiente é editável.</p>
         </div>
 
         <DialogFooter><Button onClick={submit}>Criar composição</Button></DialogFooter>
+
+        <ItemPickerDialog open={pickerOpen} setOpen={setPickerOpen} uf={f.uf} mes_ref={f.mes_ref} onPick={onPick} />
       </DialogContent>
     </Dialog>
   );
