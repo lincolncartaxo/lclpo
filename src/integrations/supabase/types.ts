@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      _stage_insumos_cd: {
+        Row: {
+          codigo: string | null
+          descricao: string | null
+          fonte: string | null
+          mes_ref: string | null
+          origem: string | null
+          preco: number | null
+          uf: string | null
+          unidade: string | null
+        }
+        Insert: {
+          codigo?: string | null
+          descricao?: string | null
+          fonte?: string | null
+          mes_ref?: string | null
+          origem?: string | null
+          preco?: number | null
+          uf?: string | null
+          unidade?: string | null
+        }
+        Update: {
+          codigo?: string | null
+          descricao?: string | null
+          fonte?: string | null
+          mes_ref?: string | null
+          origem?: string | null
+          preco?: number | null
+          uf?: string | null
+          unidade?: string | null
+        }
+        Relationships: []
+      }
       base_composicao_itens: {
         Row: {
           coeficiente: number
