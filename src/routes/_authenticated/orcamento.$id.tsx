@@ -554,6 +554,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf }:
   const [fonte, setFonte] = useState<string>("__all");
   const [q, setQ] = useState("");
   const [results, setResults] = useState<any[]>([]);
+  const [prices, setPrices] = useState<Record<string, number>>({});
   const [item, setItem] = useState("");
   const [quant, setQuant] = useState("1");
 
@@ -572,10 +573,22 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf }:
       if (fonte !== "__all") qb = qb.eq("fonte", fonte);
       if (q.trim()) qb = qb.or(`descricao.ilike.%${q}%,codigo.ilike.%${q}%`);
       const { data } = await qb;
-      setResults(data ?? []);
-    }, 200);
+      const rows = data ?? [];
+      setResults(rows);
+      setPrices({});
+      const entries = await Promise.all(rows.map(async (r: any) => {
+        try {
+          const { data: p } = await supabase.rpc("calcular_custo_composicao" as any, {
+            p_fonte: r.fonte, p_codigo: String(r.codigo),
+            p_uf: ufUse, p_mes_ref: null as any, p_regime: regime,
+          });
+          return [`${r.fonte}|${r.codigo}`, Number(p ?? 0)] as const;
+        } catch { return [`${r.fonte}|${r.codigo}`, 0] as const; }
+      }));
+      setPrices(Object.fromEntries(entries));
+    }, 250);
     return () => clearTimeout(t);
-  }, [q, fonte]);
+  }, [q, fonte, regime, ufUse]);
 
   const addFromBase = async (r: any) => {
     // Sempre calcula recursivamente a partir dos insumos (UF do orçamento, último mês disponível)
@@ -637,7 +650,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf }:
             <div className="mt-3 max-h-80 overflow-auto rounded border">
               <table className="budget-table">
                 <thead><tr><th>Fonte</th><th>Cód.</th><th>Descrição</th><th>Un.</th><th className="num">Preço</th><th></th></tr></thead>
-                <tbody>{results.map((r,i)=>(<tr key={i}><td>{r.fonte}</td><td>{r.codigo}</td><td>{r.descricao}</td><td>{r.unidade}</td><td className="num">{fmtBRL(Number(r[priceField] ?? 0))}</td><td><Button size="sm" variant="secondary" onClick={()=>addFromBase(r)}>Adicionar</Button></td></tr>))}</tbody>
+                <tbody>{results.map((r,i)=>{ const pk = `${r.fonte}|${r.codigo}`; const pv = prices[pk]; const shown = pv ?? Number(r[priceField] ?? 0); return (<tr key={i}><td>{r.fonte}</td><td>{r.codigo}</td><td>{r.descricao}</td><td>{r.unidade}</td><td className="num">{pv===undefined ? "…" : fmtBRL(shown)}</td><td><Button size="sm" variant="secondary" onClick={()=>addFromBase(r)}>Adicionar</Button></td></tr>);})}</tbody>
               </table>
             </div>
           </TabsContent>
