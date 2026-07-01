@@ -326,7 +326,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      calcular_custo_composicao: {
+        Args: {
+          p_codigo: string
+          p_fonte: string
+          p_mes_ref: string
+          p_regime?: string
+          p_uf: string
+        }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never

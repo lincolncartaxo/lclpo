@@ -375,7 +375,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf }: { orcId: stri
         <p className="text-sm text-muted-foreground">{items.length} itens · Total c/ BDI {fmtBRL(total)}</p>
         <div className="flex gap-2 items-center">
           <AddEtapaDialog open={openEtapa} setOpen={setOpenEtapa} onAdd={addEtapa} />
-          <AddItemDialog orcId={orcId} open={open} setOpen={setOpen} onAdded={reload} nextOrdem={items.length+1} regime={regime} />
+          <AddItemDialog orcId={orcId} open={open} setOpen={setOpen} onAdded={reload} nextOrdem={items.length+1} regime={regime} uf={uf} />
 
 
         </div>
@@ -548,7 +548,7 @@ function ExplosaoSheet({ row, onClose, regime, uf }: { row: Item | null; onClose
   );
 }
 
-function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime }: any) {
+function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf }: any) {
   const FONTES_ALL = ["SINAPI","DER","SICRO3","SBC","ORSE","Outras"];
   const [tab, setTab] = useState("base");
   const [fonte, setFonte] = useState<string>("__all");
@@ -561,6 +561,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime }: any
   const [m, setM] = useState({ descricao: "", unidade: "un", preco_unitario: "0" });
 
   const priceField = regime === "desonerado" ? "custo_desonerado" : "custo_nao_desonerado";
+  const ufUse = (uf && String(uf).trim()) || "PB";
 
   useEffect(() => {
     const t = setTimeout(async () => {
@@ -577,13 +578,28 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime }: any
   }, [q, fonte]);
 
   const addFromBase = async (r: any) => {
+    // Sempre calcula recursivamente a partir dos insumos (UF do orçamento, último mês disponível)
+    let preco = 0;
+    try {
+      const { data, error } = await supabase.rpc("calcular_custo_composicao" as any, {
+        p_fonte: r.fonte, p_codigo: String(r.codigo),
+        p_uf: ufUse, p_mes_ref: null, p_regime: regime,
+      });
+      if (error) throw error;
+      preco = Number(data ?? 0);
+    } catch {
+      preco = Number(r[priceField] ?? 0);
+    }
+    if (!preco) preco = Number(r[priceField] ?? 0);
     await supabase.from("orcamento_itens").insert({
       orcamento_id: orcId, ordem: nextOrdem, etapa: null, item: item || null,
       fonte: r.fonte, codigo: String(r.codigo), descricao: r.descricao, unidade: r.unidade,
       quantidade: Number(quant.replace(",",".") || 1),
-      preco_unitario: Number(r[priceField] ?? 0),
+      preco_unitario: preco,
     });
-    toast.success("Item adicionado"); setOpen(false); onAdded();
+    if (!preco) toast.warning("Item adicionado sem preço (insumos sem cotação para a UF/mês).");
+    else toast.success("Item adicionado");
+    setOpen(false); onAdded();
   };
   const addManual = async () => {
     if (!m.descricao) return toast.error("Descrição obrigatória");
