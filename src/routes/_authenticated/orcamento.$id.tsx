@@ -650,7 +650,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf }:
             <div className="mt-3 max-h-80 overflow-auto rounded border">
               <table className="budget-table">
                 <thead><tr><th>Fonte</th><th>Cód.</th><th>Descrição</th><th>Un.</th><th className="num">Preço</th><th></th></tr></thead>
-                <tbody>{results.map((r,i)=>(<tr key={i}><td>{r.fonte}</td><td>{r.codigo}</td><td>{r.descricao}</td><td>{r.unidade}</td><td className="num">{fmtBRL(Number(r[priceField] ?? 0))}</td><td><Button size="sm" variant="secondary" onClick={()=>addFromBase(r)}>Adicionar</Button></td></tr>))}</tbody>
+                <tbody>{results.map((r,i)=>{ const pk = `${r.fonte}|${r.codigo}`; const pv = prices[pk]; const shown = pv ?? Number(r[priceField] ?? 0); return (<tr key={i}><td>{r.fonte}</td><td>{r.codigo}</td><td>{r.descricao}</td><td>{r.unidade}</td><td className="num">{pv===undefined ? "…" : fmtBRL(shown)}</td><td><Button size="sm" variant="secondary" onClick={()=>addFromBase(r)}>Adicionar</Button></td></tr>);})}</tbody>
               </table>
             </div>
           </TabsContent>
