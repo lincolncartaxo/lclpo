@@ -99,8 +99,9 @@ function usePaged<T = any>(
       const to = from + PAGE_SIZE - 1;
       let query: any = supabase.from(table).select(columns, { count: "exact" }).range(from, to).order("codigo");
       if (fonte !== "__all") query = query.eq("fonte", fonte);
-      if (uf !== "__all") query = query.eq("uf", uf);
-      if (mes) query = query.eq("mes_ref", toMesRef(mes));
+      // Composições são universais; UF/mês selecionam os preços dos insumos usados no cálculo.
+      if (table === "base_insumos" && uf !== "__all") query = query.eq("uf", uf);
+      if (table === "base_insumos" && mes) query = query.eq("mes_ref", toMesRef(mes));
       if (q.trim()) query = query.or(`descricao.ilike.%${q}%,codigo.ilike.%${q}%`);
       const { data, count: c } = await query;
       setRows((data as T[]) ?? []);
