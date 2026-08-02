@@ -101,7 +101,7 @@ async function recalculateBudgetPrices(orcamentoId: string, regime: string, uf: 
       p_fonte: item.fonte,
       p_codigo: item.codigo,
       p_uf: uf?.trim() || "PB",
-      p_mes_ref: null,
+      p_mes_ref: "",
       p_regime: regime,
     });
     const price = Number(data);
@@ -522,7 +522,7 @@ function ExplosaoSheet({ row, onClose, regime, uf }: { row: Item | null; onClose
          const entries = await Promise.all(compCodes.map(async (codigo) => {
            const { data } = await supabase.rpc("calcular_custo_composicao", {
              p_fonte: row.fonte!, p_codigo: String(codigo), p_uf: uf?.trim() || "PB",
-             p_mes_ref: null, p_regime: regime,
+             p_mes_ref: "", p_regime: regime,
            });
            return [String(codigo), Number(data) || 0] as const;
          }));
@@ -682,7 +682,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf }:
             <div className="mt-3 max-h-80 overflow-auto rounded border">
               <table className="budget-table">
                 <thead><tr><th>Fonte</th><th>Cód.</th><th>Descrição</th><th>Un.</th><th className="num">Preço</th><th></th></tr></thead>
-                <tbody>{results.map((r,i)=>{ const pk = `${r.fonte}|${r.codigo}`; const pv = prices[pk]; const shown = pv ?? Number(r[priceField] ?? 0); return (<tr key={i}><td>{r.fonte}</td><td>{r.codigo}</td><td>{r.descricao}</td><td>{r.unidade}</td><td className="num">{pv===undefined ? "…" : fmtBRL(shown)}</td><td><Button size="sm" variant="secondary" onClick={()=>addFromBase(r)}>Adicionar</Button></td></tr>);})}</tbody>
+                <tbody>{results.map((r,i)=>{ const pk = `${r.fonte}|${r.codigo}`; const pv = prices[pk]; return (<tr key={i}><td>{r.fonte}</td><td>{r.codigo}</td><td>{r.descricao}</td><td>{r.unidade}</td><td className="num">{pv===undefined ? "…" : fmtBRL(pv)}</td><td><Button size="sm" variant="secondary" onClick={()=>addFromBase(r)}>Adicionar</Button></td></tr>);})}</tbody>
               </table>
             </div>
           </TabsContent>

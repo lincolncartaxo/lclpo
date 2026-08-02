@@ -129,7 +129,7 @@ function Pager({ page, setPage, count }: { page: number; setPage: (n: number) =>
 }
 
 async function computeCompTotals(comp: { codigo: string; fonte: string }, uf: string, mes: string) {
-  const args = { p_fonte: comp.fonte, p_codigo: comp.codigo, p_uf: uf === "__all" ? "PB" : uf, p_mes_ref: toMesRef(mes) || null };
+  const args = { p_fonte: comp.fonte, p_codigo: comp.codigo, p_uf: uf === "__all" ? "PB" : uf, p_mes_ref: toMesRef(mes) || "" };
   const [{ data: deson }, { data: naoDeson }] = await Promise.all([
     supabase.rpc("calcular_custo_composicao", { ...args, p_regime: "desonerado" }),
     supabase.rpc("calcular_custo_composicao", { ...args, p_regime: "nao_desonerado" }),
