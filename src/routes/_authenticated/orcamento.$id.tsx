@@ -89,6 +89,28 @@ type Item = {
   quantidade: number; preco_unitario: number;
 };
 
+async function recalculateBudgetPrices(orcamentoId: string, regime: string, uf: string | null) {
+  const { data: items } = await supabase
+    .from("orcamento_itens")
+    .select("id,fonte,codigo")
+    .eq("orcamento_id", orcamentoId)
+    .not("codigo", "is", null);
+  await Promise.all((items ?? []).map(async (item) => {
+    if (!item.fonte || !item.codigo) return;
+    const { data, error } = await supabase.rpc("calcular_custo_composicao", {
+      p_fonte: item.fonte,
+      p_codigo: item.codigo,
+      p_uf: uf?.trim() || "PB",
+      p_mes_ref: "",
+      p_regime: regime,
+    });
+    const price = Number(data);
+    if (!error && Number.isFinite(price) && price > 0) {
+      await supabase.from("orcamento_itens").update({ preco_unitario: price }).eq("id", item.id);
+    }
+  }));
+}
+
 function Editor() {
   const { id } = Route.useParams();
   const nav = useNavigate();
@@ -176,6 +198,7 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
       regime: f.regime ?? "nao_desonerado",
     } as any).eq("id", orc.id);
     if (error) return toast.error(error.message);
+    await recalculateBudgetPrices(orc.id, f.regime ?? "nao_desonerado", f.uf ?? null);
     toast.success("Dados Gerais salvos"); onSaved();
   };
   return (
@@ -483,17 +506,28 @@ function ExplosaoSheet({ row, onClose, regime, uf }: { row: Item | null; onClose
       setRows(items);
 
       // Busca preços dos insumos automaticamente (regime + uf do orçamento)
-      const codigos = Array.from(new Set(items.map((r: any) => r.insumo_codigo).filter(Boolean)));
+       const codigos = Array.from(new Set(items.filter((r: any) => r.tipo !== "COMPOSICAO").map((r: any) => r.insumo_codigo).filter(Boolean)));
+       const compCodes = Array.from(new Set(items.filter((r: any) => r.tipo === "COMPOSICAO").map((r: any) => r.insumo_codigo).filter(Boolean)));
       const map: Record<string, number> = {};
       if (codigos.length) {
         const priceCol = regime === "desonerado" ? "preco_desonerado" : "preco_nao_desonerado";
-        let q: any = supabase.from("base_insumos").select(`codigo,fonte,uf,${priceCol}`).in("codigo", codigos as string[]);
+         let q: any = supabase.from("base_insumos").select(`codigo,fonte,uf,${priceCol}`).eq("fonte", row.fonte!).in("codigo", codigos as string[]);
         if (uf) q = q.eq("uf", uf);
         const { data: ins } = await q;
         (ins ?? []).forEach((r: any) => {
           if (r.codigo && map[r.codigo] == null) map[r.codigo] = Number(r[priceCol] ?? 0);
         });
       }
+       if (compCodes.length) {
+         const entries = await Promise.all(compCodes.map(async (codigo) => {
+           const { data } = await supabase.rpc("calcular_custo_composicao", {
+             p_fonte: row.fonte!, p_codigo: String(codigo), p_uf: uf?.trim() || "PB",
+             p_mes_ref: "", p_regime: regime,
+           });
+           return [String(codigo), Number(data) || 0] as const;
+         }));
+         entries.forEach(([codigo, price]) => { map[codigo] = price; });
+       }
       setPrecos(map);
       setLoading(false);
     })();
@@ -561,7 +595,6 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf }:
   // manual fields
   const [m, setM] = useState({ descricao: "", unidade: "un", preco_unitario: "0" });
 
-  const priceField = regime === "desonerado" ? "custo_desonerado" : "custo_nao_desonerado";
   const ufUse = (uf && String(uf).trim()) || "PB";
 
   useEffect(() => {
@@ -601,9 +634,8 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf }:
       if (error) throw error;
       preco = Number(data ?? 0);
     } catch {
-      preco = Number(r[priceField] ?? 0);
+      preco = 0;
     }
-    if (!preco) preco = Number(r[priceField] ?? 0);
     await supabase.from("orcamento_itens").insert({
       orcamento_id: orcId, ordem: nextOrdem, etapa: null, item: item || null,
       fonte: r.fonte, codigo: String(r.codigo), descricao: r.descricao, unidade: r.unidade,
@@ -650,7 +682,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf }:
             <div className="mt-3 max-h-80 overflow-auto rounded border">
               <table className="budget-table">
                 <thead><tr><th>Fonte</th><th>Cód.</th><th>Descrição</th><th>Un.</th><th className="num">Preço</th><th></th></tr></thead>
-                <tbody>{results.map((r,i)=>{ const pk = `${r.fonte}|${r.codigo}`; const pv = prices[pk]; const shown = pv ?? Number(r[priceField] ?? 0); return (<tr key={i}><td>{r.fonte}</td><td>{r.codigo}</td><td>{r.descricao}</td><td>{r.unidade}</td><td className="num">{pv===undefined ? "…" : fmtBRL(shown)}</td><td><Button size="sm" variant="secondary" onClick={()=>addFromBase(r)}>Adicionar</Button></td></tr>);})}</tbody>
+                <tbody>{results.map((r,i)=>{ const pk = `${r.fonte}|${r.codigo}`; const pv = prices[pk]; return (<tr key={i}><td>{r.fonte}</td><td>{r.codigo}</td><td>{r.descricao}</td><td>{r.unidade}</td><td className="num">{pv===undefined ? "…" : fmtBRL(pv)}</td><td><Button size="sm" variant="secondary" onClick={()=>addFromBase(r)}>Adicionar</Button></td></tr>);})}</tbody>
               </table>
             </div>
           </TabsContent>
