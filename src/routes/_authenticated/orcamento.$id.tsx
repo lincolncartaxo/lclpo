@@ -792,8 +792,29 @@ function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: It
     await supabase.from("orcamento_cronograma").upsert({ orcamento_id: orcId, etapa, mes, percentual: val }, { onConflict: "orcamento_id,etapa,mes" });
   };
 
-  const totalEtapa = (e: string) => (totaisPorEtapa[e] || 0) * (totalComBdi / Math.max(subtotalAll, 1));
-  const valorMes = (mes: number) => etapas.reduce((s,e)=>s + (grid[e]?.[mes]||0) * totalEtapa(e), 0);
+  const fator = totalComBdi / Math.max(subtotalAll, 1);
+  // Subetapas descendentes (por prefixo hierárquico) de cada etapa
+  const descendentes = useMemo(() => {
+    const m: Record<string, string[]> = {};
+    etapas.forEach(e => {
+      const p = prefixOf(e);
+      m[e] = p ? etapas.filter(o => o !== e && prefixOf(o).startsWith(p + ".")) : [];
+    });
+    return m;
+  }, [etapas]);
+  const isParent = (e: string) => (descendentes[e]?.length ?? 0) > 0;
+  const folhasDe = (e: string) => descendentes[e].filter(d => !isParent(d));
+  const totalEtapa = (e: string) => {
+    if (!isParent(e)) return (totaisPorEtapa[e] || 0) * fator;
+    return folhasDe(e).reduce((s, d) => s + (totaisPorEtapa[d] || 0) * fator, 0);
+  };
+  const pctCell = (e: string, mes: number): number => {
+    if (!isParent(e)) return grid[e]?.[mes] || 0;
+    const tot = totalEtapa(e);
+    if (tot <= 0) return 0;
+    return folhasDe(e).reduce((s, d) => s + (grid[d]?.[mes] || 0) * (totaisPorEtapa[d] || 0) * fator, 0) / tot;
+  };
+  const valorMes = (mes: number) => etapas.filter(e => !isParent(e)).reduce((s,e)=>s + (grid[e]?.[mes]||0) * totalEtapa(e), 0);
 
 
   return (
@@ -808,11 +829,14 @@ function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: It
           <thead><tr><th>Etapa</th>{Array.from({length:meses},(_,i)=>i+1).map(m=>(<th key={m} className="num">M{m}</th>))}<th className="num">Σ</th></tr></thead>
           <tbody>
             {etapas.map(e=>{
-              const sum = Array.from({length:meses},(_,i)=>i+1).reduce((s,m)=>s+(grid[e]?.[m]||0),0);
+              const sum = Array.from({length:meses},(_,i)=>i+1).reduce((s,m)=>s+pctCell(e, m),0);
+              const parent = isParent(e);
               return (
-                <tr key={e}>
+                <tr key={e} className={parent ? "bg-secondary/30 font-semibold" : undefined}>
                   <td className="font-medium">{e}</td>
-                  {Array.from({length:meses},(_,i)=>i+1).map(m=>(
+                  {Array.from({length:meses},(_,i)=>i+1).map(m=> parent ? (
+                    <td key={m} className="num" title="Calculado a partir das subetapas">{fmtPct(pctCell(e, m))}</td>
+                  ) : (
                     <td key={m} className="num">
                       <div className="flex min-w-20 items-center justify-end gap-1">
                         <input
