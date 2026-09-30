@@ -354,8 +354,18 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf }: { orcId: stri
     toast.success("Etapa criada");
   };
 
-  const totalEtapa = (list: Item[]) =>
+  const totalItens = (list: Item[]) =>
     list.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario) * (1 + bdiPct), 0);
+
+  const totalEtapa = (etapa: string, list: Item[]) => {
+    const pfx = prefixOf(etapaDrafts[etapa] ?? etapa);
+    if (!pfx) return totalItens(list);
+    const descendentes = items.filter((item) => {
+      const codigo = (item.item || "").trim();
+      return codigo === pfx || codigo.startsWith(`${pfx}.`);
+    });
+    return totalItens(descendentes);
+  };
 
 
   const renameEtapa = async (oldName: string, newName: string) => {
@@ -433,7 +443,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf }: { orcId: stri
                       onDelete={()=>askDeleteEtapa(etapa)}
                     />
                   )}
-                  <td className="num font-semibold">{fmtBRL(totalEtapa(group.list))}</td>
+                  <td className="num font-semibold">{fmtBRL(totalEtapa(etapa, group.list))}</td>
                   <td></td>
                 </tr>
                 {group.list.map((i) => {
@@ -772,8 +782,13 @@ function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: It
     })();
   }, [orcId]);
 
-  const setCell = async (etapa: string, mes: number, val: number) => {
+  const updateCell = (etapa: string, mes: number, val: number) => {
     setGrid(prev => ({ ...prev, [etapa]: { ...(prev[etapa]||{}), [mes]: val } }));
+  };
+
+  const saveCell = async (etapa: string, mes: number, percent: number) => {
+    const val = Math.max(0, Math.min(100, percent)) / 100;
+    updateCell(etapa, mes, val);
     await supabase.from("orcamento_cronograma").upsert({ orcamento_id: orcId, etapa, mes, percentual: val }, { onConflict: "orcamento_id,etapa,mes" });
   };
 
@@ -786,7 +801,7 @@ function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: It
       <div className="flex items-center gap-3 mb-3">
         <Label>Meses:</Label>
         <Input className="w-24" type="number" min={1} max={36} value={meses} onChange={(e)=>setMeses(Math.max(1, Math.min(36, Number(e.target.value))))} />
-        <p className="text-xs text-muted-foreground">Informe o percentual de execução de cada etapa por mês (0 a 1, ex.: 0,5 = 50%).</p>
+        <p className="text-xs text-muted-foreground">Informe o percentual de execução de cada etapa por mês (0 a 100%).</p>
       </div>
       <div className="overflow-x-auto rounded border bg-card">
         <table className="budget-table">
@@ -799,7 +814,23 @@ function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: It
                   <td className="font-medium">{e}</td>
                   {Array.from({length:meses},(_,i)=>i+1).map(m=>(
                     <td key={m} className="num">
-                      <input className="w-16 text-right bg-transparent outline-none" type="number" step="0.05" defaultValue={grid[e]?.[m] ?? ""} onBlur={(e2)=>setCell(e, m, Number(e2.target.value)||0)} />
+                      <div className="flex min-w-20 items-center justify-end gap-1">
+                        <input
+                          className="w-14 bg-transparent text-right outline-none"
+                          type="number"
+                          min={0}
+                          max={100}
+                          step="0.01"
+                          value={grid[e]?.[m] == null ? "" : Number((grid[e][m] * 100).toFixed(2))}
+                          onChange={(event) => {
+                            const percent = Math.max(0, Math.min(100, Number(event.target.value) || 0));
+                            updateCell(e, m, percent / 100);
+                          }}
+                          onBlur={(event)=>saveCell(e, m, Number(event.target.value) || 0)}
+                          aria-label={`${e}, mês ${m}, percentual`}
+                        />
+                        <span className="text-muted-foreground">%</span>
+                      </div>
                     </td>
                   ))}
                   <td className={"num font-medium " + (Math.abs(sum-1)<0.001?"text-success":"text-warning")}>{fmtPct(sum)}</td>
