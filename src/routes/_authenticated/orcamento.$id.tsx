@@ -180,7 +180,7 @@ function Editor() {
           <TabsContent value="planilha"><PlanilhaTab orcId={id} items={items} reload={load} bdiPct={Number(orc.bdi_pct)} regime={orc.regime ?? "nao_desonerado"} uf={orc.uf ?? null} /></TabsContent>
           <TabsContent value="resumo"><ResumoTab orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
           <TabsContent value="cronograma"><CronogramaTab orcId={id} items={items} totalComBdi={totalComBdi} /></TabsContent>
-          <TabsContent value="qci"><QciTab subtotal={subtotal} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
+          <TabsContent value="qci"><QciTab orcId={id} items={items} subtotal={subtotal} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
           <TabsContent value="relatorio"><RelatorioTab orc={orc} orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} /></TabsContent>
         </Tabs>
       </div>
@@ -711,27 +711,37 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf }:
 }
 
 /* ---------- RESUMO ---------- */
-function ResumoTab({ orcId, items, subtotal, totalEncargos, totalComBdi, orc }: any) {
+/** Linhas do resumo: cada etapa soma todos os itens descendentes pelo prefixo hierárquico. */
+function useResumoRows(orcId: string, items: Item[]) {
   const [etapasExtra] = useEtapasExtra(orcId);
-  const etapasExistentes = useMemo(() => {
+  return useMemo(() => {
     const set = new Set<string>();
-    (items as Item[]).forEach(i => { if (i.etapa) set.add(i.etapa); });
+    items.forEach(i => { if (i.etapa) set.add(i.etapa); });
     etapasExtra.forEach(e => set.add(e));
-    return Array.from(set);
+    const groups = groupItemsByEtapa(items, Array.from(set));
+    const val = (l: Item[]) => l.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario), 0);
+    const rows = Object.entries(groups).map(([etapa, g]) => {
+      const pfx = prefixOf(etapa);
+      const total = pfx
+        ? val(items.filter(i => { const c = (i.item || "").trim(); return c === pfx || c.startsWith(pfx + "."); }))
+        : val(g.list);
+      return { label: g.label, total, nivel: pfx ? pfx.split(".").length - 1 : 0 };
+    });
+    // base do % = somente etapas de nível raiz (evita contar subetapas duas vezes)
+    const base = rows.filter(r => r.nivel === 0).reduce((a, r) => a + r.total, 0) || 1;
+    return { rows, base };
   }, [items, etapasExtra]);
-  const groups = useMemo(() => groupItemsByEtapa(items, etapasExistentes), [items, etapasExistentes]);
-  const grouped: Record<string, number> = {};
-  Object.values(groups).forEach((g) => {
-    grouped[g.label] = (grouped[g.label] ?? 0) + g.list.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario), 0);
-  });
-  const totGrupos = Object.values(grouped).reduce((a, b) => a + b, 0) || 1;
+}
+
+function ResumoTab({ orcId, items, subtotal, totalEncargos, totalComBdi, orc }: any) {
+  const { rows, base: totGrupos } = useResumoRows(orcId, items);
   return (
     <div className="mt-4 grid lg:grid-cols-3 gap-6">
       <div className="lg:col-span-2 rounded-lg border bg-card overflow-hidden">
         <table className="budget-table">
           <thead><tr><th>Etapa</th><th className="num">Total</th><th className="num">% Obra</th></tr></thead>
           <tbody>
-            {Object.entries(grouped).map(([k,v])=>(<tr key={k}><td>{k}</td><td className="num">{fmtBRL(v)}</td><td className="num">{fmtPct(v/totGrupos)}</td></tr>))}
+            {rows.map((r,idx)=>(<tr key={idx} className={r.nivel===0?"font-medium":""}><td style={{paddingLeft: 8 + r.nivel*16}}>{r.label}</td><td className="num">{fmtBRL(r.total)}</td><td className="num">{fmtPct(r.total/totGrupos)}</td></tr>))}
             <tr className="font-semibold"><td>SUBTOTAL</td><td className="num">{fmtBRL(subtotal)}</td><td className="num">100,00%</td></tr>
             <tr><td>BDI ({fmtPct(orc.bdi_pct)})</td><td className="num">{fmtBRL(totalComBdi - subtotal)}</td><td></td></tr>
             <tr className="bg-primary/10 font-bold"><td>TOTAL GERAL</td><td className="num">{fmtBRL(totalComBdi)}</td><td></td></tr>
@@ -875,22 +885,38 @@ function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: It
 }
 
 /* ---------- QCI ---------- */
-function QciTab({ subtotal, totalComBdi, orc }: any) {
-  const repasse = totalComBdi * 0.95;
-  const contrapartida = totalComBdi - repasse;
+function QciTab({ orcId, items, subtotal, totalComBdi, orc }: any) {
+  const { rows, base } = useResumoRows(orcId, items);
+  const key = `orc_contrapartida_${orcId}`;
+  const [cp, setCp] = useState<number>(0);
+  useEffect(() => { const v = Number(window.localStorage.getItem(key)); if (!isNaN(v)) setCp(v); }, [key]);
+  const upd = (v: number) => { const n = Math.min(100, Math.max(0, v || 0)); setCp(n); window.localStorage.setItem(key, String(n)); };
+  const fc = cp / 100, fr = 1 - fc;
+  const line = (label: string, total: number, cls = "", pad = 8, pct?: number) => (
+    <tr className={cls}><td style={{paddingLeft: pad}}>{label}</td><td className="num">{fmtBRL(total*fr)}</td><td className="num">{fmtBRL(total*fc)}</td><td className="num">{fmtBRL(total)}</td><td className="num">{pct !== undefined ? fmtPct(pct) : ""}</td></tr>
+  );
   return (
-    <div className="mt-4 max-w-2xl">
-      <h3 className="font-semibold mb-3">Quadro de Composição do Investimento</h3>
-      <table className="budget-table">
-        <tbody>
-          <tr><td>Investimento total da obra</td><td className="num">{fmtBRL(totalComBdi)}</td></tr>
-          <tr><td>Custo direto (sem BDI)</td><td className="num">{fmtBRL(subtotal)}</td></tr>
-          <tr><td>BDI ({fmtPct(orc.bdi_pct)})</td><td className="num">{fmtBRL(totalComBdi - subtotal)}</td></tr>
-          <tr><td>Repasse (95%)</td><td className="num">{fmtBRL(repasse)}</td></tr>
-          <tr><td>Contrapartida (5%)</td><td className="num">{fmtBRL(contrapartida)}</td></tr>
-        </tbody>
-      </table>
-      <p className="text-xs text-muted-foreground mt-2">Valores percentuais indicativos — ajuste conforme convênio.</p>
+    <div className="mt-4 space-y-3">
+      <div className="flex items-end gap-3">
+        <Field label="Contrapartida (%)">
+          <div className="relative w-40">
+            <Input type="number" min={0} max={100} step="0.01" value={cp} onChange={e => upd(Number(e.target.value))} className="pr-7" />
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+          </div>
+        </Field>
+        <p className="text-sm text-muted-foreground pb-2">Repasse: {fmtNum(100 - cp)}%</p>
+      </div>
+      <div className="rounded-lg border bg-card overflow-hidden">
+        <table className="budget-table">
+          <thead><tr><th>Etapa</th><th className="num">Repasse ({fmtNum(100-cp)}%)</th><th className="num">Contrapartida ({fmtNum(cp)}%)</th><th className="num">Total</th><th className="num">% Obra</th></tr></thead>
+          <tbody>
+            {rows.map((r, i) => <React.Fragment key={i}>{line(r.label, r.total, r.nivel===0?"font-medium":"", 8 + r.nivel*16, r.total/base)}</React.Fragment>)}
+            {line("SUBTOTAL", subtotal, "font-semibold", 8, 1)}
+            {line(`BDI (${fmtPct(orc.bdi_pct)})`, totalComBdi - subtotal)}
+            {line("TOTAL GERAL", totalComBdi, "bg-primary/10 font-bold")}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
