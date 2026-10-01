@@ -315,11 +315,18 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
       let compPriceMap: Record<string, any> = {};
 
       if (insumoCodigos.length > 0) {
-        let q = supabase.from("base_insumos").select("codigo, preco_desonerado, preco_nao_desonerado").eq("fonte", row.fonte).in("codigo", insumoCodigos);
-        if (uf !== "__all") q = q.eq("uf", uf);
-        if (mes) q = q.eq("mes_ref", toMesRef(mes));
-        const { data: insData } = await q;
-        if (insData) insData.forEach(d => insumosPriceMap[d.codigo] = d);
+        // Mesma regra da função de cálculo: UF padrão PB e mês mais recente da UF quando não informado.
+        const effUf = uf === "__all" ? "PB" : uf;
+        let effMes = toMesRef(mes);
+        if (!effMes) {
+          const { data: m } = await supabase.from("base_insumos").select("mes_ref").eq("fonte", row.fonte).eq("uf", effUf).order("mes_ref", { ascending: false }).limit(1);
+          effMes = (m?.[0] as any)?.mes_ref ?? "";
+        }
+        const { data: insData } = await supabase.from("base_insumos")
+          .select("id, codigo, preco_desonerado, preco_nao_desonerado")
+          .eq("fonte", row.fonte).eq("uf", effUf).eq("mes_ref", effMes)
+          .in("codigo", insumoCodigos).order("id", { ascending: false });
+        if (insData) insData.forEach((d: any) => { if (!insumosPriceMap[d.codigo]) insumosPriceMap[d.codigo] = d; });
       }
 
       if (compCodigos.length > 0) {
@@ -344,8 +351,8 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
     })();
   }, [row, uf, mes]);
 
-  const totalDeson = rows.reduce((acc, r) => acc + Number(r.coeficiente) * (r.preco_desonerado || 0), 0);
-  const totalNaoDeson = rows.reduce((acc, r) => acc + Number(r.coeficiente) * (r.preco_nao_desonerado || 0), 0);
+  const totalDeson = rows.reduce((acc, r) => acc + trunc2(Number(r.coeficiente) * (r.preco_desonerado || 0)), 0);
+  const totalNaoDeson = rows.reduce((acc, r) => acc + trunc2(Number(r.coeficiente) * (r.preco_nao_desonerado || 0)), 0);
 
   return (
     <Sheet open={!!row} onOpenChange={(o)=>{ if (!o) onClose(); }}>
