@@ -129,6 +129,9 @@ function Pager({ page, setPage, count }: { page: number; setPage: (n: number) =>
   );
 }
 
+// Trunca em 2 casas (padrão SINAPI); arredonda antes para evitar erro de ponto flutuante.
+const trunc2 = (n: number) => Math.trunc(Math.round(n * 1e6) / 1e4) / 100;
+
 async function computeCompTotals(comp: { codigo: string; fonte: string }, uf: string, mes: string) {
   const args = { p_fonte: comp.fonte, p_codigo: comp.codigo, p_uf: uf === "__all" ? "PB" : uf, p_mes_ref: toMesRef(mes) || "" };
   const [{ data: deson }, { data: naoDeson }] = await Promise.all([
@@ -379,9 +382,9 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
                   <td>{r.unidade ?? "—"}</td>
                   <td className="num">{Number(r.coeficiente).toLocaleString("pt-BR",{minimumFractionDigits:4,maximumFractionDigits:6})}</td>
                   <td className="num">{fmtBRL(r.preco_desonerado)}</td>
-                  <td className="num">{fmtBRL((r.preco_desonerado || 0) * Number(r.coeficiente))}</td>
+                  <td className="num">{fmtBRL(trunc2((r.preco_desonerado || 0) * Number(r.coeficiente)))}</td>
                   <td className="num">{fmtBRL(r.preco_nao_desonerado)}</td>
-                  <td className="num">{fmtBRL((r.preco_nao_desonerado || 0) * Number(r.coeficiente))}</td>
+                  <td className="num">{fmtBRL(trunc2((r.preco_nao_desonerado || 0) * Number(r.coeficiente)))}</td>
                 </tr>
               ))}
               {!loading && rows.length === 0 && (
