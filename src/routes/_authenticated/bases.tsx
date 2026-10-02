@@ -151,6 +151,12 @@ function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: st
   const [latestMes, setLatestMes] = useState<Record<string, string>>({});
   const effUf = uf === "__all" ? "PB" : uf;
   useEffect(() => { setPage(1); }, [uf, mes, fonte, q]);
+  const fmtMes = (m?: string | null) => { if (!m) return "—"; const [y, mo] = m.split("-"); return mo ? `${mo}/${y}` : m; };
+  const { rows, count } = usePaged<any>(
+    "base_composicoes",
+    "id,codigo,descricao,unidade,custo_desonerado,custo_nao_desonerado,uf,mes_ref,fonte",
+    { uf, mes, fonte, q, page, reloadKey },
+  );
   useEffect(() => {
     if (mes) return;
     const fontes = Array.from(new Set(rows.map((r: any) => r.fonte))).filter(f => !(f in latestMes) || true);
@@ -163,12 +169,6 @@ function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: st
       setLatestMes(out);
     })();
   }, [rows, effUf, mes]);
-  const fmtMes = (m?: string | null) => { if (!m) return "—"; const [y, mo] = m.split("-"); return mo ? `${mo}/${y}` : m; };
-  const { rows, count } = usePaged<any>(
-    "base_composicoes",
-    "id,codigo,descricao,unidade,custo_desonerado,custo_nao_desonerado,uf,mes_ref,fonte",
-    { uf, mes, fonte, q, page, reloadKey },
-  );
 
   useEffect(() => {
     let cancelled = false;
