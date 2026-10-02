@@ -148,7 +148,22 @@ function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: st
   const [openNew, setOpenNew] = useState(false);
   const [confirmDel, setConfirmDel] = useState<any | null>(null);
   const [computed, setComputed] = useState<Record<string, { deson: number; nao_deson: number }>>({});
+  const [latestMes, setLatestMes] = useState<Record<string, string>>({});
+  const effUf = uf === "__all" ? "PB" : uf;
   useEffect(() => { setPage(1); }, [uf, mes, fonte, q]);
+  useEffect(() => {
+    if (mes) return;
+    const fontes = Array.from(new Set(rows.map((r: any) => r.fonte))).filter(f => !(f in latestMes) || true);
+    (async () => {
+      const out: Record<string, string> = {};
+      await Promise.all(fontes.map(async (f) => {
+        const { data } = await supabase.from("base_insumos").select("mes_ref").eq("fonte", f).eq("uf", effUf).order("mes_ref", { ascending: false }).limit(1);
+        out[f] = (data?.[0] as any)?.mes_ref ?? "";
+      }));
+      setLatestMes(out);
+    })();
+  }, [rows, effUf, mes]);
+  const fmtMes = (m?: string | null) => { if (!m) return "—"; const [y, mo] = m.split("-"); return mo ? `${mo}/${y}` : m; };
   const { rows, count } = usePaged<any>(
     "base_composicoes",
     "id,codigo,descricao,unidade,custo_desonerado,custo_nao_desonerado,uf,mes_ref,fonte",
@@ -196,7 +211,7 @@ function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: st
             const n = c?.nao_deson ?? Number(r.custo_nao_desonerado) ?? 0;
             return (
               <tr key={i} className="hover:bg-muted/30">
-                <td>{r.fonte}</td><td>{r.uf ?? "—"}</td><td>{r.mes_ref ?? "—"}</td>
+                <td>{r.fonte}</td><td>{r.uf ?? effUf}</td><td>{fmtMes(r.mes_ref ?? (mes ? toMesRef(mes) : latestMes[r.fonte]))}</td>
                 <td>
                   <button className="inline-flex items-center gap-1 text-primary hover:underline" onClick={()=>setCpuRow(r)} title="Composição de Preço Unitário">
                     <Layers className="size-3" />{r.codigo}
@@ -264,7 +279,7 @@ function InsList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: str
           </tr></thead>
           <tbody>{rows.map((r,i)=>(
             <tr key={i}>
-              <td>{r.fonte}</td><td>{r.uf ?? "—"}</td><td>{r.mes_ref ?? "—"}</td>
+              <td>{r.fonte}</td><td>{r.uf ?? "—"}</td><td>{r.mes_ref ? `${String(r.mes_ref).slice(5,7)}/${String(r.mes_ref).slice(0,4)}` : "—"}</td>
               <td>{r.codigo}</td><td>{r.descricao}</td><td>{r.unidade}</td><td>{r.origem ?? "—"}</td>
               <td className="num">{fmtBRL(r.preco_desonerado)}</td>
               <td className="num">{fmtBRL(r.preco_nao_desonerado)}</td>
