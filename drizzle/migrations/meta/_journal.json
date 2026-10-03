@@ -8,6 +8,13 @@
       "when": 1790858054020,
       "tag": "0000_truncar_custo_composicao",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791008243144,
+      "tag": "0001_listar_bases_precos",
+      "breakpoints": true
     }
   ]
 }

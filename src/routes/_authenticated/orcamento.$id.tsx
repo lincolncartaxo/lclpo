@@ -89,7 +89,17 @@ type Item = {
   quantidade: number; preco_unitario: number;
 };
 
-async function recalculateBudgetPrices(orcamentoId: string, regime: string, uf: string | null) {
+const UFS = ["AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT","PA","PB","PE","PI","PR","RJ","RN","RO","RR","RS","SC","SE","SP","TO"];
+function parseRef(ref: string | null | undefined): { fonte: string | null; mes: string | null } {
+  const m = /^(.+)\|(\d{4}-\d{2}-\d{2})$/.exec(ref ?? "");
+  return m ? { fonte: m[1], mes: m[2] } : { fonte: null, mes: null };
+}
+function fmtRef(ref: string | null | undefined) {
+  const { fonte, mes } = parseRef(ref);
+  return fonte && mes ? `${fonte} - ${mes.slice(5,7)}/${mes.slice(0,4)}` : (ref ?? "");
+}
+
+async function recalculateBudgetPrices(orcamentoId: string, regime: string, uf: string | null, mesRef: string | null = null) {
   const { data: items } = await supabase
     .from("orcamento_itens")
     .select("id,fonte,codigo")
@@ -101,7 +111,7 @@ async function recalculateBudgetPrices(orcamentoId: string, regime: string, uf: 
       p_fonte: item.fonte,
       p_codigo: item.codigo,
       p_uf: uf?.trim() || "PB",
-      p_mes_ref: "",
+      p_mes_ref: mesRef ?? "",
       p_regime: regime,
     });
     const price = Number(data);
@@ -177,7 +187,7 @@ function Editor() {
           <TabsContent value="bdi"><BdiTab orc={orc} onSaved={load} /></TabsContent>
           <TabsContent value="composicao"><ComposicaoTab items={items} /></TabsContent>
           <TabsContent value="cotacao"><CotacaoTab /></TabsContent>
-          <TabsContent value="planilha"><PlanilhaTab orcId={id} items={items} reload={load} bdiPct={Number(orc.bdi_pct)} regime={orc.regime ?? "nao_desonerado"} uf={orc.uf ?? null} /></TabsContent>
+          <TabsContent value="planilha"><PlanilhaTab orcId={id} items={items} reload={load} bdiPct={Number(orc.bdi_pct)} regime={orc.regime ?? "nao_desonerado"} uf={orc.uf ?? null} refPrecos={orc.ref_precos ?? null} /></TabsContent>
           <TabsContent value="resumo"><ResumoTab orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
           <TabsContent value="cronograma"><CronogramaTab orcId={id} items={items} totalComBdi={totalComBdi} /></TabsContent>
           <TabsContent value="qci"><QciTab orcId={id} items={items} subtotal={subtotal} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
@@ -191,6 +201,11 @@ function Editor() {
 /* ---------- CAPA ---------- */
 function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
   const [f, setF] = useState({ ...orc });
+  const [bases, setBases] = useState<{ fonte: string; mes_ref: string }[]>([]);
+  useEffect(() => {
+    if (!f.uf) { setBases([]); return; }
+    supabase.rpc("listar_bases_precos" as any, { p_uf: f.uf }).then(({ data }) => setBases((data as any) ?? []));
+  }, [f.uf]);
   const save = async () => {
     const { error } = await supabase.from("orcamentos").update({
       nome: f.nome, objeto: f.objeto, contrato: f.contrato, orgao: f.orgao,
@@ -198,7 +213,7 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
       regime: f.regime ?? "nao_desonerado",
     } as any).eq("id", orc.id);
     if (error) return toast.error(error.message);
-    await recalculateBudgetPrices(orc.id, f.regime ?? "nao_desonerado", f.uf ?? null);
+    await recalculateBudgetPrices(orc.id, f.regime ?? "nao_desonerado", f.uf ?? null, parseRef(f.ref_precos).mes);
     toast.success("Dados Gerais salvos"); onSaved();
   };
   return (
@@ -207,9 +222,19 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
         <Field label="Nome do Orçamento"><Input value={f.nome ?? ""} onChange={(e)=>setF({...f,nome:e.target.value})} /></Field>
         <Field label="Contrato"><Input value={f.contrato ?? ""} onChange={(e)=>setF({...f,contrato:e.target.value})} /></Field>
         <Field label="Município"><Input value={f.municipio ?? ""} onChange={(e)=>setF({...f,municipio:e.target.value})} /></Field>
-        <Field label="UF"><Input maxLength={2} value={f.uf ?? ""} onChange={(e)=>setF({...f,uf:e.target.value.toUpperCase()})} /></Field>
+        <Field label="UF">
+          <Select value={f.uf ?? ""} onValueChange={(v)=>setF({...f, uf: v, ref_precos: null})}>
+            <SelectTrigger><SelectValue placeholder="Selecione o estado" /></SelectTrigger>
+            <SelectContent className="max-h-72">{UFS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+          </Select>
+        </Field>
         <Field label="Órgão / Concedente"><Input value={f.orgao ?? ""} onChange={(e)=>setF({...f,orgao:e.target.value})} /></Field>
-        <Field label="Referência de Preços"><Input value={f.ref_precos ?? ""} placeholder="Ex.: SINAPI PB - Janeiro/2026" onChange={(e)=>setF({...f,ref_precos:e.target.value})} /></Field>
+        <Field label="Base de Preços (Referência)">
+          <Select value={parseRef(f.ref_precos).mes ? (f.ref_precos as string) : ""} onValueChange={(v)=>setF({...f, ref_precos: v})} disabled={!f.uf}>
+            <SelectTrigger><SelectValue placeholder={f.uf ? (bases.length ? "Selecione a base" : "Nenhuma base para esta UF") : "Selecione a UF primeiro"} /></SelectTrigger>
+            <SelectContent className="max-h-72">{bases.map(b => { const v = `${b.fonte}|${String(b.mes_ref).slice(0,10)}`; return <SelectItem key={v} value={v}>{fmtRef(v)}</SelectItem>; })}</SelectContent>
+          </Select>
+        </Field>
         <Field label="Engenheiro Responsável"><Input value={f.engenheiro ?? ""} onChange={(e)=>setF({...f,engenheiro:e.target.value})} /></Field>
         <Field label="CREA"><Input value={f.crea ?? ""} onChange={(e)=>setF({...f,crea:e.target.value})} /></Field>
         <Field label="Regime Tributário">
@@ -314,7 +339,7 @@ function CotacaoTab() {
 }
 
 /* ---------- PLANILHA ORÇAMENTÁRIA ---------- */
-function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf }: { orcId: string; items: Item[]; reload: () => void; bdiPct: number; regime: string; uf: string | null }) {
+function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf, refPrecos }: { orcId: string; items: Item[]; reload: () => void; bdiPct: number; regime: string; uf: string | null; refPrecos: string | null }) {
   const [open, setOpen] = useState(false);
   const [openEtapa, setOpenEtapa] = useState(false);
   const [explodeRow, setExplodeRow] = useState<Item | null>(null);
@@ -408,7 +433,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf }: { orcId: stri
         <p className="text-sm text-muted-foreground">{items.length} itens · Total c/ BDI {fmtBRL(total)}</p>
         <div className="flex gap-2 items-center">
           <AddEtapaDialog open={openEtapa} setOpen={setOpenEtapa} onAdd={addEtapa} />
-          <AddItemDialog orcId={orcId} open={open} setOpen={setOpen} onAdded={reload} nextOrdem={items.length+1} regime={regime} uf={uf} />
+          <AddItemDialog orcId={orcId} open={open} setOpen={setOpen} onAdded={reload} nextOrdem={items.length+1} regime={regime} uf={uf} refPrecos={refPrecos} />
 
 
         </div>
@@ -480,7 +505,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf }: { orcId: stri
           </tbody>
         </table>
       </div>
-      <ExplosaoSheet row={explodeRow} onClose={()=>setExplodeRow(null)} regime={regime} uf={uf} />
+      <ExplosaoSheet row={explodeRow} onClose={()=>setExplodeRow(null)} regime={regime} uf={uf} mesRef={parseRef(refPrecos).mes} />
       <ConfirmDialog
         open={!!confirmItem}
         title="Excluir item"
@@ -499,7 +524,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf }: { orcId: stri
   );
 }
 
-function ExplosaoSheet({ row, onClose, regime, uf }: { row: Item | null; onClose: () => void; regime: string; uf: string | null }) {
+function ExplosaoSheet({ row, onClose, regime, uf, mesRef }: { row: Item | null; onClose: () => void; regime: string; uf: string | null; mesRef: string | null }) {
   const [rows, setRows] = useState<any[]>([]);
   const [precos, setPrecos] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
@@ -523,6 +548,7 @@ function ExplosaoSheet({ row, onClose, regime, uf }: { row: Item | null; onClose
         const priceCol = regime === "desonerado" ? "preco_desonerado" : "preco_nao_desonerado";
          let q: any = supabase.from("base_insumos").select(`codigo,fonte,uf,${priceCol}`).eq("fonte", row.fonte!).in("codigo", codigos as string[]);
         if (uf) q = q.eq("uf", uf);
+        if (mesRef) q = q.eq("mes_ref", mesRef); else q = q.order("mes_ref", { ascending: false });
         const { data: ins } = await q;
         (ins ?? []).forEach((r: any) => {
           if (r.codigo && map[r.codigo] == null) map[r.codigo] = Number(r[priceCol] ?? 0);
@@ -532,7 +558,7 @@ function ExplosaoSheet({ row, onClose, regime, uf }: { row: Item | null; onClose
          const entries = await Promise.all(compCodes.map(async (codigo) => {
            const { data } = await supabase.rpc("calcular_custo_composicao", {
              p_fonte: row.fonte!, p_codigo: String(codigo), p_uf: uf?.trim() || "PB",
-             p_mes_ref: "", p_regime: regime,
+             p_mes_ref: mesRef ?? "", p_regime: regime,
            });
            return [String(codigo), Number(data) || 0] as const;
          }));
@@ -541,7 +567,7 @@ function ExplosaoSheet({ row, onClose, regime, uf }: { row: Item | null; onClose
       setPrecos(map);
       setLoading(false);
     })();
-  }, [row, regime, uf]);
+  }, [row, regime, uf, mesRef]);
   const priceOf = (r: any) => Number(precos[r.insumo_codigo ?? ""] ?? 0);
   const total = rows.reduce((s, r) => s + Number(r.coeficiente) * priceOf(r), 0);
   return (
@@ -592,10 +618,12 @@ function ExplosaoSheet({ row, onClose, regime, uf }: { row: Item | null; onClose
   );
 }
 
-function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf }: any) {
+function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, refPrecos }: any) {
   const FONTES_ALL = ["SINAPI","DER","SICRO3","SBC","ORSE","Outras"];
   const [tab, setTab] = useState("base");
-  const [fonte, setFonte] = useState<string>("__all");
+  const ref = parseRef(refPrecos);
+  const mesUse: string | null = ref.mes;
+  const [fonte, setFonte] = useState<string>(ref.fonte ?? "__all");
   const [q, setQ] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [prices, setPrices] = useState<Record<string, number>>({});
@@ -623,7 +651,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf }:
         try {
           const { data: p } = await supabase.rpc("calcular_custo_composicao" as any, {
             p_fonte: r.fonte, p_codigo: String(r.codigo),
-            p_uf: ufUse, p_mes_ref: null as any, p_regime: regime,
+            p_uf: ufUse, p_mes_ref: (mesUse ?? null) as any, p_regime: regime,
           });
           return [`${r.fonte}|${r.codigo}`, Number(p ?? 0)] as const;
         } catch { return [`${r.fonte}|${r.codigo}`, 0] as const; }
@@ -631,7 +659,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf }:
       setPrices(Object.fromEntries(entries));
     }, 250);
     return () => clearTimeout(t);
-  }, [q, fonte, regime, ufUse]);
+  }, [q, fonte, regime, ufUse, mesUse]);
 
   const addFromBase = async (r: any) => {
     // Sempre calcula recursivamente a partir dos insumos (UF do orçamento, último mês disponível)
@@ -639,7 +667,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf }:
     try {
       const { data, error } = await supabase.rpc("calcular_custo_composicao" as any, {
         p_fonte: r.fonte, p_codigo: String(r.codigo),
-        p_uf: ufUse, p_mes_ref: null, p_regime: regime,
+        p_uf: ufUse, p_mes_ref: mesUse ?? null, p_regime: regime,
       });
       if (error) throw error;
       preco = Number(data ?? 0);
@@ -671,7 +699,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf }:
       <DialogTrigger asChild><Button><Plus className="mr-2 size-4"/>Adicionar item</Button></DialogTrigger>
       <DialogContent className="max-w-3xl">
         <DialogHeader><DialogTitle>Adicionar item</DialogTitle></DialogHeader>
-        <p className="text-xs text-muted-foreground -mt-2">O item é agrupado automaticamente na etapa cujo prefixo corresponde (ex.: item “1.1” entra na etapa “1 - …”). Preço aplicado conforme regime: <strong>{regime === "desonerado" ? "Desonerado" : "Não Desonerado"}</strong>.</p>
+        <p className="text-xs text-muted-foreground -mt-2">O item é agrupado automaticamente na etapa cujo prefixo corresponde (ex.: item “1.1” entra na etapa “1 - …”). Preços filtrados por: <strong>{regime === "desonerado" ? "Desonerado" : "Não Desonerado"}</strong> · UF <strong>{ufUse}</strong> · Base <strong>{refPrecos ? fmtRef(refPrecos) : "mais recente"}</strong>.</p>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Item nº (prefixo hierárquico)"><Input value={item} onChange={(e)=>setItem(e.target.value)} placeholder="Ex.: 1.1" /></Field>
           <Field label="Quantidade"><Input value={quant} onChange={(e)=>setQuant(e.target.value)} /></Field>
@@ -1062,7 +1090,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
     const bdiPct = Number(orc.bdi_pct);
     if (sel.capa) out.push({ key: "capa", title: "Dados Gerais", rows: [
       ["Nome", orc.nome ?? ""], ["Contrato", orc.contrato ?? ""], ["Município/UF", `${orc.municipio ?? ""} / ${orc.uf ?? ""}`],
-      ["Órgão", orc.orgao ?? ""], ["Referência de Preços", orc.ref_precos ?? ""], ["Engenheiro", orc.engenheiro ?? ""],
+      ["Órgão", orc.orgao ?? ""], ["Referência de Preços", fmtRef(orc.ref_precos)], ["Engenheiro", orc.engenheiro ?? ""],
       ["CREA", orc.crea ?? ""], ["Objeto", orc.objeto ?? ""],
     ]});
     if (sel.encargos) out.push({ key: "encargos", title: "Encargos", rows: [

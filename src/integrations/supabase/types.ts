@@ -336,6 +336,13 @@ export type Database = {
         }
         Returns: number
       }
+      listar_bases_precos: {
+        Args: { p_uf: string }
+        Returns: {
+          fonte: string
+          mes_ref: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
