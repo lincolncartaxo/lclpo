@@ -1184,6 +1184,64 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
     doc.save(`${orc.nome || "orcamento"}.pdf`);
   };
 
+  /** Gera o JSON no layout do Transferegov (macroserviços → serviços). */
+  const exportTransferegov = () => {
+    const bdi = Number(orc.bdi_pct);
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+    const info = etapasExistentes
+      .map(e => ({ pfx: prefixOf(e), desc: e.replace(/^\s*[0-9]+(?:\.[0-9]+)*\s*[-–.:]?\s*/, "").trim() || e }))
+      .filter(x => x.pfx);
+    const byPfx = new Map(info.map(x => [x.pfx, x.desc]));
+    const ancestors = (pfx: string) => {
+      const parts = pfx.split(".");
+      return parts.map((_, i) => parts.slice(0, i + 1).join(".")).filter(p => byPfx.has(p));
+    };
+    const tops = info.filter(x => !x.pfx.includes(".")).sort((a, b) => cmpCode(a.pfx, b.pfx));
+    const macroservicos: any[] = [];
+    Object.entries(groups)
+      .filter(([, g]) => g.list.length > 0)
+      .sort(([, a], [, b]) => cmpCode(prefixOf(a.label), prefixOf(b.label)))
+      .forEach(([, g]) => {
+        const pfx = prefixOf(g.label);
+        const chain = pfx ? ancestors(pfx) : [];
+        const top = chain[0];
+        const evNum = top ? tops.findIndex(t => t.pfx === top) + 1 : 1;
+        const evTitulo = top ? byPfx.get(top)! : "SEM ETAPA";
+        macroservicos.push({
+          numeroMacroservico: macroservicos.length + 1,
+          descricao: chain.length ? chain.map(p => byPfx.get(p)).join(" / ") : g.label,
+          servicos: g.list.map((i, idx) => {
+            const cu = r2(Number(i.preco_unitario));
+            const pu = r2(cu * (1 + bdi));
+            const q = Number(i.quantidade);
+            return {
+              numeroServico: idx + 1,
+              fonte: (i.fonte || "OUTROS").toUpperCase(),
+              codigo: i.codigo || "",
+              descricao: i.descricao,
+              unidade: (i.unidade || "").toUpperCase(),
+              custoUnitarioReferencia: cu,
+              custoUnitario: cu,
+              bdi: r2(bdi),
+              precoUnitario: pu,
+              precoTotal: r2(pu * q),
+              quantidadeTotal: q,
+              observacao: "",
+              evento: { numeroEvento: evNum, titulo: evTitulo },
+              frentesDeObra: [{ numero: 1, nomeFrenteObra: "FRENTE 1", quantidadeItens: q, numeroMesConclusao: 1 }],
+            };
+          }),
+        });
+      });
+    if (!macroservicos.length) return toast.error("Planilha sem itens");
+    const blob = new Blob([JSON.stringify({ macroservicos }, null, 4)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${orc.nome || "orcamento"}-transferegov.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
   return (
     <div className="mt-4 max-w-2xl space-y-4">
       <p className="text-sm text-muted-foreground">Selecione as abas que devem compor o relatório. Por padrão todas estão selecionadas.</p>
@@ -1199,9 +1257,10 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
           </label>
         ))}
       </div>
-      <div className="flex gap-3">
+      <div className="flex gap-3 flex-wrap">
         <Button onClick={exportXlsx}><FileDown className="mr-2 size-4"/>Exportar .xlsx</Button>
         <Button variant="secondary" onClick={exportPdf}><FileDown className="mr-2 size-4"/>Exportar .pdf</Button>
+        <Button variant="outline" onClick={exportTransferegov}><FileDown className="mr-2 size-4"/>JSON Transferegov</Button>
       </div>
     </div>
   );
