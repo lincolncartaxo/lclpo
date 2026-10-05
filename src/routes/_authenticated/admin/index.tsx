@@ -18,24 +18,46 @@ function AdminPanel() {
     <div className="p-6">
       <h1 className="text-3xl font-bold mb-6 text-slate-800">Painel Administrativo</h1>
       <div className="flex space-x-4 mb-6 border-b border-gray-200">
-        <button className={`py-2 px-4 ${activeTab === 'bases' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500'}`} onClick={() => setActiveTab('bases')}>
-          Bases e Composições
-        </button>
-        <button className={`py-2 px-4 ${activeTab === 'users' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500'}`} onClick={() => setActiveTab('users')}>
-          Empresas e Usuários
-        </button>
-      </div>
-
-      {activeTab === 'bases' && (
+        <button className={`py-2 px-4 ${activeTab === 'bases' && (
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <h2 className="text-xl font-semibold mb-4">Atualização de Preços em Lote (Sem Lovable)</h2>
           <p className="text-gray-600 mb-4">Faça upload de planilhas do SINAPI/SICRO para atualizar a base via processamento assíncrono.</p>
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:bg-gray-50 cursor-pointer">
-            <p className="text-gray-500">Arraste a planilha .xlsx / .csv aqui</p>
+          
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:bg-gray-50 transition-colors">
+            <input 
+              type="file" 
+              accept=".xlsx, .xls, .csv" 
+              className="mb-4 text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                try {
+                  const { data: { session } } = await supabase.auth.getSession();
+                  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-base-upload`, {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Bearer ${session?.access_token}`
+                    },
+                    body: formData
+                  });
+                  
+                  const result = await response.json();
+                  if (response.ok) {
+                    alert(result.message);
+                  } else {
+                    alert(`Erro: ${result.error}`);
+                  }
+                } catch (err: any) {
+                  alert(`Erro ao processar: ${err.message}`);
+                }
+              }}
+            />
+            <p className="text-gray-500 text-sm mt-2">Arraste a planilha ou clique no botão acima</p>
           </div>
-          <button className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md">
-            Processar Planilha (Edge Function)
-          </button>
         </div>
       )}
 
