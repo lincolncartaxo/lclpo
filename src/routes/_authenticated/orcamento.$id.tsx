@@ -1295,6 +1295,37 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
     toast.success(`JSON ${tgModo} gerado`);
   };
 
+  const [tgProp, setTgProp] = useState({ nrproposta: "", anoproposta: "", nrmeta: "", nrsubmeta: "" });
+  const [tgInfo, setTgInfo] = useState<string | null>(null);
+  const [tgBusy, setTgBusy] = useState(false);
+  const consultarFn = useServerFn(consultarPropostaTG);
+  const enviarFn = useServerFn(enviarPOTransferegov);
+  const consultarProposta = async () => {
+    if (!tgProp.nrproposta || !tgProp.anoproposta) return toast.error("Informe número e ano da proposta");
+    setTgBusy(true); setTgInfo(null);
+    try {
+      const r = await consultarFn({ data: { nrproposta: tgProp.nrproposta, anoproposta: tgProp.anoproposta } });
+      if (!r.ok) { setTgInfo(`Proposta não encontrada ou sem dados (${r.status}): ${r.mensagem}`); return; }
+      const metas = r.metas.map((m: any) => `Meta ${m.numero}: ${m.descricao}` + m.submetas.map((s: any) => `\n   Submeta ${s.numero}: ${s.descricao}`).join("")).join("\n");
+      setTgInfo(`Proposta ${r.proposta} (${r.sistema})\n${metas || "Sem metas cadastradas"}`);
+    } catch (e: any) { toast.error(e?.message ?? "Erro ao consultar"); }
+    finally { setTgBusy(false); }
+  };
+  const enviarTransferegov = async () => {
+    if (!tgModo) return toast.error("Escolha a modalidade de acompanhamento");
+    if (Object.values(tgProp).some(v => !v)) return toast.error("Preencha proposta, ano, meta e submeta");
+    const { erros, data } = buildTransferegov(tgModo);
+    if (erros.length) { setTgErros(erros); return; }
+    if (!window.confirm(`Enviar a planilha para a proposta ${tgProp.nrproposta}/${tgProp.anoproposta}, meta ${tgProp.nrmeta}, submeta ${tgProp.nrsubmeta}?`)) return;
+    setTgBusy(true);
+    try {
+      const r = await enviarFn({ data: { ...tgProp, payload: data as any } });
+      if (r.ok) { toast.success("Planilha enviada ao Transferegov"); setTgOpen(false); }
+      else setTgErros([`Transferegov recusou o envio (${r.status}): ${r.mensagem}`]);
+    } catch (e: any) { toast.error(e?.message ?? "Erro ao enviar"); }
+    finally { setTgBusy(false); }
+  };
+
   return (
     <div className="mt-4 max-w-2xl space-y-4">
       <p className="text-sm text-muted-foreground">Selecione as abas que devem compor o relatório. Por padrão todas estão selecionadas.</p>
