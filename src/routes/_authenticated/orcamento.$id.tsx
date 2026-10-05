@@ -1184,12 +1184,33 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
     doc.save(`${orc.nome || "orcamento"}.pdf`);
   };
 
-  /** Gera o JSON no layout do Transferegov (macroserviços → serviços). */
-  const exportTransferegov = () => {
+  /** Transferegov: modalidade PLE (Por Eventos) ou BM (Boletim de Medição). */
+  const [tgOpen, setTgOpen] = useState(false);
+  const [tgModo, setTgModo] = useState<"" | "PLE" | "BM">("");
+  const [tgFrente, setTgFrente] = useState("");
+  const [tgErros, setTgErros] = useState<string[] | null>(null);
+  const [crono, setCrono] = useState<Record<string, Record<number, number>>>({});
+  useEffect(() => {
+    if (!tgOpen) return;
+    (async () => {
+      const { data } = await supabase.from("orcamento_cronograma").select("*").eq("orcamento_id", orcId);
+      const g: Record<string, Record<number, number>> = {};
+      (data ?? []).forEach((r: any) => { (g[r.etapa] ??= {})[r.mes] = Number(r.percentual); });
+      setCrono(g);
+    })();
+  }, [tgOpen, orcId]);
+
+  const buildTransferegov = (modo: "PLE" | "BM") => {
+    const erros: string[] = [];
     const bdi = Number(orc.bdi_pct);
     const r2 = (n: number) => Math.round(n * 100) / 100;
+    const frente = tgFrente.trim() || "FRENTE 1";
+    if (!orc.nome) erros.push("Dados Gerais: informe o nome do orçamento.");
+    if (!orc.uf) erros.push("Dados Gerais: informe a UF.");
+    if (!orc.ref_precos) erros.push("Dados Gerais: informe a base/referência de preços.");
+    if (!(bdi >= 0) || orc.bdi_pct == null) erros.push("BDI: percentual não informado.");
     const info = etapasExistentes
-      .map(e => ({ pfx: prefixOf(e), desc: e.replace(/^\s*[0-9]+(?:\.[0-9]+)*\s*[-–.:]?\s*/, "").trim() || e }))
+      .map(e => ({ label: e, pfx: prefixOf(e), desc: e.replace(/^\s*[0-9]+(?:\.[0-9]+)*\s*[-–.:]?\s*/, "").trim() || e }))
       .filter(x => x.pfx);
     const byPfx = new Map(info.map(x => [x.pfx, x.desc]));
     const ancestors = (pfx: string) => {
@@ -1203,43 +1224,75 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
       .sort(([, a], [, b]) => cmpCode(prefixOf(a.label), prefixOf(b.label)))
       .forEach(([, g]) => {
         const pfx = prefixOf(g.label);
+        if (!pfx) erros.push(`Itens sem etapa (${g.list.length}): todo item precisa estar dentro de uma etapa.`);
         const chain = pfx ? ancestors(pfx) : [];
         const top = chain[0];
         const evNum = top ? tops.findIndex(t => t.pfx === top) + 1 : 1;
         const evTitulo = top ? byPfx.get(top)! : "SEM ETAPA";
-        macroservicos.push({
-          numeroMacroservico: macroservicos.length + 1,
-          descricao: chain.length ? chain.map(p => byPfx.get(p)).join(" / ") : g.label,
-          servicos: g.list.map((i, idx) => {
-            const cu = r2(Number(i.preco_unitario));
-            const pu = r2(cu * (1 + bdi));
-            const q = Number(i.quantidade);
-            return {
-              numeroServico: idx + 1,
-              fonte: (i.fonte || "OUTROS").toUpperCase(),
-              codigo: i.codigo || "",
-              descricao: i.descricao,
-              unidade: (i.unidade || "").toUpperCase(),
-              custoUnitarioReferencia: cu,
-              custoUnitario: cu,
-              bdi: r2(bdi),
-              precoUnitario: pu,
-              precoTotal: r2(pu * q),
-              quantidadeTotal: q,
-              observacao: "",
-              evento: { numeroEvento: evNum, titulo: evTitulo },
-              frentesDeObra: [{ numero: 1, nomeFrenteObra: "FRENTE 1", quantidadeItens: q, numeroMesConclusao: 1 }],
-            };
-          }),
+        const descricao = (chain.length ? chain.map(p => byPfx.get(p)).join(" / ") : g.label).slice(0, 100);
+        const servicos = g.list.map((i, idx) => {
+          const ref = `Item ${i.item || "?"} (${(i.descricao || "").slice(0, 40)})`;
+          if (!i.codigo) erros.push(`${ref}: código não informado.`);
+          if (!i.fonte) erros.push(`${ref}: fonte não informada.`);
+          if (!i.unidade) erros.push(`${ref}: unidade não informada.`);
+          if (!(Number(i.quantidade) > 0)) erros.push(`${ref}: quantidade deve ser maior que zero.`);
+          if (!(Number(i.preco_unitario) > 0)) erros.push(`${ref}: preço unitário zerado.`);
+          const cu = r2(Number(i.preco_unitario));
+          const pu = r2(cu * (1 + bdi));
+          const q = Number(i.quantidade);
+          const cod = String(i.codigo ?? "").trim();
+          const base: any = {
+            numeroServico: idx + 1,
+            fonte: (i.fonte || "OUTROS").toUpperCase(),
+            codigo: /^\d+$/.test(cod) ? Number(cod) : cod,
+            descricao: i.descricao,
+            unidade: (i.unidade || "").toUpperCase(),
+            custoUnitarioReferencia: cu,
+            custoUnitario: cu,
+            bdi: r2(bdi * 100),
+            precoUnitario: pu,
+            precoTotal: r2(pu * q),
+            quantidadeTotal: q,
+            observacao: "",
+          };
+          if (modo === "PLE") {
+            base.evento = { numeroEvento: evNum, titulo: evTitulo };
+            base.frentesDeObra = [{ numero: 1, nomeFrenteObra: frente, quantidadeItens: q, numeroMesConclusao: 1 }];
+          } else {
+            base.frentesDeObra = [{ numero: 1, nomeFrenteObra: frente, quantidadeItens: q }];
+          }
+          return base;
         });
+        const ms: any = { numeroMacroservico: macroservicos.length + 1, descricao, servicos };
+        if (modo === "BM") {
+          const row = crono[g.label] ?? {};
+          const parcelas = Object.entries(row)
+            .map(([m, v]) => ({ numeroParcela: Number(m), percentualParcela: r2(Number(v) * 100) }))
+            .filter(p => p.percentualParcela > 0)
+            .sort((a, b) => a.numeroParcela - b.numeroParcela);
+          const soma = r2(parcelas.reduce((s, p) => s + p.percentualParcela, 0));
+          if (!parcelas.length) erros.push(`Cronograma: etapa "${g.label}" sem percentuais mensais.`);
+          else if (Math.abs(soma - 100) > 0.01) erros.push(`Cronograma: etapa "${g.label}" soma ${soma.toLocaleString("pt-BR")}% (deve ser 100%).`);
+          ms.parcelas = parcelas;
+        }
+        macroservicos.push(ms);
       });
-    if (!macroservicos.length) return toast.error("Planilha sem itens");
-    const blob = new Blob([JSON.stringify({ macroservicos }, null, 4)], { type: "application/json" });
+    if (!macroservicos.length) erros.push("Planilha Orçamentária sem itens.");
+    return { erros: Array.from(new Set(erros)), data: { macroservicos } };
+  };
+
+  const exportTransferegov = () => {
+    if (!tgModo) return toast.error("Escolha a modalidade de acompanhamento");
+    const { erros, data } = buildTransferegov(tgModo);
+    if (erros.length) { setTgErros(erros); return; }
+    const blob = new Blob([JSON.stringify(data, null, 4)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `${orc.nome || "orcamento"}-transferegov.json`;
+    a.download = `${orc.nome || "orcamento"}-transferegov-${tgModo}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
+    setTgOpen(false);
+    toast.success(`JSON ${tgModo} gerado`);
   };
 
   return (
@@ -1260,8 +1313,44 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
       <div className="flex gap-3 flex-wrap">
         <Button onClick={exportXlsx}><FileDown className="mr-2 size-4"/>Exportar .xlsx</Button>
         <Button variant="secondary" onClick={exportPdf}><FileDown className="mr-2 size-4"/>Exportar .pdf</Button>
-        <Button variant="outline" onClick={exportTransferegov}><FileDown className="mr-2 size-4"/>JSON Transferegov</Button>
+        <Button variant="outline" onClick={()=>{ setTgErros(null); setTgOpen(true); }}><FileDown className="mr-2 size-4"/>JSON Transferegov</Button>
       </div>
+      <Dialog open={tgOpen} onOpenChange={setTgOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Gerar JSON para o Transferegov</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label>Modalidade de acompanhamento</Label>
+              <Select value={tgModo} onValueChange={(v)=>{ setTgModo(v as any); setTgErros(null); }}>
+                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PLE">PLE – Por Eventos</SelectItem>
+                  <SelectItem value="BM">BM – Boletim de Medição</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {tgModo === "BM" ? "Usa o Cronograma F/F: cada etapa com itens precisa ter percentuais mensais somando 100%."
+                  : tgModo === "PLE" ? "Cada serviço é vinculado ao evento da etapa principal."
+                  : "Escolha a modalidade antes de gerar o arquivo."}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label>Nome da frente de obra</Label>
+              <Input value={tgFrente} placeholder="FRENTE 1" onChange={e=>setTgFrente(e.target.value)} />
+            </div>
+            {tgErros && (
+              <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm max-h-60 overflow-auto">
+                <p className="font-medium text-destructive mb-1">Corrija antes de gerar ({tgErros.length}):</p>
+                <ul className="list-disc pl-5 space-y-0.5">{tgErros.map((e,i)=><li key={i}>{e}</li>)}</ul>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={()=>setTgOpen(false)}>Cancelar</Button>
+            <Button onClick={exportTransferegov} disabled={!tgModo}>Verificar e gerar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
