@@ -1313,8 +1313,44 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
       <div className="flex gap-3 flex-wrap">
         <Button onClick={exportXlsx}><FileDown className="mr-2 size-4"/>Exportar .xlsx</Button>
         <Button variant="secondary" onClick={exportPdf}><FileDown className="mr-2 size-4"/>Exportar .pdf</Button>
-        <Button variant="outline" onClick={exportTransferegov}><FileDown className="mr-2 size-4"/>JSON Transferegov</Button>
+        <Button variant="outline" onClick={()=>{ setTgErros(null); setTgOpen(true); }}><FileDown className="mr-2 size-4"/>JSON Transferegov</Button>
       </div>
+      <Dialog open={tgOpen} onOpenChange={setTgOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Gerar JSON para o Transferegov</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label>Modalidade de acompanhamento</Label>
+              <Select value={tgModo} onValueChange={(v)=>{ setTgModo(v as any); setTgErros(null); }}>
+                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PLE">PLE – Por Eventos</SelectItem>
+                  <SelectItem value="BM">BM – Boletim de Medição</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {tgModo === "BM" ? "Usa o Cronograma F/F: cada etapa com itens precisa ter percentuais mensais somando 100%."
+                  : tgModo === "PLE" ? "Cada serviço é vinculado ao evento da etapa principal."
+                  : "Escolha a modalidade antes de gerar o arquivo."}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label>Nome da frente de obra</Label>
+              <Input value={tgFrente} placeholder="FRENTE 1" onChange={e=>setTgFrente(e.target.value)} />
+            </div>
+            {tgErros && (
+              <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm max-h-60 overflow-auto">
+                <p className="font-medium text-destructive mb-1">Corrija antes de gerar ({tgErros.length}):</p>
+                <ul className="list-disc pl-5 space-y-0.5">{tgErros.map((e,i)=><li key={i}>{e}</li>)}</ul>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={()=>setTgOpen(false)}>Cancelar</Button>
+            <Button onClick={exportTransferegov} disabled={!tgModo}>Verificar e gerar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
