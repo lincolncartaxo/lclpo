@@ -67,7 +67,7 @@ function UsuariosManager() {
   
   useEffect(() => {
     fetchUsers()
-    supabase.from('empresas').select('id, nome').then(({data}) => setEmpresas(data || []))
+    (supabase as any).from('empresas').select('id, nome').then(({data}) => setEmpresas(data || []))
   }, [])
 
   const handleSave = async () => {
@@ -157,14 +157,14 @@ function EmpresasManager() {
   const [form, setForm] = useState<any>({ id: null, nome: '', plano: 'basic', status: 'ativo' })
   const [open, setOpen] = useState(false)
 
-  const fetch = async () => { const { data } = await supabase.from('empresas').select('*').order('nome'); setEmpresas(data || []) }
+  const fetch = async () => { const { data } = await (supabase as any).from('empresas').select('*').order('nome'); setEmpresas(data || []) }
   useEffect(() => { fetch() }, [])
 
   const handleSave = async () => {
     if (!form.nome) return toast.error("Nome é obrigatório")
     const payload = { ...form }
     if (!payload.id) delete payload.id
-    const { error } = await supabase.from('empresas').upsert(payload)
+    const { error } = await (supabase as any).from('empresas').upsert(payload)
     if (error) return toast.error(error.message)
     toast.success("Empresa salva!")
     setOpen(false)
@@ -173,7 +173,7 @@ function EmpresasManager() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Excluir empresa? Certifique-se de que não existem orçamentos atrelados a ela.")) return
-    const { error } = await supabase.from('empresas').delete().eq('id', id)
+    const { error } = await (supabase as any).from('empresas').delete().eq('id', id)
     if (error) toast.error(error.message)
     else { toast.success("Excluída"); fetch() }
   }
