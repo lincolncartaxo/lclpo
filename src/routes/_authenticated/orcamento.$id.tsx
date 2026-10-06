@@ -12,6 +12,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Save, Plus, Search, Trash2, FileDown, Layers } from "lucide-react";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+import { consultarPropostaTG, enviarPOTransferegov } from "@/lib/transferegov.functions";
 import { fmtBRL, fmtPct, fmtNum } from "@/lib/format";
 
 /* ---------- HELPERS COMPARTILHADOS ---------- */
@@ -1369,6 +1371,17 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
               <Label>Nome da frente de obra</Label>
               <Input value={tgFrente} placeholder="FRENTE 1" onChange={e=>setTgFrente(e.target.value)} />
             </div>
+            <div className="rounded-md border p-3 space-y-2">
+              <p className="text-sm font-medium">Envio direto ao Transferegov</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1"><Label>Nº da proposta</Label><Input value={tgProp.nrproposta} onChange={e=>setTgProp({...tgProp,nrproposta:e.target.value.replace(/\D/g,"")})} /></div>
+                <div className="space-y-1"><Label>Ano</Label><Input value={tgProp.anoproposta} placeholder="2026" onChange={e=>setTgProp({...tgProp,anoproposta:e.target.value.replace(/\D/g,"")})} /></div>
+                <div className="space-y-1"><Label>Nº da meta</Label><Input value={tgProp.nrmeta} onChange={e=>setTgProp({...tgProp,nrmeta:e.target.value.replace(/\D/g,"")})} /></div>
+                <div className="space-y-1"><Label>Nº da submeta</Label><Input value={tgProp.nrsubmeta} onChange={e=>setTgProp({...tgProp,nrsubmeta:e.target.value.replace(/\D/g,"")})} /></div>
+              </div>
+              <Button size="sm" variant="outline" onClick={consultarProposta} disabled={tgBusy}>Consultar proposta</Button>
+              {tgInfo && <pre className="text-xs whitespace-pre-wrap bg-muted/40 rounded p-2 max-h-40 overflow-auto">{tgInfo}</pre>}
+            </div>
             {tgErros && (
               <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm max-h-60 overflow-auto">
                 <p className="font-medium text-destructive mb-1">Corrija antes de gerar ({tgErros.length}):</p>
@@ -1378,7 +1391,8 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={()=>setTgOpen(false)}>Cancelar</Button>
-            <Button onClick={exportTransferegov} disabled={!tgModo}>Verificar e gerar</Button>
+            <Button variant="outline" onClick={exportTransferegov} disabled={!tgModo || tgBusy}>Baixar JSON</Button>
+            <Button onClick={enviarTransferegov} disabled={!tgModo || tgBusy}>{tgBusy ? "Enviando..." : "Enviar ao Transferegov"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
