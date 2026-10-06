@@ -57,11 +57,11 @@ function AdminPanel() {
 function UsuariosManager() {
   const [users, setUsers] = useState<any[]>([])
   const [empresas, setEmpresas] = useState<any[]>([])
-  const [form, setForm] = useState<any>({ id: '', nome_completo: '', role: 'user', id_empresa: 'none' })
+  const [form, setForm] = useState<any>({ id: '', nome: '', role: 'user', empresa: 'none' })
   const [open, setOpen] = useState(false)
 
   const fetchUsers = async () => {
-    const { data } = await supabase.from('profiles').select('*, empresas(nome)')
+    const { data } = await supabase.from('profiles').select('*, ')
     setUsers(data || [])
   }
   
@@ -72,9 +72,9 @@ function UsuariosManager() {
 
   const handleSave = async () => {
     const payload = { 
-      nome_completo: form.nome_completo, 
-      role: form.role,
-      id_empresa: form.id_empresa === 'none' ? null : form.id_empresa
+      nome: form.nome, 
+      
+      empresa: form.empresa === 'none' ? null : form.empresa
     }
     const { error } = await supabase.from('profiles').update(payload).eq('id', form.id)
     if (error) return toast.error(error.message)
@@ -101,7 +101,7 @@ function UsuariosManager() {
           <DialogContent>
             <DialogHeader><DialogTitle>Editar Usuário</DialogTitle></DialogHeader>
             <div className="space-y-4">
-              <div><Label>Nome</Label><Input value={form.nome_completo||''} onChange={e=>setForm({...form, nome_completo: e.target.value})} /></div>
+              <div><Label>Nome</Label><Input value={form.nome||''} onChange={e=>setForm({...form, nome: e.target.value})} /></div>
               <div>
                 <Label>Role</Label>
                 <Select value={form.role||'user'} onValueChange={v=>setForm({...form, role: v})}>
@@ -111,7 +111,7 @@ function UsuariosManager() {
               </div>
               <div>
                 <Label>Empresa (Tenant)</Label>
-                <Select value={form.id_empresa||'none'} onValueChange={v=>setForm({...form, id_empresa: v})}>
+                <Select value={form.empresa||'none'} onValueChange={v=>setForm({...form, id_empresa: v})}>
                   <SelectTrigger><SelectValue/></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Sem vínculo</SelectItem>
@@ -136,11 +136,11 @@ function UsuariosManager() {
           <TableBody>
             {users.map(u => (
               <TableRow key={u.id}>
-                <TableCell>{u.nome_completo || 'Sem Nome'}</TableCell>
+                <TableCell>{u.nome || 'Sem Nome'}</TableCell>
                 <TableCell>{u.role || 'user'}</TableCell>
-                <TableCell>{u.empresas?.nome || '-'}</TableCell>
+                <TableCell>{u.empresa || '-'}</TableCell>
                 <TableCell className="text-right space-x-2">
-                  <Button variant="outline" size="sm" onClick={() => { setForm({id: u.id, nome_completo: u.nome_completo, role: u.role, id_empresa: u.id_empresa||'none'}); setOpen(true) }}><Edit className="w-4 h-4"/></Button>
+                  <Button variant="outline" size="sm" onClick={() => { setForm({id: u.id, nome: u.nome, role: u.role, id_empresa: u.empresa||'none'}); setOpen(true) }}><Edit className="w-4 h-4"/></Button>
                   <Button variant="destructive" size="sm" onClick={() => handleDelete(u.id)}><Trash2 className="w-4 h-4"/></Button>
                 </TableCell>
               </TableRow>
