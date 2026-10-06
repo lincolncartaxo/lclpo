@@ -61,7 +61,7 @@ function UsuariosManager() {
   const [open, setOpen] = useState(false)
 
   const fetchUsers = async () => {
-    const { data } = await supabase.from('profiles').select('*, ')
+    const { data } = await supabase.from('profiles').select('*')
     setUsers(data || [])
   }
   
@@ -93,8 +93,10 @@ function UsuariosManager() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Gestão de Usuários</CardTitle>
-        <CardDescription>Edite funções e vincule usuários às suas empresas (Tenants).</CardDescription>
+        <div className="flex justify-between items-center">
+          <div><CardTitle>Gestão de Usuários</CardTitle><CardDescription>Edite funções e vincule usuários às suas empresas (Tenants).</CardDescription></div>
+          <p className="text-xs text-muted-foreground bg-muted p-2 rounded">Para criar usuários, solicite que eles se cadastrem na tela de Login e depois aprove-os aqui.</p>
+        </div>
       </CardHeader>
       <CardContent>
         <Dialog open={open} onOpenChange={setOpen}>
@@ -111,7 +113,7 @@ function UsuariosManager() {
               </div>
               <div>
                 <Label>Empresa (Tenant)</Label>
-                <Select value={form.empresa||'none'} onValueChange={v=>setForm({...form, id_empresa: v})}>
+                <Select value={form.empresa||'none'} onValueChange={v=>setForm({...form, empresa: v})}>
                   <SelectTrigger><SelectValue/></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Sem vínculo</SelectItem>
@@ -140,7 +142,7 @@ function UsuariosManager() {
                 <TableCell>{u.role || 'user'}</TableCell>
                 <TableCell>{u.empresa || '-'}</TableCell>
                 <TableCell className="text-right space-x-2">
-                  <Button variant="outline" size="sm" onClick={() => { setForm({id: u.id, nome: u.nome, role: u.role, id_empresa: u.empresa||'none'}); setOpen(true) }}><Edit className="w-4 h-4"/></Button>
+                  <Button variant="outline" size="sm" onClick={() => { setForm({id: u.id, nome: u.nome, role: u.role, empresa: u.empresa||'none'}); setOpen(true) }}><Edit className="w-4 h-4"/></Button>
                   <Button variant="destructive" size="sm" onClick={() => handleDelete(u.id)}><Trash2 className="w-4 h-4"/></Button>
                 </TableCell>
               </TableRow>
