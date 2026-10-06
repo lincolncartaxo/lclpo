@@ -97,12 +97,12 @@ function usePaged<T = any>(
     const t = setTimeout(async () => {
       const from = (page - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
-      let query: any = supabase.from(table).select(columns, { count: "estimated" }).range(from, to).order("codigo");
+      let query: any = supabase.from(table).select(columns, { count: "exact" }).range(from, to).order("codigo");
       if (fonte !== "__all") query = query.eq("fonte", fonte);
       // Composições são universais; UF/mês selecionam os preços dos insumos usados no cálculo.
       if (table === "base_insumos" && uf !== "__all") query = query.eq("uf", uf);
       if (table === "base_insumos" && mes) query = query.eq("mes_ref", toMesRef(mes));
-      if (q.trim()) query = query.textSearch('descricao', q);
+      if (q.trim()) query = query.or(`descricao.ilike.%${q}%,codigo.ilike.%${q}%`);
       const { data, count: c } = await query;
       setRows((data as T[]) ?? []);
       setCount(c ?? 0);
@@ -458,7 +458,7 @@ function ItemPickerDialog({
       if (tipo === "INSUMO") {
         let qy = supabase.from("base_insumos")
           .select("codigo,descricao,unidade,preco_desonerado,preco_nao_desonerado")
-          .textSearch('descricao', q).limit(20);
+          .or(`codigo.ilike.%${q}%,descricao.ilike.%${q}%`).limit(20);
         if (uf) qy = qy.eq("uf", uf);
         if (mes_ref) qy = qy.eq("mes_ref", mes_ref);
         const { data } = await qy;
@@ -470,7 +470,7 @@ function ItemPickerDialog({
       } else {
         let qy = supabase.from("base_composicoes")
           .select("codigo,descricao,unidade,custo_desonerado,custo_nao_desonerado")
-          .textSearch('descricao', q).limit(20);
+          .or(`codigo.ilike.%${q}%,descricao.ilike.%${q}%`).limit(20);
         if (uf) qy = qy.eq("uf", uf);
         if (mes_ref) qy = qy.eq("mes_ref", mes_ref);
         const { data } = await qy;

@@ -12,6 +12,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Save, Plus, Search, Trash2, FileDown, Layers } from "lucide-react";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+import { consultarPropostaTG, enviarPOTransferegov } from "@/lib/transferegov.functions";
 import { fmtBRL, fmtPct, fmtNum } from "@/lib/format";
 
 /* ---------- HELPERS COMPARTILHADOS ---------- */
@@ -642,7 +644,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
         .select("codigo,descricao,unidade,custo_desonerado,custo_nao_desonerado,fonte")
         .limit(30);
       if (fonte !== "__all") qb = qb.eq("fonte", fonte);
-      if (q.trim()) qb = qb.textSearch('descricao', q);
+      if (q.trim()) qb = qb.or(`descricao.ilike.%${q}%,codigo.ilike.%${q}%`);
       const { data } = await qb;
       const rows = data ?? [];
       setResults(rows);
@@ -1369,19 +1371,16 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
               <Label>Nome da frente de obra</Label>
               <Input value={tgFrente} placeholder="FRENTE 1" onChange={e=>setTgFrente(e.target.value)} />
             </div>
-
-            <div className="pt-4 border-t space-y-3 mt-4">
-              <h4 className="text-sm font-medium">Envio Direto - Transferegov</h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1"><Label>Nr Proposta</Label><Input placeholder="Ex: 12345" value={tgProp.nrproposta} onChange={e=>setTgProp({...tgProp, nrproposta: e.target.value})} /></div>
-                <div className="space-y-1"><Label>Ano</Label><Input placeholder="Ex: 2024" value={tgProp.anoproposta} onChange={e=>setTgProp({...tgProp, anoproposta: e.target.value})} /></div>
-                <div className="space-y-1"><Label>Meta</Label><Input placeholder="Ex: 1" value={tgProp.nrmeta} onChange={e=>setTgProp({...tgProp, nrmeta: e.target.value})} /></div>
-                <div className="space-y-1"><Label>Submeta</Label><Input placeholder="Ex: 1" value={tgProp.nrsubmeta} onChange={e=>setTgProp({...tgProp, nrsubmeta: e.target.value})} /></div>
+            <div className="rounded-md border p-3 space-y-2">
+              <p className="text-sm font-medium">Envio direto ao Transferegov</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1"><Label>Nº da proposta</Label><Input value={tgProp.nrproposta} onChange={e=>setTgProp({...tgProp,nrproposta:e.target.value.replace(/\D/g,"")})} /></div>
+                <div className="space-y-1"><Label>Ano</Label><Input value={tgProp.anoproposta} placeholder="2026" onChange={e=>setTgProp({...tgProp,anoproposta:e.target.value.replace(/\D/g,"")})} /></div>
+                <div className="space-y-1"><Label>Nº da meta</Label><Input value={tgProp.nrmeta} onChange={e=>setTgProp({...tgProp,nrmeta:e.target.value.replace(/\D/g,"")})} /></div>
+                <div className="space-y-1"><Label>Nº da submeta</Label><Input value={tgProp.nrsubmeta} onChange={e=>setTgProp({...tgProp,nrsubmeta:e.target.value.replace(/\D/g,"")})} /></div>
               </div>
-              <Button type="button" variant="secondary" size="sm" onClick={consultarProposta} disabled={tgBusy} className="w-full">
-                {tgBusy ? "Consultando..." : "Consultar Metas da Proposta"}
-              </Button>
-              {tgInfo && <div className="text-xs p-2 bg-muted rounded whitespace-pre-wrap">{tgInfo}</div>}
+              <Button size="sm" variant="outline" onClick={consultarProposta} disabled={tgBusy}>Consultar proposta</Button>
+              {tgInfo && <pre className="text-xs whitespace-pre-wrap bg-muted/40 rounded p-2 max-h-40 overflow-auto">{tgInfo}</pre>}
             </div>
             {tgErros && (
               <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm max-h-60 overflow-auto">
@@ -1390,11 +1389,10 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
               </div>
             )}
           </div>
-          <DialogFooter className="flex justify-between items-center w-full mt-4">
+          <DialogFooter>
+            <Button variant="ghost" onClick={()=>setTgOpen(false)}>Cancelar</Button>
             <Button variant="outline" onClick={exportTransferegov} disabled={!tgModo || tgBusy}>Baixar JSON</Button>
-            <Button onClick={enviarTransferegov} disabled={!tgModo || tgBusy || !tgProp.nrproposta || !tgProp.anoproposta}>
-              {tgBusy ? "Enviando..." : "Enviar Direto (Transferegov)"}
-            </Button>
+            <Button onClick={enviarTransferegov} disabled={!tgModo || tgBusy}>{tgBusy ? "Enviando..." : "Enviar ao Transferegov"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
