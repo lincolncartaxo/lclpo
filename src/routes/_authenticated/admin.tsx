@@ -67,7 +67,7 @@ function UsuariosManager() {
   
   useEffect(() => {
     fetchUsers()
-    (supabase as any).from('empresas').select('id, nome').then(({data}) => setEmpresas(data || []))
+    ;(supabase as any).from('empresas').select('id, nome').then(({data}: any) => setEmpresas(data || []))
   }, [])
 
   const handleSave = async () => {
