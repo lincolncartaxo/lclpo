@@ -1,7 +1,8 @@
 import { createFileRoute, Outlet, redirect, Link, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Building2, LayoutDashboard, FileSpreadsheet, LogOut, Database } from "lucide-react";
+import { Building2, LayoutDashboard, FileSpreadsheet, LogOut, Database, Shield } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -30,6 +31,7 @@ function AuthLayout() {
         <nav className="flex-1 px-3 py-4 space-y-1 text-sm">
           <NavItem to="/dashboard" icon={LayoutDashboard}>Orçamentos</NavItem>
           <NavItem to="/bases" icon={Database}>Bases</NavItem>
+          <AdminLink />
         </nav>
         <div className="p-3 border-t border-sidebar-border">
           <div className="px-2 py-2 text-xs text-sidebar-foreground/70 truncate">{user?.email}</div>
@@ -43,6 +45,17 @@ function AuthLayout() {
       </main>
     </div>
   );
+}
+
+function AdminLink() {
+  const { user } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    if (!user) return setIsAdmin(false);
+    supabase.rpc("has_role", { _user_id: user.id, _role: "admin" }).then(({ data }) => setIsAdmin(!!data));
+  }, [user]);
+  if (!isAdmin) return null;
+  return <NavItem to="/admin" icon={Shield}>Administração</NavItem>;
 }
 
 function NavItem({ to, icon: Icon, children }: { to: string; icon: any; children: React.ReactNode }) {

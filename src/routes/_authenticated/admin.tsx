@@ -3,11 +3,13 @@ import { supabase } from '@/integrations/supabase/client'
 import { useState } from 'react'
 
 export const Route = createFileRoute('/_authenticated/admin')({
+  ssr: false,
+  head: () => ({ meta: [{ title: 'Administração — Orça' }, { name: 'robots', content: 'noindex' }] }),
   beforeLoad: async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) throw redirect({ to: '/login' })
-    const role = session.user.user_metadata?.role
-    if (role !== 'admin') throw redirect({ to: '/dashboard' })
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw redirect({ to: '/login' })
+    const { data: isAdmin } = await supabase.rpc('has_role', { _user_id: user.id, _role: 'admin' })
+    if (!isAdmin) throw redirect({ to: '/dashboard' })
   },
   component: AdminPanel,
 })
