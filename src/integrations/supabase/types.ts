@@ -149,6 +149,30 @@ export type Database = {
         }
         Relationships: []
       }
+      empresas: {
+        Row: {
+          created_at: string
+          id: string
+          nome: string
+          plano: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nome: string
+          plano?: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nome?: string
+          plano?: string
+          status?: string
+        }
+        Relationships: []
+      }
       orcamento_cronograma: {
         Row: {
           created_at: string
@@ -302,6 +326,7 @@ export type Database = {
           created_at: string
           empresa: string | null
           id: string
+          id_empresa: string | null
           nome: string | null
           updated_at: string
         }
@@ -309,6 +334,7 @@ export type Database = {
           created_at?: string
           empresa?: string | null
           id: string
+          id_empresa?: string | null
           nome?: string | null
           updated_at?: string
         }
@@ -316,10 +342,19 @@ export type Database = {
           created_at?: string
           empresa?: string | null
           id?: string
+          id_empresa?: string | null
           nome?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_id_empresa_fkey"
+            columns: ["id_empresa"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
