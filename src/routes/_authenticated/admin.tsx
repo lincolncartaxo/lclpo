@@ -13,11 +13,12 @@ import { Trash2, Edit, Users, Building, FileText, Database, HardHat, Plus, Searc
 import { toast } from 'sonner'
 
 export const Route = createFileRoute('/_authenticated/admin')({
+  ssr: false,
   beforeLoad: async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) throw redirect({ to: '/login' })
-    const role = session.user.user_metadata?.role
-    if (role !== 'admin') throw redirect({ to: '/dashboard' })
+    const { data: isAdmin } = await supabase.rpc('has_role', { _user_id: session.user.id, _role: 'admin' })
+    if (!isAdmin) throw redirect({ to: '/dashboard' })
   },
   component: AdminPanel,
 })
