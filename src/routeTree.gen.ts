@@ -12,10 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedBasesRouteImport } from './routes/_authenticated/bases'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedOrcamentoIdRouteImport } from './routes/_authenticated/orcamento.$id'
-import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -31,6 +31,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedBasesRoute = AuthenticatedBasesRouteImport.update({
   id: '/bases',
   path: '/bases',
@@ -41,13 +46,6 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-
-const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-
 const AuthenticatedOrcamentoIdRoute =
   AuthenticatedOrcamentoIdRouteImport.update({
     id: '/orcamento/$id',
@@ -58,16 +56,16 @@ const AuthenticatedOrcamentoIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/bases': typeof AuthenticatedBasesRoute
   '/admin': typeof AuthenticatedAdminRoute
+  '/bases': typeof AuthenticatedBasesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/orcamento/$id': typeof AuthenticatedOrcamentoIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/bases': typeof AuthenticatedBasesRoute
   '/admin': typeof AuthenticatedAdminRoute
+  '/bases': typeof AuthenticatedBasesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/orcamento/$id': typeof AuthenticatedOrcamentoIdRoute
 }
@@ -76,21 +74,23 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
-  '/_authenticated/bases': typeof AuthenticatedBasesRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
+  '/_authenticated/bases': typeof AuthenticatedBasesRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/orcamento/$id': typeof AuthenticatedOrcamentoIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/bases' | '/dashboard' | '/orcamento/$id'
+  fullPaths:
+    '/' | '/login' | '/admin' | '/bases' | '/dashboard' | '/orcamento/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/bases' | '/dashboard' | '/orcamento/$id'
+  to: '/' | '/login' | '/admin' | '/bases' | '/dashboard' | '/orcamento/$id'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/login'
+    | '/_authenticated/admin'
     | '/_authenticated/bases'
     | '/_authenticated/dashboard'
     | '/_authenticated/orcamento/$id'
@@ -125,7 +125,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    
     '/_authenticated/admin': {
       id: '/_authenticated/admin'
       path: '/admin'
@@ -158,15 +157,15 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteChildren {
-  AuthenticatedBasesRoute: typeof AuthenticatedBasesRoute
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
+  AuthenticatedBasesRoute: typeof AuthenticatedBasesRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedOrcamentoIdRoute: typeof AuthenticatedOrcamentoIdRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
-  AuthenticatedBasesRoute: AuthenticatedBasesRoute,
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
+  AuthenticatedBasesRoute: AuthenticatedBasesRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedOrcamentoIdRoute: AuthenticatedOrcamentoIdRoute,
 }
