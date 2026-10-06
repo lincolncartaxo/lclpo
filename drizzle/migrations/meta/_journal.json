@@ -15,6 +15,13 @@
       "when": 1791008243144,
       "tag": "0001_listar_bases_precos",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791263991014,
+      "tag": "0002_user_roles",
+      "breakpoints": true
     }
   ]
 }
