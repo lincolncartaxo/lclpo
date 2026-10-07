@@ -57,11 +57,11 @@ function AdminPanel() {
 function UsuariosManager() {
   const [users, setUsers] = useState<any[]>([])
   const [empresas, setEmpresas] = useState<any[]>([])
-  const [form, setForm] = useState<any>({ id: '', nome: '', role: 'user', empresa: 'none' })
+  const [form, setForm] = useState<any>({ id: '', nome_completo: '', role: 'user', id_empresa: 'none' })
   const [open, setOpen] = useState(false)
 
   const fetchUsers = async () => {
-    const { data } = await supabase.from('profiles').select('*')
+    const { data } = await supabase.from('profiles').select('*, empresas(nome)')
     setUsers(data || [])
   }
   
@@ -72,9 +72,9 @@ function UsuariosManager() {
 
   const handleSave = async () => {
     const payload = { 
-      nome: form.nome, 
+      nome: form.nome_completo, 
       
-      empresa: form.empresa === 'none' ? null : form.empresa
+      id_empresa: form.id_empresa === 'none' ? null : form.id_empresa
     }
     const { error } = await supabase.from('profiles').update(payload).eq('id', form.id)
     if (error) return toast.error(error.message)
@@ -93,17 +93,15 @@ function UsuariosManager() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex justify-between items-center">
-          <div><CardTitle>Gestão de Usuários</CardTitle><CardDescription>Edite funções e vincule usuários às suas empresas (Tenants).</CardDescription></div>
-          <p className="text-xs text-muted-foreground bg-muted p-2 rounded">Para criar usuários, solicite que eles se cadastrem na tela de Login e depois aprove-os aqui.</p>
-        </div>
+        <CardTitle>Gestão de Usuários</CardTitle>
+        <CardDescription>Edite funções e vincule usuários às suas empresas (Tenants).</CardDescription>
       </CardHeader>
       <CardContent>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogContent>
             <DialogHeader><DialogTitle>Editar Usuário</DialogTitle></DialogHeader>
             <div className="space-y-4">
-              <div><Label>Nome</Label><Input value={form.nome||''} onChange={e=>setForm({...form, nome: e.target.value})} /></div>
+              <div><Label>Nome</Label><Input value={form.nome_completo||''} onChange={e=>setForm({...form, nome_completo: e.target.value})} /></div>
               <div>
                 <Label>Role</Label>
                 <Select value={form.role||'user'} onValueChange={v=>setForm({...form, role: v})}>
@@ -113,7 +111,7 @@ function UsuariosManager() {
               </div>
               <div>
                 <Label>Empresa (Tenant)</Label>
-                <Select value={form.empresa||'none'} onValueChange={v=>setForm({...form, empresa: v})}>
+                <Select value={form.id_empresa||'none'} onValueChange={v=>setForm({...form, id_empresa: v})}>
                   <SelectTrigger><SelectValue/></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Sem vínculo</SelectItem>
@@ -140,9 +138,9 @@ function UsuariosManager() {
               <TableRow key={u.id}>
                 <TableCell>{u.nome || 'Sem Nome'}</TableCell>
                 <TableCell>{u.role || 'user'}</TableCell>
-                <TableCell>{u.empresa || '-'}</TableCell>
+                <TableCell>{u.empresas?.nome || '-'}</TableCell>
                 <TableCell className="text-right space-x-2">
-                  <Button variant="outline" size="sm" onClick={() => { setForm({id: u.id, nome: u.nome, role: u.role, empresa: u.empresa||'none'}); setOpen(true) }}><Edit className="w-4 h-4"/></Button>
+                  <Button variant="outline" size="sm" onClick={() => { setForm({id: u.id, nome_completo: u.nome, role: u.role, id_empresa: u.id_empresa||'none'}); setOpen(true) }}><Edit className="w-4 h-4"/></Button>
                   <Button variant="destructive" size="sm" onClick={() => handleDelete(u.id)}><Trash2 className="w-4 h-4"/></Button>
                 </TableCell>
               </TableRow>
