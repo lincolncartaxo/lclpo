@@ -136,7 +136,7 @@ function UsuariosManager() {
           <TableBody>
             {users.map(u => (
               <TableRow key={u.id}>
-                <TableCell>{u.nome_completo || 'Sem Nome'}</TableCell>
+                <TableCell>{u.nome || 'Sem Nome'}</TableCell>
                 <TableCell>{u.role || 'user'}</TableCell>
                 <TableCell>{u.empresas?.nome || '-'}</TableCell>
                 <TableCell className="text-right space-x-2">
