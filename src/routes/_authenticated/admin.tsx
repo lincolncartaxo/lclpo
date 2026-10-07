@@ -72,8 +72,8 @@ function UsuariosManager() {
 
   const handleSave = async () => {
     const payload = { 
-      nome_completo: form.nome_completo, 
-      role: form.role,
+      nome: form.nome_completo, 
+      
       id_empresa: form.id_empresa === 'none' ? null : form.id_empresa
     }
     const { error } = await supabase.from('profiles').update(payload).eq('id', form.id)
@@ -140,7 +140,7 @@ function UsuariosManager() {
                 <TableCell>{u.role || 'user'}</TableCell>
                 <TableCell>{u.empresas?.nome || '-'}</TableCell>
                 <TableCell className="text-right space-x-2">
-                  <Button variant="outline" size="sm" onClick={() => { setForm({id: u.id, nome_completo: u.nome_completo, role: u.role, id_empresa: u.id_empresa||'none'}); setOpen(true) }}><Edit className="w-4 h-4"/></Button>
+                  <Button variant="outline" size="sm" onClick={() => { setForm({id: u.id, nome_completo: u.nome, role: u.role, id_empresa: u.id_empresa||'none'}); setOpen(true) }}><Edit className="w-4 h-4"/></Button>
                   <Button variant="destructive" size="sm" onClick={() => handleDelete(u.id)}><Trash2 className="w-4 h-4"/></Button>
                 </TableCell>
               </TableRow>
