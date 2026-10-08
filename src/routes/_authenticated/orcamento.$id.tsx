@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { consultarPropostaTG, enviarPOTransferegov } from "@/lib/transferegov.functions";
 import { fmtBRL, fmtPct, fmtNum } from "@/lib/format";
+import { ImportExcelDialog } from "@/components/ImportExcelDialog";
 
 /* ---------- HELPERS COMPARTILHADOS ---------- */
 const prefixOf = (s: string) => {
@@ -435,6 +436,8 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf, refPrecos }: { 
         <p className="text-sm text-muted-foreground">{items.length} itens · Total c/ BDI {fmtBRL(total)}</p>
         <div className="flex gap-2 items-center">
           <AddEtapaDialog open={openEtapa} setOpen={setOpenEtapa} onAdd={addEtapa} />
+          <ImportExcelDialog orcId={orcId} regime={regime} uf={uf} mesRef={parseRef(refPrecos).mes} nextOrdem={items.length+1} onImported={reload}
+            onEtapas={(ns) => setEtapasExtra(prev => Array.from(new Set([...prev, ...ns.filter(n => !etapasExistentes.includes(n))])))} />
           <AddItemDialog orcId={orcId} open={open} setOpen={setOpen} onAdded={reload} nextOrdem={items.length+1} regime={regime} uf={uf} refPrecos={refPrecos} />
 
 
