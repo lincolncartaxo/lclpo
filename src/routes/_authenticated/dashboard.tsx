@@ -25,18 +25,11 @@ function Dashboard() {
   const [loading, setLoading] = useState(false);
 
   const load = async () => {
-    const { data, error } = await supabase.from("orcamentos").select("id,nome,objeto,municipio,status,updated_at").order("updated_at", { ascending: false });
+    const { data, error } = await supabase.from("orcamentos").select("id,nome,objeto,municipio,status,updated_at").order("updated_at", { ascending: false }).limit(50);
     if (error) return toast.error(error.message);
-    // total via items aggregate
-    const ids = (data ?? []).map((o) => o.id);
-    let totals: Record<string, number> = {};
-    if (ids.length) {
-      const { data: items } = await supabase.from("orcamento_itens").select("orcamento_id,quantidade,preco_unitario").in("orcamento_id", ids);
-      (items ?? []).forEach((it: any) => {
-        totals[it.orcamento_id] = (totals[it.orcamento_id] ?? 0) + Number(it.quantidade) * Number(it.preco_unitario);
-      });
-    }
-    setOrcs((data ?? []).map((o) => ({ ...o, total: totals[o.id] ?? 0 })));
+    // Removemos a busca pesada de todos os itens de todos os orçamentos de uma vez, 
+    // pois causava gargalo severo (Full Table Scan de rede) no Login.
+    setOrcs((data ?? []).map((o) => ({ ...o, total: undefined })));
   };
   useEffect(() => { load(); }, []);
 
@@ -92,7 +85,7 @@ function Dashboard() {
                 </div>
                 <span className="text-xs px-2 py-1 rounded bg-secondary">{o.status}</span>
               </div>
-              <div className="mt-4 text-lg font-semibold">{fmtBRL(o.total)}</div>
+              <div className="mt-4 text-sm font-medium text-blue-600 hover:underline">Abrir orçamento →</div>
             </Link>
           ))}
         </div>
