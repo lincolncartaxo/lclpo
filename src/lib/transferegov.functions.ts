@@ -63,8 +63,6 @@ export const consultarPropostaTG = createServerFn({ method: "POST" })
         })),
       })),
       raw: j
-
-      })),
     };
   });
 
