@@ -1301,18 +1301,17 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
   };
 
   const [tgProp, setTgProp] = useState({ nrproposta: "", anoproposta: "", nrmeta: "", nrsubmeta: "" });
-  const [tgInfo, setTgInfo] = useState<string | null>(null);
+  const [tgInfo, setTgInfo] = useState<any>(null);
   const [tgBusy, setTgBusy] = useState(false);
   const consultarFn = useServerFn(consultarPropostaTG);
   const enviarFn = useServerFn(enviarPOTransferegov);
-  const consultarProposta = async () => {
+    const consultarProposta = async () => {
     if (!tgProp.nrproposta || !tgProp.anoproposta) return toast.error("Informe número e ano da proposta");
     setTgBusy(true); setTgInfo(null);
     try {
       const r = await consultarFn({ data: { nrproposta: tgProp.nrproposta, anoproposta: tgProp.anoproposta } });
-      if (!r.ok) { setTgInfo(`Proposta não encontrada ou sem dados (${r.status}): ${r.mensagem}`); return; }
-      const metas = r.metas.map((m: any) => `Meta ${m.numero}: ${m.descricao}` + m.submetas.map((s: any) => `\n   Submeta ${s.numero}: ${s.descricao}`).join("")).join("\n");
-      setTgInfo(`Proposta ${r.proposta} (${r.sistema})\n${metas || "Sem metas cadastradas"}`);
+      if (!r.ok) { setTgInfo({ error: `Proposta não encontrada ou sem dados (${r.status}): ${r.mensagem}` }); return; }
+      setTgInfo(r);
     } catch (e: any) { toast.error(e?.message ?? "Erro ao consultar"); }
     finally { setTgBusy(false); }
   };
@@ -1383,7 +1382,52 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
                 <div className="space-y-1"><Label>Nº da submeta</Label><Input value={tgProp.nrsubmeta} onChange={e=>setTgProp({...tgProp,nrsubmeta:e.target.value.replace(/\D/g,"")})} /></div>
               </div>
               <Button size="sm" variant="outline" onClick={consultarProposta} disabled={tgBusy}>Consultar proposta</Button>
-              {tgInfo && <pre className="text-xs whitespace-pre-wrap bg-muted/40 rounded p-2 max-h-40 overflow-auto">{tgInfo}</pre>}
+                            {tgInfo && (
+                <div className="mt-4 p-4 bg-green-50/50 border border-green-100 rounded-lg text-sm max-h-80 overflow-y-auto">
+                  {tgInfo.error ? (
+                    <div className="text-red-600">{tgInfo.error}</div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="font-semibold text-green-800">Proposta Encontrada</div>
+                      <div className="space-y-1 text-green-900/80">
+                        <p><span className="font-medium">Sistema:</span> {tgInfo.sistema}</p>
+                        <p><span className="font-medium">Proposta:</span> {tgInfo.proposta}</p>
+                      </div>
+                      <div className="pt-2 border-t border-green-200/50">
+                        <div className="font-medium text-green-800 mb-2">Metas:</div>
+                        {tgInfo.metas?.length === 0 ? <p className="text-muted-foreground text-xs">Sem metas cadastradas.</p> : tgInfo.metas?.map((m: any, i: number) => (
+                          <div key={i} className="mb-4">
+                            <ul className="list-disc pl-4 space-y-2 text-green-900/90">
+                              <li>
+                                <span className="font-medium">Descrição:</span> {m.descricao}
+                                {m.submetas?.map((s: any, j: number) => (
+                                  <ul key={j} className="list-circle pl-6 mt-2 space-y-1 text-xs">
+                                    <li><span className="font-medium">Submeta:</span> {s.descricao}
+                                      <ul className="list-square pl-6 mt-1 space-y-1 text-green-800/80">
+                                        <li><span className="font-medium">Regime de Execução de Obras:</span> {s.regimeExecucao || "-"}</li>
+                                        <li><span className="font-medium">Número do Lote:</span> {s.numeroLote || "-"}</li>
+                                        <li><span className="font-medium">Valor Contrapartida:</span> R$ {s.valorContrapartida}</li>
+                                        <li><span className="font-medium">Valor Repasse:</span> R$ {s.valorRepasse}</li>
+                                        <li><span className="font-medium">Previsão de Início da Obra:</span> {s.previsaoInicioObra || "-"}</li>
+                                        <li><span className="font-medium">Acompanhado por eventos:</span> {s.acompanhamentoPorEventos}</li>
+                                        <li><span className="font-medium">Duração da Obra:</span> {s.duracaoObraMeses ? `${s.duracaoObraMeses} meses` : "-"}</li>
+                                        <li><span className="font-medium">Data Base:</span> {s.mesDataBase && s.anoDataBase ? `${s.mesDataBase}/${s.anoDataBase}` : "-"}</li>
+                                        <li><span className="font-medium">Localidade:</span> {s.ufLocalidade || "-"}</li>
+                                        <li><span className="font-medium">Obra Desonerada:</span> {s.obraDesonerada}</li>
+                                        <li><span className="font-medium">Submeta via API:</span> {s.submetaViaApi}</li>
+                                      </ul>
+                                    </li>
+                                  </ul>
+                                ))}
+                              </li>
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             {tgErros && (
               <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm max-h-60 overflow-auto">
