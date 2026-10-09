@@ -61,7 +61,6 @@ export const consultarPropostaTG = createServerFn({ method: "POST" })
           submetaViaApi: s.po?.indSubmetaViaAPI ? "Sim" : "Não"
         })),
       })),
-      })),
       raw: j
     };
   });
