@@ -1411,7 +1411,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
                                         <li><span className="font-medium">Previsão de Início da Obra:</span> {s.previsaoInicioObra || "-"}</li>
                                         <li><span className="font-medium">Acompanhado por eventos:</span> {s.acompanhamentoPorEventos}</li>
                                         <li><span className="font-medium">Duração da Obra:</span> {s.duracaoObraMeses ? `${s.duracaoObraMeses} meses` : "-"}</li>
-                                        <li><span className="font-medium">Data Base:</span> {s.mesDataBase && s.anoDataBase ? `${s.mesDataBase}/${s.anoDataBase}` : "-"}</li>
+                                        <li><span className="font-medium">Data Base:</span> {s.dataBase || "-"}</li>
                                         <li><span className="font-medium">Localidade:</span> {s.ufLocalidade || "-"}</li>
                                         <li><span className="font-medium">Obra Desonerada:</span> {s.obraDesonerada}</li>
                                         <li><span className="font-medium">Submeta via API:</span> {s.submetaViaApi}</li>

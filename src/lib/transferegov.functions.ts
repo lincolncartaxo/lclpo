@@ -42,25 +42,25 @@ export const consultarPropostaTG = createServerFn({ method: "POST" })
       status: r.status,
       sistema: String(j?.sistemaOrigem ?? ""),
       proposta: j?.proposta ? `${j.proposta.numero}/${j.proposta.ano}` : "",
-            metas: (j?.qci?.metas ?? []).map((m: any) => ({
+                  metas: (j?.qci?.metas ?? []).map((m: any) => ({
         numero: m.numero, 
         descricao: String(m.descricao ?? ""),
         submetas: (m.submetas ?? []).map((s: any) => ({ 
           numero: s.numero, 
           descricao: String(s.descricao ?? ""),
-          regimeExecucao: s.regimeExecucao?.descricao ?? "",
-          numeroLote: s.numeroLote ?? "",
+          regimeExecucao: s.regimeExecucaoObra ?? "",
+          numeroLote: s.numLote ?? "",
           valorContrapartida: s.valorContrapartida ?? 0,
           valorRepasse: s.valorRepasse ?? 0,
-          previsaoInicioObra: s.previsaoInicioObra ?? "",
-          acompanhamentoPorEventos: s.acompanhamentoPorEventos ? "Sim" : "Não",
-          duracaoObraMeses: s.duracaoObraMeses ?? "",
-          mesDataBase: s.mesDataBase ?? "",
-          anoDataBase: s.anoDataBase ?? "",
-          ufLocalidade: s.ufLocalidade?.sigla ?? "",
-          obraDesonerada: s.obraDesonerada ? "Sim" : "Não",
-          submetaViaApi: s.submetaViaApi ? "Sim" : "Não"
+          previsaoInicioObra: s.po?.previsaoInicioObra ?? "",
+          acompanhamentoPorEventos: s.po?.indAcompanhamentoEventos ? "Sim" : "Não",
+          duracaoObraMeses: s.po?.duracaoObra ?? "",
+          dataBase: s.po?.dataBase ?? "",
+          ufLocalidade: s.po?.localidade ?? "",
+          obraDesonerada: s.po?.indDesonerado ? "Sim" : "Não",
+          submetaViaApi: s.po?.indSubmetaViaAPI ? "Sim" : "Não"
         })),
+      })),
       })),
       raw: j
     };
