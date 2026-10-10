@@ -80,7 +80,7 @@ function groupItemsByEtapa(items: Item[], etapas: string[], drafts: Record<strin
 }
 
 export const Route = createFileRoute("/_authenticated/orcamento/$id")({
-  head: () => ({ meta: [{ title: "Editor de Orçamento — Orça" }] }),
+  head: () => ({ meta: [{ title: "Editor de Orçamento — LclPlan" }] }),
   component: Editor,
 });
 
@@ -179,7 +179,7 @@ function Editor() {
             <TabsTrigger value="bdi">BDI</TabsTrigger>
             <TabsTrigger value="composicao">Composições</TabsTrigger>
             <TabsTrigger value="cotacao">Cotação</TabsTrigger>
-            <TabsTrigger value="planilha">Planilha Orçamentária</TabsTrigger>
+            <TabsTrigger value="planilha">Planilha LclPlanmentária</TabsTrigger>
             <TabsTrigger value="memoria">Memória de Cálculo</TabsTrigger>
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="cronograma">Cronograma F/F</TabsTrigger>
@@ -344,7 +344,7 @@ function CotacaoTab() {
   return <div className="mt-4 text-sm text-muted-foreground rounded border p-6 bg-muted/20">Módulo de cotação de fornecedores — cadastre cotações livres de insumos não cobertos pelas bases. <span className="italic">(Em breve)</span></div>;
 }
 
-/* ---------- PLANILHA ORÇAMENTÁRIA ---------- */
+/* ---------- PLANILHA LCLPLANMENTÁRIA ---------- */
 function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf, refPrecos }: { orcId: string; items: Item[]; reload: () => void; bdiPct: number; regime: string; uf: string | null; refPrecos: string | null }) {
   const [open, setOpen] = useState(false);
   const [openEtapa, setOpenEtapa] = useState(false);
@@ -912,7 +912,7 @@ function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: It
               {Array.from({length:meses},(_,i)=>i+1).map(m=>(<td key={m} className="num">{fmtBRL(valorMes(m))}</td>))}
               <td className="num">{fmtBRL(Array.from({length:meses},(_,i)=>i+1).reduce((s,m)=>s+valorMes(m),0))}</td>
             </tr>
-            {etapas.length===0 && <tr><td colSpan={meses+2} className="text-center text-muted-foreground py-6">Adicione itens com etapa na Planilha Orçamentária.</td></tr>}
+            {etapas.length===0 && <tr><td colSpan={meses+2} className="text-center text-muted-foreground py-6">Adicione itens com etapa na Planilha LclPlanmentária.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -1071,7 +1071,7 @@ const RELATORIO_TABS = [
   { key: "encargos", label: "Encargos" },
   { key: "bdi", label: "BDI" },
   { key: "composicao", label: "Composições" },
-  { key: "planilha", label: "Planilha Orçamentária" },
+  { key: "planilha", label: "Planilha LclPlanmentária" },
   { key: "memoria", label: "Memória de Cálculo" },
   { key: "resumo", label: "Resumo" },
   { key: "cronograma", label: "Cronograma F/F" },
@@ -1127,7 +1127,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
         });
       });
       rows.push(["", "", "", "", "", "", "", "TOTAL c/ BDI", totalComBdi]);
-      out.push({ key: "planilha", title: "Planilha Orçamentária", rows });
+      out.push({ key: "planilha", title: "Planilha LclPlanmentária", rows });
     }
     if (sel.resumo) {
       const grouped: Record<string, number> = {};
@@ -1286,7 +1286,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
         }
         macroservicos.push(ms);
       });
-    if (!macroservicos.length) erros.push("Planilha Orçamentária sem itens.");
+    if (!macroservicos.length) erros.push("Planilha LclPlanmentária sem itens.");
     return { erros: Array.from(new Set(erros)), data: { macroservicos } };
   };
 

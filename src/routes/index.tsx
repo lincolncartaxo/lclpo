@@ -11,7 +11,7 @@ export const Route = createFileRoute("/")({
   },
   head: () => ({
     meta: [
-      { title: "Orça — Plataforma de Orçamentos de Engenharia" },
+      { title: "LclPlan — Plataforma de Orçamentos de Engenharia" },
       { name: "description", content: "Crie planilhas orçamentárias completas com SINAPI e DER, BDI, encargos e cronograma físico-financeiro." },
     ],
   }),
@@ -24,8 +24,7 @@ function Landing() {
       <header className="border-b bg-sidebar text-sidebar-foreground">
         <div className="mx-auto max-w-6xl flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2 font-semibold tracking-tight">
-            <Building2 className="size-5 text-sidebar-primary" />
-            Orça
+            <img src="https://www.lclprojetos.com/img/logo_sd.png" alt="LclPlan" className="h-6 object-contain" />
           </div>
           <Link to="/login"><Button variant="secondary" size="sm">Entrar</Button></Link>
         </div>

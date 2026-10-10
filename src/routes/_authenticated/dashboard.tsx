@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { fmtBRL } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
-  head: () => ({ meta: [{ title: "Meus Orçamentos — Orça" }] }),
+  head: () => ({ meta: [{ title: "Meus Orçamentos — LclPlan" }] }),
   component: Dashboard,
 });
 

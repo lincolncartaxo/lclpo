@@ -25,8 +25,7 @@ function AuthLayout() {
     <div className="min-h-screen grid grid-cols-[240px_1fr] bg-background">
       <aside className="bg-sidebar text-sidebar-foreground flex flex-col">
         <div className="px-5 py-5 flex items-center gap-2 border-b border-sidebar-border">
-          <Building2 className="size-5 text-sidebar-primary" />
-          <span className="font-semibold tracking-tight">Orça</span>
+          <img src="https://www.lclprojetos.com/img/logo_sd.png" alt="LclPlan" className="h-6 object-contain" />
         </div>
         <nav className="flex-1 px-3 py-4 space-y-1 text-sm">
           <NavItem to="/dashboard" icon={LayoutDashboard}>Orçamentos</NavItem>

@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { Building2 } from "lucide-react";
 
 export const Route = createFileRoute("/login")({
-  head: () => ({ meta: [{ title: "Entrar — Orça" }] }),
+  head: () => ({ meta: [{ title: "Entrar — LclPlan" }] }),
   component: LoginPage,
 });
 
@@ -47,12 +47,12 @@ function LoginPage() {
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
       <div className="hidden lg:flex flex-col justify-between bg-sidebar text-sidebar-foreground p-10">
-        <div className="flex items-center gap-2 font-semibold"><Building2 className="size-5 text-sidebar-primary" /> Orça</div>
+        <div className="flex items-center gap-2 font-semibold"><img src="https://www.lclprojetos.com/img/logo_sd.png" alt="LclPlan" className="h-6 object-contain" /></div>
         <div>
           <h2 className="text-3xl font-bold leading-tight">Orçamentos de obra com a precisão que sua engenharia merece.</h2>
           <p className="mt-3 text-sidebar-foreground/70 max-w-md">SINAPI, DER, composições, BDI e cronograma físico-financeiro num único fluxo.</p>
         </div>
-        <p className="text-xs text-sidebar-foreground/50">© Orça</p>
+        <p className="text-xs text-sidebar-foreground/50">© LclPlan</p>
       </div>
 
       <div className="flex items-center justify-center p-6">

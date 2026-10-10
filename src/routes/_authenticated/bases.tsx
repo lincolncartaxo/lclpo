@@ -13,7 +13,7 @@ import { Search, ChevronLeft, ChevronRight, Layers, Plus, Trash2 } from "lucide-
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/bases")({
-  head: () => ({ meta: [{ title: "Bases — Orça" }] }),
+  head: () => ({ meta: [{ title: "Bases — LclPlan" }] }),
   component: Bases,
 });
 
