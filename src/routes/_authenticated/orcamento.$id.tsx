@@ -1625,14 +1625,32 @@ function CurvaABCTab({ orcId, items, bdiPct }: any) {
   const bdiMult = 1 + bdiPct;
 
   const { abcItems, totalGeral } = useMemo(() => {
-    const list = items.filter((i: any) => i.quantidade > 0 && i.preco_unitario > 0).map((i: any) => {
+    // 1. Agrupar itens idênticos (mesmo código ou mesma descrição) para não repetir
+    const map = new Map<string, any>();
+    
+    items.filter((i: any) => i.quantidade > 0 && i.preco_unitario > 0).forEach((i: any) => {
+      // Usa o código se tiver, senão usa a descrição como chave de agrupamento
+      const key = (i.codigo || i.descricao).trim().toUpperCase();
+      
+      if (map.has(key)) {
+        const existing = map.get(key);
+        existing.quantidade += Number(i.quantidade);
+      } else {
+        map.set(key, { ...i, quantidade: Number(i.quantidade) });
+      }
+    });
+
+    // 2. Calcular totais com BDI
+    const list = Array.from(map.values()).map((i: any) => {
       const precoCBdi = i.preco_unitario * bdiMult;
       const total = i.quantidade * precoCBdi;
       return { ...i, precoCBdi, total };
     });
 
+    // 3. Ordenar do maior para o menor custo total
     list.sort((a: any, b: any) => b.total - a.total);
 
+    // 4. Calcular pesos e acumulados
     const totalOrcamento = list.reduce((sum: number, i: any) => sum + i.total, 0);
 
     let acumulado = 0;
@@ -1691,7 +1709,7 @@ function CurvaABCTab({ orcId, items, bdiPct }: any) {
             const lineY = 100 - i.acumulado;
             return (
               <div key={i.id} className="relative flex-1 flex flex-col justify-end group h-full z-10">
-                <div className="bg-slate-300 hover:bg-slate-400 transition-colors w-full rounded-t-sm" style={{ height: `${hPct}%` }}></div>
+                <div className="bg-slate-300 hover:bg-slate-400 transition-colors w-full rounded-t-sm" style={{ height: `${Math.max(0, Math.min(100, hPct))}%`, minHeight: '1px' }}></div>
                 <div className="absolute -bottom-5 w-full text-center text-[10px] text-muted-foreground truncate" title={`Item ${i.position}`}>{i.position}</div>
                 {/* Linha de acumulado (aproximação visual) */}
                 <div className="absolute w-2 h-2 rounded-full bg-blue-600 left-1/2 -translate-x-1/2 z-20 shadow-[0_0_0_2px_white]" style={{ top: `${lineY}%` }}></div>
