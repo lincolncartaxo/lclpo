@@ -1669,8 +1669,11 @@ function CurvaABCTab({ orcId, items, bdiPct }: any) {
 
   // Prepara dados para o gráfico
   // Limitamos aos Top 20 ou até atingir 80% (o que vier primeiro, mas garantindo pelo menos alguns) para o gráfico não ficar ilegível
-  let chartItems = abcItems.filter((i: any) => i.acumulado <= 85);
-  if (chartItems.length < 5 && abcItems.length >= 5) chartItems = abcItems.slice(0, 5);
+  // Pega itens da faixa A (até 80%) ou os Top 5, o que for maior, mas limitado a 30 para não estourar a tela
+  let chartItems = abcItems.filter((i: any) => i.acumulado <= 80);
+  if (chartItems.length === 0 && abcItems.length > 0) chartItems = [abcItems[0]]; // Garante ao menos 1
+  if (chartItems.length < 5 && abcItems.length > chartItems.length) chartItems = abcItems.slice(0, 5);
+  if (abcItems.length > 0 && chartItems.length === 1 && abcItems.length > 1) chartItems = abcItems.slice(0, Math.min(5, abcItems.length)); // Se só 1 bateu 80%, mas tem mais itens, força mostrar eles no gráfico
   if (chartItems.length > 30) chartItems = chartItems.slice(0, 30);
 
   const maxVal = chartItems.length > 0 ? chartItems[0].total : 1;
