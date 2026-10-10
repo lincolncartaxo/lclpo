@@ -47,7 +47,7 @@ function LoginPage() {
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
       <div className="hidden lg:flex flex-col justify-between bg-sidebar text-sidebar-foreground p-10">
-        <div className="flex items-center gap-2 font-semibold"><img src="https://www.lclprojetos.com/img/logo_sd.png" alt="LclPlan" className="h-6 object-contain" /></div>
+        <div className="flex items-center gap-2 font-semibold"><div className="flex items-center gap-2"><img src="https://www.lclprojetos.com/img/logo_sd.png" alt="Logo LclPlan" className="h-6 object-contain" /><span style={{ fontFamily: "Agency FB, sans-serif", fontSize: "1.4rem", letterSpacing: "0.5px", paddingTop: "2px" }}>LclPlan</span></div></div>
         <div>
           <h2 className="text-3xl font-bold leading-tight">Orçamentos de obra com a precisão que sua engenharia merece.</h2>
           <p className="mt-3 text-sidebar-foreground/70 max-w-md">SINAPI, DER, composições, BDI e cronograma físico-financeiro num único fluxo.</p>
