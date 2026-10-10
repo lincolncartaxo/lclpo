@@ -1485,30 +1485,32 @@ function MemoriaTab({ orcId, items, reload }: any) {
 
   return (
     <div className="mt-4 overflow-x-auto rounded-lg border bg-card pb-4">
+      
       <table className="w-full text-sm border-collapse">
-        <thead className="bg-primary/90 text-primary-foreground">
+        <thead className="bg-muted text-muted-foreground border-b">
           <tr>
-            <th rowSpan={2} className="p-2 border text-left align-middle font-medium w-16">ITEM</th>
-            <th rowSpan={2} className="p-2 border text-left align-middle font-medium min-w-[200px]">SERVIÇO</th>
-            <th rowSpan={2} className="p-2 border text-left align-middle font-medium min-w-[150px]">DESCRIÇÃO</th>
-            <th rowSpan={2} className="p-2 border text-center align-middle font-medium w-12">VEZ</th>
-            <th colSpan={6} className="p-1 border text-center font-medium bg-primary">DADOS</th>
-            <th colSpan={3} className="p-1 border text-center font-medium bg-primary">RESULTADO</th>
-            <th rowSpan={2} className="p-2 border text-center align-middle font-medium w-12">UNID</th>
-            <th rowSpan={2} className="p-2 border text-center align-middle font-medium w-10"></th>
+            <th rowSpan={2} className="p-2 border-r text-left align-middle font-medium w-16">ITEM</th>
+            <th rowSpan={2} className="p-2 border-r text-left align-middle font-medium min-w-[200px]">SERVIÇO</th>
+            <th rowSpan={2} className="p-2 border-r text-left align-middle font-medium min-w-[150px]">DESCRIÇÃO</th>
+            <th rowSpan={2} className="p-2 border-r text-center align-middle font-medium w-12">VEZ</th>
+            <th colSpan={6} className="p-1 border-b border-r text-center font-medium">DADOS</th>
+            <th colSpan={3} className="p-1 border-b border-r text-center font-medium">RESULTADO</th>
+            <th rowSpan={2} className="p-2 border-r text-center align-middle font-medium w-12">UNID</th>
+            <th rowSpan={2} className="p-2 text-center align-middle font-medium w-10"></th>
           </tr>
-          <tr className="text-xs bg-primary text-primary-foreground">
-            <th className="p-1 border text-center font-medium w-12">X1</th>
-            <th className="p-1 border text-center font-medium w-12">X2</th>
-            <th className="p-1 border text-center font-medium w-12">Y1</th>
-            <th className="p-1 border text-center font-medium w-12">Y2</th>
-            <th className="p-1 border text-center font-medium w-12">Z1</th>
-            <th className="p-1 border text-center font-medium w-12">Z2</th>
-            <th className="p-1 border text-center font-medium w-16">PARCIAL</th>
-            <th className="p-1 border text-center font-medium w-16">TOTAL</th>
-            <th className="p-1 border text-center font-medium w-20">GERAL</th>
+          <tr className="text-xs">
+            <th className="p-1 border-r text-center font-medium w-20">X1</th>
+            <th className="p-1 border-r text-center font-medium w-20">X2</th>
+            <th className="p-1 border-r text-center font-medium w-20">Y1</th>
+            <th className="p-1 border-r text-center font-medium w-20">Y2</th>
+            <th className="p-1 border-r text-center font-medium w-20">Z1</th>
+            <th className="p-1 border-r text-center font-medium w-20">Z2</th>
+            <th className="p-1 border-r text-center font-medium w-16">PARCIAL</th>
+            <th className="p-1 border-r text-center font-medium w-16">TOTAL</th>
+            <th className="p-1 border-r text-center font-medium w-20">GERAL</th>
           </tr>
         </thead>
+
         <tbody>
           {Object.entries(grouped).filter(([,g]) => g.label !== "Sem etapa" || g.list.length > 0).map(([k, g]) => (
             <React.Fragment key={k}>
@@ -1596,13 +1598,13 @@ function MemoriaItemRow({ item, reload }: { item: Item; reload: () => void }) {
         <tr key={m.id} className="border-b bg-muted/5">
           <td colSpan={2} className="border-r"></td>
           <td className="p-1 border-r"><Input className="h-7 text-xs rounded-sm border-transparent hover:border-input focus:border-input" value={m.descricao} onChange={e=>updateMem(m.id, 'descricao', e.target.value)} onBlur={commitMem} placeholder="Descrição..." /></td>
-          <td className="p-1 border-r"><Input type="number" className="h-7 text-xs text-center px-1" value={m.vez} onChange={e=>updateMem(m.id, 'vez', Number(e.target.value))} onBlur={commitMem} /></td>
-          <td className="p-1 border-r"><Input type="number" className="h-7 text-xs text-center px-1" value={m.x1} onChange={e=>updateMem(m.id, 'x1', Number(e.target.value))} onBlur={commitMem} /></td>
-          <td className="p-1 border-r"><Input type="number" className="h-7 text-xs text-center px-1" value={m.x2} onChange={e=>updateMem(m.id, 'x2', Number(e.target.value))} onBlur={commitMem} /></td>
-          <td className="p-1 border-r"><Input type="number" className="h-7 text-xs text-center px-1" value={m.y1} onChange={e=>updateMem(m.id, 'y1', Number(e.target.value))} onBlur={commitMem} /></td>
-          <td className="p-1 border-r"><Input type="number" className="h-7 text-xs text-center px-1" value={m.y2} onChange={e=>updateMem(m.id, 'y2', Number(e.target.value))} onBlur={commitMem} /></td>
-          <td className="p-1 border-r"><Input type="number" className="h-7 text-xs text-center px-1" value={m.z1} onChange={e=>updateMem(m.id, 'z1', Number(e.target.value))} onBlur={commitMem} /></td>
-          <td className="p-1 border-r"><Input type="number" className="h-7 text-xs text-center px-1" value={m.z2} onChange={e=>updateMem(m.id, 'z2', Number(e.target.value))} onBlur={commitMem} /></td>
+          <td className="p-1 border-r"><Input type="number" className="h-8 text-sm text-center px-1" value={m.vez} onChange={e=>updateMem(m.id, 'vez', Number(e.target.value))} onBlur={commitMem} /></td>
+          <td className="p-1 border-r"><Input type="number" className="h-8 text-sm text-center px-1" value={m.x1} onChange={e=>updateMem(m.id, 'x1', Number(e.target.value))} onBlur={commitMem} /></td>
+          <td className="p-1 border-r"><Input type="number" className="h-8 text-sm text-center px-1" value={m.x2} onChange={e=>updateMem(m.id, 'x2', Number(e.target.value))} onBlur={commitMem} /></td>
+          <td className="p-1 border-r"><Input type="number" className="h-8 text-sm text-center px-1" value={m.y1} onChange={e=>updateMem(m.id, 'y1', Number(e.target.value))} onBlur={commitMem} /></td>
+          <td className="p-1 border-r"><Input type="number" className="h-8 text-sm text-center px-1" value={m.y2} onChange={e=>updateMem(m.id, 'y2', Number(e.target.value))} onBlur={commitMem} /></td>
+          <td className="p-1 border-r"><Input type="number" className="h-8 text-sm text-center px-1" value={m.z1} onChange={e=>updateMem(m.id, 'z1', Number(e.target.value))} onBlur={commitMem} /></td>
+          <td className="p-1 border-r"><Input type="number" className="h-8 text-sm text-center px-1" value={m.z2} onChange={e=>updateMem(m.id, 'z2', Number(e.target.value))} onBlur={commitMem} /></td>
           <td className="p-2 border-r text-center text-xs font-mono">{m.parcial.toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</td>
           <td className="p-2 border-r text-center text-xs font-mono font-medium text-blue-600">{m.total.toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</td>
           <td colSpan={2} className="border-r"></td>
