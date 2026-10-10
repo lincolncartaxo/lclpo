@@ -90,6 +90,7 @@ type Item = {
   etapa: string | null; item: string | null; fonte: string | null;
   codigo: string | null; descricao: string; unidade: string | null;
   quantidade: number; preco_unitario: number;
+  memoria?: any[];
 };
 
 const UFS = ["AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT","PA","PB","PE","PI","PR","RJ","RN","RO","RR","RS","SC","SE","SP","TO"];
@@ -179,6 +180,7 @@ function Editor() {
             <TabsTrigger value="composicao">Composições</TabsTrigger>
             <TabsTrigger value="cotacao">Cotação</TabsTrigger>
             <TabsTrigger value="planilha">Planilha Orçamentária</TabsTrigger>
+            <TabsTrigger value="memoria">Memória de Cálculo</TabsTrigger>
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="cronograma">Cronograma F/F</TabsTrigger>
             <TabsTrigger value="qci">QCI</TabsTrigger>
@@ -190,6 +192,7 @@ function Editor() {
           <TabsContent value="bdi"><BdiTab orc={orc} onSaved={load} /></TabsContent>
           <TabsContent value="composicao"><ComposicaoTab items={items} /></TabsContent>
           <TabsContent value="cotacao"><CotacaoTab /></TabsContent>
+          <TabsContent value="memoria"><MemoriaTab orcId={id} items={items} reload={load} /></TabsContent>
           <TabsContent value="planilha"><PlanilhaTab orcId={id} items={items} reload={load} bdiPct={Number(orc.bdi_pct)} regime={orc.regime ?? "nao_desonerado"} uf={orc.uf ?? null} refPrecos={orc.ref_precos ?? null} /></TabsContent>
           <TabsContent value="resumo"><ResumoTab orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
           <TabsContent value="cronograma"><CronogramaTab orcId={id} items={items} totalComBdi={totalComBdi} /></TabsContent>
@@ -1069,6 +1072,7 @@ const RELATORIO_TABS = [
   { key: "bdi", label: "BDI" },
   { key: "composicao", label: "Composições" },
   { key: "planilha", label: "Planilha Orçamentária" },
+  { key: "memoria", label: "Memória de Cálculo" },
   { key: "resumo", label: "Resumo" },
   { key: "cronograma", label: "Cronograma F/F" },
   { key: "qci", label: "QCI" },
@@ -1447,3 +1451,166 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
   );
 }
 
+
+
+/* ---------- MEMÓRIA DE CÁLCULO ---------- */
+function MemoriaTab({ orcId, items, reload }: any) {
+  const [etapasExtra] = useEtapasExtra(orcId);
+  const etapasExistentes = useMemo(() => {
+    const set = new Set<string>();
+    items.forEach((i: any) => { if (i.etapa) set.add(i.etapa); });
+    etapasExtra.forEach((e: string) => set.add(e));
+    return Array.from(set);
+  }, [items, etapasExtra]);
+
+  const grouped = useMemo(() => {
+    const etapasInfo = etapasExistentes.map(e => ({ etapa: e, label: e, pfx: prefixOf(e) }));
+    const etapasPfx = etapasInfo.filter(x => x.pfx).sort((a, b) => b.pfx!.length - a.pfx!.length);
+    const etapasOrdenadas = [...etapasInfo].sort((a, b) => {
+      if (a.pfx && b.pfx) return cmpCode(a.pfx, b.pfx);
+      if (a.pfx) return -1;
+      if (b.pfx) return 1;
+      return a.label.localeCompare(b.label);
+    });
+    const map: Record<string, { label: string; list: Item[] }> = {};
+    etapasOrdenadas.forEach(e => { map[e.etapa] = { label: e.label, list: [] }; });
+    items.forEach((i: any) => {
+      const code = (i.item || "").trim();
+      const match = etapasPfx.find(({ pfx }) => code === pfx || code.startsWith(pfx + "."));
+      const k = match ? match.etapa : "Sem etapa";
+      (map[k] ??= { label: "Sem etapa", list: [] }).list.push(i);
+    });
+    return map;
+  }, [items, etapasExistentes]);
+
+  return (
+    <div className="mt-4 overflow-x-auto rounded-lg border bg-card pb-4">
+      <table className="w-full text-sm border-collapse">
+        <thead className="bg-primary/90 text-primary-foreground">
+          <tr>
+            <th rowSpan={2} className="p-2 border text-left align-middle font-medium w-16">ITEM</th>
+            <th rowSpan={2} className="p-2 border text-left align-middle font-medium min-w-[200px]">SERVIÇO</th>
+            <th rowSpan={2} className="p-2 border text-left align-middle font-medium min-w-[150px]">DESCRIÇÃO</th>
+            <th rowSpan={2} className="p-2 border text-center align-middle font-medium w-12">VEZ</th>
+            <th colSpan={6} className="p-1 border text-center font-medium bg-primary">DADOS</th>
+            <th colSpan={3} className="p-1 border text-center font-medium bg-primary">RESULTADO</th>
+            <th rowSpan={2} className="p-2 border text-center align-middle font-medium w-12">UNID</th>
+            <th rowSpan={2} className="p-2 border text-center align-middle font-medium w-10"></th>
+          </tr>
+          <tr className="text-xs bg-primary text-primary-foreground">
+            <th className="p-1 border text-center font-medium w-12">X1</th>
+            <th className="p-1 border text-center font-medium w-12">X2</th>
+            <th className="p-1 border text-center font-medium w-12">Y1</th>
+            <th className="p-1 border text-center font-medium w-12">Y2</th>
+            <th className="p-1 border text-center font-medium w-12">Z1</th>
+            <th className="p-1 border text-center font-medium w-12">Z2</th>
+            <th className="p-1 border text-center font-medium w-16">PARCIAL</th>
+            <th className="p-1 border text-center font-medium w-16">TOTAL</th>
+            <th className="p-1 border text-center font-medium w-20">GERAL</th>
+          </tr>
+        </thead>
+        <tbody>
+          {Object.entries(grouped).filter(([,g]) => g.label !== "Sem etapa" || g.list.length > 0).map(([k, g]) => (
+            <React.Fragment key={k}>
+              <tr className="bg-muted/50">
+                <td colSpan={15} className="p-2 font-semibold text-xs text-muted-foreground uppercase">{g.label}</td>
+              </tr>
+              {g.list.sort((a,b)=>cmpCode(a.item||'', b.item||'')).map((i: any) => (
+                <MemoriaItemRow key={i.id} item={i} reload={reload} />
+              ))}
+            </React.Fragment>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function MemoriaItemRow({ item, reload }: { item: Item; reload: () => void }) {
+  const [mems, setMems] = useState<any[]>(item.memoria || []);
+  const [saving, setSaving] = useState(false);
+
+  // sync from props
+  useEffect(() => { setMems(item.memoria || []); }, [item.memoria]);
+
+  const fDim = (d1: number, d2: number) => {
+    if (d1 + d2 === 0) return 1;
+    if (d2 !== 0) return (d1 + d2) / 2;
+    return d1;
+  };
+
+  const memsCalc = mems.map(m => {
+    const p = fDim(m.x1, m.x2) * fDim(m.y1, m.y2) * fDim(m.z1, m.z2);
+    return { ...m, parcial: p, total: p * m.vez };
+  });
+  
+  const geral = memsCalc.length > 0 ? memsCalc.reduce((a, b) => a + b.total, 0) : item.quantidade;
+
+  const saveToDb = async (newMems: any[]) => {
+    setSaving(true);
+    const calc = newMems.map(m => {
+      const p = fDim(m.x1, m.x2) * fDim(m.y1, m.y2) * fDim(m.z1, m.z2);
+      return { ...m, parcial: p, total: p * m.vez };
+    });
+    const newGeral = calc.length > 0 ? calc.reduce((a, b) => a + b.total, 0) : item.quantidade;
+    const { error } = await supabase.from("orcamento_itens").update({ memoria: newMems, quantidade: newGeral }).eq("id", item.id);
+    setSaving(false);
+    if (error) toast.error("Erro ao salvar memória");
+    else reload();
+  };
+
+  const addMem = () => {
+    const n = [...mems, { id: Math.random().toString(36).slice(2), descricao: "", vez: 1, x1: 0, x2: 0, y1: 0, y2: 0, z1: 0, z2: 0 }];
+    setMems(n);
+    saveToDb(n);
+  };
+
+  const updateMem = (id: string, field: string, value: any) => {
+    const n = mems.map(m => m.id === id ? { ...m, [field]: value } : m);
+    setMems(n);
+  };
+  
+  const commitMem = () => {
+    saveToDb(mems);
+  };
+
+  const removeMem = (id: string) => {
+    const n = mems.filter(m => m.id !== id);
+    setMems(n);
+    saveToDb(n);
+  };
+
+  return (
+    <>
+      <tr className="border-b hover:bg-muted/20">
+        <td className="p-2 border-r font-mono text-xs">{item.item}</td>
+        <td className="p-2 border-r text-xs max-w-[250px] truncate" title={item.descricao}>{item.descricao}</td>
+        <td colSpan={10} className="border-r bg-muted/10"></td>
+        <td className="p-2 border-r text-center font-bold text-blue-600">{geral.toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</td>
+        <td className="p-2 border-r text-center text-xs">{item.unidade}</td>
+        <td className="p-1 text-center">
+          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={addMem} title="Adicionar Memória" disabled={saving}><Plus className="size-4" /></Button>
+        </td>
+      </tr>
+      {memsCalc.map((m) => (
+        <tr key={m.id} className="border-b bg-muted/5">
+          <td colSpan={2} className="border-r"></td>
+          <td className="p-1 border-r"><Input className="h-7 text-xs rounded-sm border-transparent hover:border-input focus:border-input" value={m.descricao} onChange={e=>updateMem(m.id, 'descricao', e.target.value)} onBlur={commitMem} placeholder="Descrição..." /></td>
+          <td className="p-1 border-r"><Input type="number" className="h-7 text-xs text-center px-1" value={m.vez} onChange={e=>updateMem(m.id, 'vez', Number(e.target.value))} onBlur={commitMem} /></td>
+          <td className="p-1 border-r"><Input type="number" className="h-7 text-xs text-center px-1" value={m.x1} onChange={e=>updateMem(m.id, 'x1', Number(e.target.value))} onBlur={commitMem} /></td>
+          <td className="p-1 border-r"><Input type="number" className="h-7 text-xs text-center px-1" value={m.x2} onChange={e=>updateMem(m.id, 'x2', Number(e.target.value))} onBlur={commitMem} /></td>
+          <td className="p-1 border-r"><Input type="number" className="h-7 text-xs text-center px-1" value={m.y1} onChange={e=>updateMem(m.id, 'y1', Number(e.target.value))} onBlur={commitMem} /></td>
+          <td className="p-1 border-r"><Input type="number" className="h-7 text-xs text-center px-1" value={m.y2} onChange={e=>updateMem(m.id, 'y2', Number(e.target.value))} onBlur={commitMem} /></td>
+          <td className="p-1 border-r"><Input type="number" className="h-7 text-xs text-center px-1" value={m.z1} onChange={e=>updateMem(m.id, 'z1', Number(e.target.value))} onBlur={commitMem} /></td>
+          <td className="p-1 border-r"><Input type="number" className="h-7 text-xs text-center px-1" value={m.z2} onChange={e=>updateMem(m.id, 'z2', Number(e.target.value))} onBlur={commitMem} /></td>
+          <td className="p-2 border-r text-center text-xs font-mono">{m.parcial.toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</td>
+          <td className="p-2 border-r text-center text-xs font-mono font-medium text-blue-600">{m.total.toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</td>
+          <td colSpan={2} className="border-r"></td>
+          <td className="p-1 text-center">
+            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive hover:text-destructive" onClick={()=>removeMem(m.id)}><Trash2 className="size-3" /></Button>
+          </td>
+        </tr>
+      ))}
+    </>
+  );
+}

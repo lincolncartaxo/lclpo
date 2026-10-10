@@ -222,6 +222,7 @@ export type Database = {
           preco_unitario: number
           quantidade: number
           unidade: string | null
+          memoria: any | null
         }
         Insert: {
           codigo?: string | null
@@ -236,6 +237,7 @@ export type Database = {
           preco_unitario?: number
           quantidade?: number
           unidade?: string | null
+          memoria?: any | null
         }
         Update: {
           codigo?: string | null
@@ -250,6 +252,7 @@ export type Database = {
           preco_unitario?: number
           quantidade?: number
           unidade?: string | null
+          memoria?: any | null
         }
         Relationships: [
           {
