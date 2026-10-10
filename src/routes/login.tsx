@@ -47,7 +47,7 @@ function LoginPage() {
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
       <div className="hidden lg:flex flex-col justify-between bg-sidebar text-sidebar-foreground p-10">
-        <div className="flex items-center gap-2 font-semibold"><div className="flex items-center gap-2"><img src="https://www.lclprojetos.com/img/logo_sd.png" alt="Logo LclPlan" className="h-6 object-contain" /><span style={{ fontFamily: "Agency FB, sans-serif", fontSize: "1.4rem", letterSpacing: "0.5px", paddingTop: "2px" }}>LclPlan</span></div></div>
+        <div className="flex items-center gap-2 font-semibold"><div className="flex items-center gap-2"><img src="https://www.lclprojetos.com/img/logo_sd.png" alt="Logo LclPlan" className="h-6 object-contain" /><span style={{ fontFamily: "Agency FB, sans-serif", fontSize: "1.4rem", letterSpacing: "0.5px", paddingTop: "2px", background: "linear-gradient(180deg, #f5f5f5 0%, #b3b3b3 45%, #8a8a8a 50%, #dcdcdc 55%, #f5f5f5 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", filter: "drop-shadow(1px 2px 1px rgba(0,0,0,0.3))" }}>LclPlan</span></div></div>
         <div>
           <h2 className="text-3xl font-bold leading-tight">Orçamentos de obra com a precisão que sua engenharia merece.</h2>
           <p className="mt-3 text-sidebar-foreground/70 max-w-md">SINAPI, DER, composições, BDI e cronograma físico-financeiro num único fluxo.</p>
