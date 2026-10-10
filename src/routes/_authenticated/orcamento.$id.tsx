@@ -179,7 +179,8 @@ function Editor() {
             <TabsTrigger value="bdi">BDI</TabsTrigger>
             <TabsTrigger value="composicao">Composições</TabsTrigger>
             <TabsTrigger value="cotacao">Cotação</TabsTrigger>
-            <TabsTrigger value="planilha">Planilha LclPlanmentária</TabsTrigger>
+            <TabsTrigger value="planilha">Planilha Orçamentária</TabsTrigger>
+            <TabsTrigger value="abc">Curva ABC</TabsTrigger>
             <TabsTrigger value="memoria">Memória de Cálculo</TabsTrigger>
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="cronograma">Cronograma F/F</TabsTrigger>
@@ -193,6 +194,7 @@ function Editor() {
           <TabsContent value="composicao"><ComposicaoTab items={items} /></TabsContent>
           <TabsContent value="cotacao"><CotacaoTab /></TabsContent>
           <TabsContent value="memoria"><MemoriaTab orcId={id} items={items} reload={load} /></TabsContent>
+          <TabsContent value="abc"><CurvaABCTab orcId={id} items={items} bdiPct={Number(orc.bdi_pct)} /></TabsContent>
           <TabsContent value="planilha"><PlanilhaTab orcId={id} items={items} reload={load} bdiPct={Number(orc.bdi_pct)} regime={orc.regime ?? "nao_desonerado"} uf={orc.uf ?? null} refPrecos={orc.ref_precos ?? null} /></TabsContent>
           <TabsContent value="resumo"><ResumoTab orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
           <TabsContent value="cronograma"><CronogramaTab orcId={id} items={items} totalComBdi={totalComBdi} /></TabsContent>
@@ -912,7 +914,7 @@ function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: It
               {Array.from({length:meses},(_,i)=>i+1).map(m=>(<td key={m} className="num">{fmtBRL(valorMes(m))}</td>))}
               <td className="num">{fmtBRL(Array.from({length:meses},(_,i)=>i+1).reduce((s,m)=>s+valorMes(m),0))}</td>
             </tr>
-            {etapas.length===0 && <tr><td colSpan={meses+2} className="text-center text-muted-foreground py-6">Adicione itens com etapa na Planilha LclPlanmentária.</td></tr>}
+            {etapas.length===0 && <tr><td colSpan={meses+2} className="text-center text-muted-foreground py-6">Adicione itens com etapa na Planilha Orçamentária.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -1071,7 +1073,8 @@ const RELATORIO_TABS = [
   { key: "encargos", label: "Encargos" },
   { key: "bdi", label: "BDI" },
   { key: "composicao", label: "Composições" },
-  { key: "planilha", label: "Planilha LclPlanmentária" },
+  { key: "planilha", label: "Planilha Orçamentária" },
+  { key: "abc", label: "Curva ABC" },
   { key: "memoria", label: "Memória de Cálculo" },
   { key: "resumo", label: "Resumo" },
   { key: "cronograma", label: "Cronograma F/F" },
@@ -1127,7 +1130,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
         });
       });
       rows.push(["", "", "", "", "", "", "", "TOTAL c/ BDI", totalComBdi]);
-      out.push({ key: "planilha", title: "Planilha LclPlanmentária", rows });
+      out.push({ key: "planilha", title: "Planilha Orçamentária", rows });
     }
     if (sel.resumo) {
       const grouped: Record<string, number> = {};
@@ -1286,7 +1289,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
         }
         macroservicos.push(ms);
       });
-    if (!macroservicos.length) erros.push("Planilha LclPlanmentária sem itens.");
+    if (!macroservicos.length) erros.push("Planilha Orçamentária sem itens.");
     return { erros: Array.from(new Set(erros)), data: { macroservicos } };
   };
 
@@ -1613,5 +1616,154 @@ function MemoriaItemRow({ item, reload }: { item: Item; reload: () => void }) {
         </tr>
       ))}
     </>
+  );
+}
+
+
+/* ---------- CURVA ABC ---------- */
+function CurvaABCTab({ orcId, items, bdiPct }: any) {
+  const bdiMult = 1 + bdiPct;
+
+  const { abcItems, totalGeral } = useMemo(() => {
+    const list = items.filter((i: any) => i.quantidade > 0 && i.preco_unitario > 0).map((i: any) => {
+      const precoCBdi = i.preco_unitario * bdiMult;
+      const total = i.quantidade * precoCBdi;
+      return { ...i, precoCBdi, total };
+    });
+
+    list.sort((a: any, b: any) => b.total - a.total);
+
+    const totalOrcamento = list.reduce((sum: number, i: any) => sum + i.total, 0);
+
+    let acumulado = 0;
+    const abc = list.map((i: any, index: number) => {
+      const peso = (i.total / totalOrcamento) * 100;
+      acumulado += peso;
+      return { ...i, position: index + 1, peso, acumulado };
+    });
+
+    return { abcItems: abc, totalGeral: totalOrcamento };
+  }, [items, bdiPct, bdiMult]);
+
+  if (abcItems.length === 0) {
+    return <div className="mt-4 p-8 text-center text-muted-foreground border border-dashed rounded-lg">Adicione itens na Planilha Orçamentária para gerar a Curva ABC.</div>;
+  }
+
+  // Prepara dados para o gráfico
+  // Limitamos aos Top 20 ou até atingir 80% (o que vier primeiro, mas garantindo pelo menos alguns) para o gráfico não ficar ilegível
+  let chartItems = abcItems.filter((i: any) => i.acumulado <= 85);
+  if (chartItems.length < 5 && abcItems.length >= 5) chartItems = abcItems.slice(0, 5);
+  if (chartItems.length > 30) chartItems = chartItems.slice(0, 30);
+
+  const maxVal = chartItems.length > 0 ? chartItems[0].total : 1;
+
+  return (
+    <div className="mt-4 space-y-6">
+      <div className="rounded-lg border bg-card p-4">
+        <h3 className="font-semibold mb-4 text-lg text-slate-800">Gráfico Pareto (Itens mais representativos)</h3>
+        <div className="h-64 flex items-end gap-2 pb-6 relative pt-10 border-b border-l px-2">
+          {/* Grid lines */}
+          <div className="absolute top-0 left-0 w-full border-t border-dashed border-slate-200"></div>
+          <div className="absolute top-1/4 left-0 w-full border-t border-dashed border-slate-200"></div>
+          <div className="absolute top-1/2 left-0 w-full border-t border-dashed border-slate-200"></div>
+          <div className="absolute top-3/4 left-0 w-full border-t border-dashed border-slate-200"></div>
+          
+          {/* Eixo Y esquerdo (Valores) */}
+          <div className="absolute -left-12 bottom-0 top-0 flex flex-col justify-between text-[10px] text-muted-foreground pb-6">
+            <span>{fmtBRL(maxVal)}</span>
+            <span>{fmtBRL(maxVal * 0.75)}</span>
+            <span>{fmtBRL(maxVal * 0.5)}</span>
+            <span>{fmtBRL(maxVal * 0.25)}</span>
+            <span>R$ 0</span>
+          </div>
+
+          {/* Eixo Y direito (%) */}
+          <div className="absolute -right-8 bottom-0 top-0 flex flex-col justify-between text-[10px] text-blue-600 font-medium pb-6 text-right">
+            <span>100%</span>
+            <span>75%</span>
+            <span>50%</span>
+            <span>25%</span>
+            <span>0%</span>
+          </div>
+
+          {chartItems.map((i: any, idx: number) => {
+            const hPct = (i.total / maxVal) * 100;
+            const lineY = 100 - i.acumulado;
+            return (
+              <div key={i.id} className="relative flex-1 flex flex-col justify-end group h-full z-10">
+                <div className="bg-slate-300 hover:bg-slate-400 transition-colors w-full rounded-t-sm" style={{ height: `${hPct}%` }}></div>
+                <div className="absolute -bottom-5 w-full text-center text-[10px] text-muted-foreground truncate" title={`Item ${i.position}`}>{i.position}</div>
+                {/* Linha de acumulado (aproximação visual) */}
+                <div className="absolute w-2 h-2 rounded-full bg-blue-600 left-1/2 -translate-x-1/2 z-20 shadow-[0_0_0_2px_white]" style={{ top: `${lineY}%` }}></div>
+                {idx < chartItems.length - 1 && (
+                  <svg className="absolute w-[calc(100%+8px)] h-full overflow-visible left-1/2 top-0 pointer-events-none z-10">
+                    <line x1="0" y1={`${lineY}%`} x2="100%" y2={`${100 - chartItems[idx+1].acumulado}%`} stroke="#2563eb" strokeWidth="2" />
+                  </svg>
+                )}
+                
+                {/* Tooltip */}
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-48 bg-slate-800 text-white text-xs p-2 rounded shadow-xl z-50 pointer-events-none">
+                  <div className="font-bold mb-1">Item {i.position}</div>
+                  <div className="truncate mb-1">{i.descricao}</div>
+                  <div className="flex justify-between text-blue-200"><span>Total:</span> <span>{fmtBRL(i.total)}</span></div>
+                  <div className="flex justify-between text-blue-200"><span>Peso:</span> <span>{i.peso.toFixed(2)}%</span></div>
+                  <div className="flex justify-between font-bold text-white border-t border-slate-600 mt-1 pt-1"><span>Acumulado:</span> <span>{i.acumulado.toFixed(2)}%</span></div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="rounded-lg border bg-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="budget-table min-w-[1000px]">
+            <thead className="bg-muted text-muted-foreground text-xs uppercase">
+              <tr>
+                <th className="w-12 text-center">Item</th>
+                <th>Código</th>
+                <th className="min-w-[300px]">Descrição</th>
+                <th className="text-center">Und</th>
+                <th className="num">Qtd</th>
+                <th className="num">Preço Unit S/BDI</th>
+                <th className="num">Preço Unit C/BDI</th>
+                <th className="num">Total</th>
+                <th className="num">Peso %</th>
+                <th className="num">Peso Acum</th>
+              </tr>
+            </thead>
+            <tbody>
+              {abcItems.map((i: any) => {
+                // Destacar faixas (A: 0-80%, B: 80-95%, C: 95-100%)
+                const isA = i.acumulado <= 80;
+                const isB = !isA && i.acumulado <= 95;
+                const rowClass = isA ? "" : isB ? "text-slate-600" : "text-slate-400";
+                
+                return (
+                  <tr key={i.id} className={`hover:bg-muted/30 ${rowClass}`}>
+                    <td className="text-center font-medium">{i.position}</td>
+                    <td className="font-mono text-xs">{i.fonte} - {i.codigo}</td>
+                    <td className="text-xs">{i.descricao}</td>
+                    <td className="text-center">{i.unidade}</td>
+                    <td className="num">{i.quantidade.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}</td>
+                    <td className="num">{fmtBRL(i.preco_unitario)}</td>
+                    <td className="num font-medium">{fmtBRL(i.precoCBdi)}</td>
+                    <td className="num font-bold text-slate-800">{fmtBRL(i.total)}</td>
+                    <td className="num">{i.peso.toFixed(2)}%</td>
+                    <td className="num font-medium text-blue-700">{i.acumulado.toFixed(2)}%</td>
+                  </tr>
+                );
+              })}
+              <tr className="bg-primary/10 font-bold text-sm">
+                <td colSpan={7} className="text-right py-3 pr-4">TOTAL GERAL CURVA ABC</td>
+                <td className="num text-primary">{fmtBRL(totalGeral)}</td>
+                <td className="num text-primary">100%</td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   );
 }
