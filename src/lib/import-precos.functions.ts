@@ -17,7 +17,7 @@ const importSchema = z.object({
   fonte: z.string(),
   uf: z.string(),
   mes_ref: z.string(),
-  tipo: z.enum(['insumo', 'composicao']),
+  tipo: z.enum(['insumo', 'composicao', 'composicao-analitica']),
   csvContent: z.string() // We pass the file content as text to avoid FormData issues in tRPC
 });
 
@@ -30,11 +30,35 @@ export const importPrecosCSV = createServerFn({ method: "POST" })
     // Parse CSV
     const parsed = Papa.parse(data.csvContent, { header: true, skipEmptyLines: true });
     
+    if (data.tipo === 'composicao-analitica') {
+      // Formato esperado: codigo_composicao, tipo_item (INSUMO/COMPOSICAO), codigo_item, coeficiente
+      const itens: any[] = [];
+      for (const row of parsed.data as any[]) {
+        const coef = parseFloat(String(row.coeficiente || '0').replace(',', '.'));
+        itens.push({
+          codigo_composicao: row.codigo_composicao,
+          fonte: data.fonte,
+          tipo_item: (row.tipo_item || 'INSUMO').toUpperCase(),
+          codigo_item: row.codigo_item,
+          coeficiente: isNaN(coef) ? 0 : coef
+        });
+      }
+      if (itens.length === 0) return { ok: false, error: "Nenhum item analítico encontrado." };
+      
+      const BATCH_SIZE = 1000;
+      for (let i = 0; i < itens.length; i += BATCH_SIZE) {
+        const batch = itens.slice(i, i + BATCH_SIZE);
+        const { error: rpcError } = await supabase.from('catalogo_composicao_itens').upsert(batch, { onConflict: 'codigo_composicao, fonte, tipo_item, codigo_item' });
+        if (rpcError) return { ok: false, error: `Erro na injeção analítica: ${rpcError.message}` };
+      }
+      return { ok: true, message: `Sucesso! ${itens.length} vínculos analíticos inseridos/atualizados.` };
+    }
+
+    // Processamento Normal de Insumos / Composicoes Sinteticas
     const metadados: any[] = [];
     const precos: any[] = [];
 
     for (const row of parsed.data as any[]) {
-      // Metadados
       metadados.push({
         codigo: row.codigo,
         fonte: data.fonte,
@@ -42,7 +66,6 @@ export const importPrecosCSV = createServerFn({ method: "POST" })
         unidade: row.unidade || 'un'
       });
 
-      // Preços formatados
       const pd = parseFloat(String(row.preco_desonerado || '0').replace(',', '.'));
       const pnd = parseFloat(String(row.preco_nao_desonerado || '0').replace(',', '.'));
 

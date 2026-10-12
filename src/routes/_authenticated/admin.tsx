@@ -284,13 +284,16 @@ function UploadBasesModal() {
       <DialogContent>
         <DialogHeader><DialogTitle>Importar Tabela de Preços (Catálogo + Histórico)</DialogTitle></DialogHeader>
         <div className="space-y-4">
-          <p className="text-xs text-muted-foreground">O arquivo deve ser .CSV com as colunas exatas: <b>codigo, descricao, unidade, preco_desonerado, preco_nao_desonerado</b>.</p>
+          <div className="text-xs text-muted-foreground bg-muted p-3 rounded space-y-1">
+            <p><b>Insumos/Composições (Sintético):</b> colunas <code>codigo, descricao, unidade, preco_desonerado, preco_nao_desonerado</code>.</p>
+            <p><b>Composição Analítica (Itens Internos):</b> colunas <code>codigo_composicao, tipo_item, codigo_item, coeficiente</code>. <br/><i>(onde tipo_item = INSUMO ou COMPOSICAO)</i></p>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Tipo de Arquivo</Label>
               <Select value={form.tipo} onValueChange={v=>setForm({...form, tipo: v})}>
                 <SelectTrigger><SelectValue/></SelectTrigger>
-                <SelectContent><SelectItem value="insumo">Insumos</SelectItem><SelectItem value="composicao">Composições</SelectItem></SelectContent>
+                <SelectContent><SelectItem value="insumo">Insumos (Sintético)</SelectItem><SelectItem value="composicao">Composições (Sintético)</SelectItem><SelectItem value="composicao-analitica">Composição (Analítico / Itens)</SelectItem></SelectContent>
               </Select>
             </div>
             <div>
