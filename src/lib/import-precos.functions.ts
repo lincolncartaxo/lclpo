@@ -58,20 +58,31 @@ export const importPrecosCSV = createServerFn({ method: "POST" })
     const metadados: any[] = [];
     const precos: any[] = [];
 
-    for (const row of parsed.data as any[]) {
+    for (const rawRow of parsed.data as any[]) {
+      // Create a lowercase key map to avoid issues with user CSV headers having caps or trailing spaces
+      const row: any = {};
+      for (const k in rawRow) {
+         if(k) row[k.trim().toLowerCase()] = rawRow[k];
+      }
+      
+      if (!row.codigo) continue; // Pula linhas vazias
+
       metadados.push({
-        codigo: row.codigo,
+        codigo: String(row.codigo).trim(),
         fonte: data.fonte,
-        descricao: row.descricao || 'Sem descrição',
-        unidade: row.unidade || 'un'
+        descricao: (row.descricao || row['descrição'] || 'Sem descrição').trim(),
+        unidade: (row.unidade || 'un').trim()
       });
 
-      const pd = parseFloat(String(row.preco_desonerado || '0').replace(',', '.'));
-      const pnd = parseFloat(String(row.preco_nao_desonerado || '0').replace(',', '.'));
+      const rawPd = row.preco_desonerado || row.custo_desonerado || '0';
+      const rawPnd = row.preco_nao_desonerado || row.custo_nao_desonerado || '0';
+      
+      const pd = parseFloat(String(rawPd).replace('.', '').replace(',', '.'));
+      const pnd = parseFloat(String(rawPnd).replace('.', '').replace(',', '.'));
 
       precos.push({
-        codigo_insumo: data.tipo === 'insumo' ? row.codigo : undefined,
-        codigo_composicao: data.tipo === 'composicao' ? row.codigo : undefined,
+        codigo_insumo: data.tipo === 'insumo' ? String(row.codigo).trim() : undefined,
+        codigo_composicao: data.tipo === 'composicao' ? String(row.codigo).trim() : undefined,
         fonte: data.fonte,
         uf: data.uf,
         mes_ref: data.mes_ref,
