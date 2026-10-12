@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Trash2, Edit, Users, Building, FileText, Database, HardHat, Plus, Search, ListPlus } from 'lucide-react'
 import { toast } from 'sonner'
+import { useServerFn } from '@tanstack/react-start'
+import { importPrecosCSV } from '@/lib/import-precos.functions'
 
 export const Route = createFileRoute('/_authenticated/admin')({
   ssr: false,
@@ -242,32 +244,30 @@ function UploadBasesModal() {
   const [form, setForm] = useState({ tipo: 'insumo', fonte: 'SINAPI', uf: 'PB', mes_ref: '2026-10' });
   const [file, setFile] = useState<File | null>(null);
 
+  const importFn = useServerFn(importPrecosCSV);
+  
   const handleUpload = async () => {
     if (!file) return toast.error("Selecione um arquivo CSV");
     if (!form.fonte || !form.uf || !form.mes_ref) return toast.error("Preencha todos os filtros");
     
     setLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('tipo', form.tipo);
-      formData.append('fonte', form.fonte);
-      formData.append('uf', form.uf);
-      formData.append('mes_ref', form.mes_ref);
-      
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/import-precos`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${session?.access_token}` },
-        body: formData
+      const text = await file.text();
+      const r = await importFn({ 
+        data: { 
+          fonte: form.fonte, 
+          uf: form.uf, 
+          mes_ref: form.mes_ref, 
+          tipo: form.tipo as any, 
+          csvContent: text 
+        } 
       });
       
-      const result = await response.json();
-      if (response.ok) {
-        toast.success(result.message);
+      if (r.ok) {
+        toast.success(r.message);
         setOpen(false);
       } else {
-        toast.error(`Erro: ${result.error}`);
+        toast.error(r.error);
       }
     } catch (err: any) {
       toast.error(`Erro ao processar: ${err.message}`);
