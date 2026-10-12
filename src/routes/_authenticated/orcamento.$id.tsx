@@ -1404,7 +1404,16 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
 
               if (data.column.index === 0) {
                 doc.setFillColor(bgColor[0], bgColor[1], bgColor[2]);
-                doc.rect(data.cell.x, data.cell.y, data.table.width, data.cell.height, 'FD');
+                const tableWidth = Number(data.table?.width);
+                const cellX = Number(data.cell?.x);
+                const cellY = Number(data.cell?.y);
+                const cellHeight = Number(data.cell?.height);
+                const safeWidth = Number.isFinite(tableWidth) && tableWidth > 0
+                  ? tableWidth
+                  : doc.internal.pageSize.width - 28;
+                if (Number.isFinite(cellX) && Number.isFinite(cellY) && Number.isFinite(cellHeight) && cellHeight > 0) {
+                  doc.rect(cellX, cellY, safeWidth, cellHeight, 'FD');
+                }
                 doc.setTextColor(txtColor[0], txtColor[1], txtColor[2]);
                 doc.setFont("helvetica", "bold");
                 
