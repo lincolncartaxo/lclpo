@@ -416,14 +416,15 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
       let compPriceMap: Record<string, any> = {};
 
       if (insumoCodigos.length > 0) {
-        // Mesma regra da função SQL: UF específica com fallback nacional BR.
-        const effUf = uf === "__all" ? "PB" : uf;
+        // A CPU deve respeitar a UF escolhida no filtro. Quando o filtro está
+        // em "Todos", usamos a UF do próprio registro, sem misturar BR.
+        const effUf = uf === "__all" ? (row.uf || "PB") : uf;
         let effMes = toMesRef(mes);
         if (!effMes) {
           const { data: m } = await (supabase as any).from("precos_historicos_insumos")
             .select("mes_ref,uf")
             .eq("fonte", row.fonte)
-            .in("uf", [effUf, "BR"])
+            .eq("uf", effUf)
             .order("mes_ref", { ascending: false })
             .limit(1);
           effMes = (m?.[0] as any)?.mes_ref ?? "";
@@ -431,7 +432,7 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
         const { data: insData } = await (supabase as any).from("precos_historicos_insumos")
           .select("codigo_insumo,uf,mes_ref,preco_desonerado,preco_nao_desonerado")
           .eq("fonte", row.fonte)
-          .in("uf", [effUf, "BR"])
+          .eq("uf", effUf)
           .eq("mes_ref", effMes)
           .in("codigo_insumo", insumoCodigos);
         const orderedInsData = [...(insData ?? [])].sort((a: any, b: any) => {
