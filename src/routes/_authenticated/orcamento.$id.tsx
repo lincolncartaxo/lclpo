@@ -542,26 +542,26 @@ function ExplosaoSheet({ row, onClose, regime, uf, mesRef }: { row: Item | null;
     if (!row) return;
     setLoading(true);
     (async () => {
-      const { data } = await supabase
-        .from("base_composicao_itens")
+      const { data } = await (supabase as any)
+        .from("catalogo_composicao_itens")
         .select("*")
         .eq("fonte", row.fonte!)
-        .eq("composicao_codigo", row.codigo!);
+        .eq("codigo_composicao", row.codigo!);
       const items = data ?? [];
       setRows(items);
 
       // Busca preços dos insumos automaticamente (regime + uf do orçamento)
-       const codigos = Array.from(new Set(items.filter((r: any) => r.tipo !== "COMPOSICAO").map((r: any) => r.insumo_codigo).filter(Boolean)));
-       const compCodes = Array.from(new Set(items.filter((r: any) => r.tipo === "COMPOSICAO").map((r: any) => r.insumo_codigo).filter(Boolean)));
+       const codigos = Array.from(new Set(items.filter((r: any) => r.tipo_item !== "COMPOSICAO").map((r: any) => r.codigo_item).filter(Boolean)));
+       const compCodes = Array.from(new Set(items.filter((r: any) => r.tipo_item === "COMPOSICAO").map((r: any) => r.codigo_item).filter(Boolean)));
       const map: Record<string, number> = {};
       if (codigos.length) {
         const priceCol = regime === "desonerado" ? "preco_desonerado" : "preco_nao_desonerado";
-         let q: any = supabase.from("base_insumos").select(`codigo,fonte,uf,${priceCol}`).eq("fonte", row.fonte!).in("codigo", codigos as string[]);
+         let q: any = (supabase as any).from("precos_historicos_insumos").select(`codigo_insumo,fonte,uf,${priceCol}`).eq("fonte", row.fonte!).in("codigo_insumo", codigos as string[]);
         if (uf) q = q.eq("uf", uf);
         if (mesRef) q = q.eq("mes_ref", mesRef); else q = q.order("mes_ref", { ascending: false });
         const { data: ins } = await q;
         (ins ?? []).forEach((r: any) => {
-          if (r.codigo && map[r.codigo] == null) map[r.codigo] = Number(r[priceCol] ?? 0);
+          if (r.codigo_insumo && map[r.codigo_insumo] == null) map[r.codigo_insumo] = Number(r[priceCol] ?? 0);
         });
       }
        if (compCodes.length) {
@@ -647,14 +647,21 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
 
   useEffect(() => {
     const t = setTimeout(async () => {
-      let qb: any = supabase
-        .from("base_composicoes")
-        .select("codigo,descricao,unidade,custo_desonerado,custo_nao_desonerado,fonte")
+      let qb: any = (supabase as any)
+        .from("precos_historicos_composicoes")
+        .select("codigo_composicao,fonte,custo_desonerado,custo_nao_desonerado,catalogo_composicoes!inner(descricao, unidade)")
         .limit(30);
       if (fonte !== "__all") qb = qb.eq("fonte", fonte);
-      if (q.trim()) qb = qb.or(`descricao.ilike.%${q}%,codigo.ilike.%${q}%`);
+      if (q.trim()) qb = qb.textSearch('catalogo_composicoes.descricao', q);
       const { data } = await qb;
-      const rows = data ?? [];
+      const rows = (data ?? []).map((r:any) => ({
+         codigo: r.codigo_composicao,
+         fonte: r.fonte,
+         descricao: r.catalogo_composicoes?.descricao,
+         unidade: r.catalogo_composicoes?.unidade,
+         custo_desonerado: r.custo_desonerado,
+         custo_nao_desonerado: r.custo_nao_desonerado
+      }));
       setResults(rows);
       setPrices({});
       const entries = await Promise.all(rows.map(async (r: any) => {
