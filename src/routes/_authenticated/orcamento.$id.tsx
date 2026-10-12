@@ -545,17 +545,35 @@ function ExplosaoSheet({ row, onClose, regime, uf, mesRef }: { row: Item | null;
     if (!row) return;
     setLoading(true);
     (async () => {
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("catalogo_composicao_itens")
-        .select("*, catalogo_insumos(descricao, unidade), catalogo_composicoes(descricao, unidade)")
+        .select("*")
         .eq("fonte", row.fonte!)
         .eq("codigo_composicao", row.codigo!);
+      if (error) {
+        console.error("Erro ao carregar itens da composição", error);
+        setRows([]);
+        setLoading(false);
+        return;
+      }
       const items = data ?? [];
-      setRows(items);
+      const insumoCodes = items.filter((r: any) => r.tipo_item !== "COMPOSICAO").map((r: any) => r.codigo_item).filter(Boolean);
+      const compCodesForMeta = items.filter((r: any) => r.tipo_item === "COMPOSICAO").map((r: any) => r.codigo_item).filter(Boolean);
+      const [{ data: insumoMeta }, { data: compMeta }] = await Promise.all([
+        insumoCodes.length
+          ? (supabase as any).from("catalogo_insumos").select("codigo,descricao,unidade").eq("fonte", row.fonte!).in("codigo", insumoCodes)
+          : Promise.resolve({ data: [] }),
+        compCodesForMeta.length
+          ? (supabase as any).from("catalogo_composicoes").select("codigo,descricao,unidade").eq("fonte", row.fonte!).in("codigo", compCodesForMeta)
+          : Promise.resolve({ data: [] }),
+      ]);
+      const meta = new Map<string, any>([...(insumoMeta ?? []), ...(compMeta ?? [])].map((r: any) => [String(r.codigo), r]));
+      const itemsWithMeta = items.map((r: any) => ({ ...r, descricao: meta.get(String(r.codigo_item))?.descricao ?? "", unidade: meta.get(String(r.codigo_item))?.unidade ?? "" }));
+      setRows(itemsWithMeta);
 
       // Busca preços dos insumos automaticamente (regime + uf do orçamento)
-       const codigos = Array.from(new Set(items.filter((r: any) => r.tipo_item !== "COMPOSICAO").map((r: any) => r.codigo_item).filter(Boolean)));
-       const compCodes = Array.from(new Set(items.filter((r: any) => r.tipo_item === "COMPOSICAO").map((r: any) => r.codigo_item).filter(Boolean)));
+       const codigos = Array.from(new Set(itemsWithMeta.filter((r: any) => r.tipo_item !== "COMPOSICAO").map((r: any) => r.codigo_item).filter(Boolean)));
+       const compCodes = Array.from(new Set(itemsWithMeta.filter((r: any) => r.tipo_item === "COMPOSICAO").map((r: any) => r.codigo_item).filter(Boolean)));
       const map: Record<string, number> = {};
       if (codigos.length) {
         const priceCol = regime === "desonerado" ? "preco_desonerado" : "preco_nao_desonerado";
@@ -582,7 +600,7 @@ function ExplosaoSheet({ row, onClose, regime, uf, mesRef }: { row: Item | null;
       setLoading(false);
     })();
   }, [row, regime, uf, mesRef]);
-  const priceOf = (r: any) => Number(precos[r.insumo_codigo ?? ""] ?? 0);
+  const priceOf = (r: any) => Number(precos[r.codigo_item ?? ""] ?? 0);
   const total = rows.reduce((s, r) => s + Number(r.coeficiente) * priceOf(r), 0);
   return (
     <Sheet open={!!row} onOpenChange={(o)=>{ if (!o) onClose(); }}>
@@ -602,8 +620,8 @@ function ExplosaoSheet({ row, onClose, regime, uf, mesRef }: { row: Item | null;
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id}>
-                  <td>{r.tipo ?? "—"}</td>
-                  <td>{r.insumo_codigo ?? "—"}</td>
+                  <td>{r.tipo_item ?? "—"}</td>
+                  <td>{r.codigo_item ?? "—"}</td>
                   <td>{r.descricao}</td>
                   <td>{r.unidade ?? "—"}</td>
                   <td className="num">{Number(r.coeficiente).toLocaleString("pt-BR",{minimumFractionDigits:4,maximumFractionDigits:6})}</td>
@@ -651,20 +669,23 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
 
   useEffect(() => {
     const t = setTimeout(async () => {
-      let qb: any = (supabase as any)
-        .from("precos_historicos_composicoes")
-        .select("codigo_composicao,fonte,custo_desonerado,custo_nao_desonerado,catalogo_composicoes!inner(descricao, unidade)")
-        .limit(30);
-      if (fonte !== "__all") qb = qb.eq("fonte", fonte);
-      if (q.trim()) qb = qb.textSearch('catalogo_composicoes.descricao', q);
-      const { data } = await qb;
+      const makeQuery = (byCode: boolean) => {
+        let x: any = (supabase as any).from("catalogo_composicoes")
+          .select("codigo,fonte,descricao,unidade")
+          .limit(30);
+        if (fonte !== "__all") x = x.eq("fonte", fonte);
+        if (q.trim()) x = byCode
+          ? x.ilike("codigo", `%${q.trim()}%`)
+          : x.ilike("descricao", `%${q.trim()}%`);
+        return x;
+      };
+      const queries = q.trim() ? await Promise.all([makeQuery(true), makeQuery(false)]) : [await makeQuery(false)];
+      const data = Array.from(new Map(queries.flatMap((x: any) => x.data ?? []).map((r: any) => [`${r.fonte}|${r.codigo}`, r])).values());
       const rows = (data ?? []).map((r:any) => ({
-         codigo: r.codigo_composicao,
+         codigo: r.codigo,
          fonte: r.fonte,
-         descricao: r.catalogo_composicoes?.descricao,
-         unidade: r.catalogo_composicoes?.unidade,
-         custo_desonerado: r.custo_desonerado,
-         custo_nao_desonerado: r.custo_nao_desonerado
+         descricao: r.descricao,
+         unidade: r.unidade,
       }));
       setResults(rows);
       setPrices({});

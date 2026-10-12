@@ -554,34 +554,34 @@ function ComposicoesManager() {
 
 function ItensDaComposicaoModal({ comp, onClose }: { comp: any, onClose: () => void }) {
   const [itens, setItens] = useState<any[]>([])
-  const [form, setForm] = useState({ insumo_codigo: '', descricao: '', unidade: 'un', coeficiente: 1, tipo: 'INSUMO', fonte: comp.fonte })
+  const [form, setForm] = useState({ codigo_item: '', descricao: '', unidade: 'un', coeficiente: 1, tipo_item: 'INSUMO', fonte: comp.fonte })
 
   const fetchItens = async () => {
-    const { data } = await supabase.from('base_composicao_itens').select('*').eq('composicao_codigo', comp.codigo)
+    const { data } = await (supabase as any).from('catalogo_composicao_itens').select('*').eq('codigo_composicao', comp.codigo)
     setItens(data || [])
   }
   useEffect(() => { fetchItens() }, [comp.codigo])
 
   const handleAdd = async () => {
-    if (!form.insumo_codigo || !form.descricao) return toast.error("Código e descrição são necessários")
+    if (!form.codigo_item || !form.descricao) return toast.error("Código e descrição são necessários")
     const payload = {
-      composicao_codigo: comp.codigo,
-      insumo_codigo: form.insumo_codigo,
+      codigo_composicao: comp.codigo,
+      codigo_item: form.codigo_item,
       descricao: form.descricao,
       unidade: form.unidade,
       coeficiente: Number(form.coeficiente),
-      tipo: form.tipo,
+      tipo_item: form.tipo_item,
       fonte: form.fonte
     }
-    const { error } = await supabase.from('base_composicao_itens').insert([payload])
+    const { error } = await (supabase as any).from('catalogo_composicao_itens').insert([payload])
     if (error) return toast.error(error.message)
     toast.success("Item adicionado")
-    setForm({ insumo_codigo: '', descricao: '', unidade: 'un', coeficiente: 1, tipo: 'INSUMO', fonte: comp.fonte })
+    setForm({ codigo_item: '', descricao: '', unidade: 'un', coeficiente: 1, tipo_item: 'INSUMO', fonte: comp.fonte })
     fetchItens()
   }
 
   const handleRemove = async (id: number) => {
-    const { error } = await supabase.from('base_composicao_itens').delete().eq('id', id)
+    const { error } = await (supabase as any).from('catalogo_composicao_itens').delete().eq('id', id)
     if (error) toast.error(error.message)
     else fetchItens()
   }
@@ -595,11 +595,11 @@ function ItensDaComposicaoModal({ comp, onClose }: { comp: any, onClose: () => v
           
           <div className="bg-muted p-4 rounded-md grid grid-cols-4 gap-2 items-end">
             <div><Label>Tipo</Label>
-              <Select value={form.tipo} onValueChange={v=>setForm({...form, tipo: v})}>
+              <Select value={form.tipo_item} onValueChange={v=>setForm({...form, tipo_item: v})}>
                 <SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="INSUMO">Insumo</SelectItem><SelectItem value="COMPOSICAO">Composição (Aux)</SelectItem></SelectContent>
               </Select>
             </div>
-            <div><Label>Cód Insumo</Label><Input value={form.insumo_codigo} onChange={e=>setForm({...form, insumo_codigo: e.target.value})} /></div>
+            <div><Label>Código do item</Label><Input value={form.codigo_item} onChange={e=>setForm({...form, codigo_item: e.target.value})} /></div>
             <div className="col-span-2"><Label>Descrição</Label><Input value={form.descricao} onChange={e=>setForm({...form, descricao: e.target.value})} /></div>
             <div><Label>Und</Label><Input value={form.unidade} onChange={e=>setForm({...form, unidade: e.target.value})} /></div>
             <div><Label>Coeficiente</Label><Input type="number" step="0.0001" value={form.coeficiente} onChange={e=>setForm({...form, coeficiente: Number(e.target.value)})} /></div>
@@ -612,8 +612,8 @@ function ItensDaComposicaoModal({ comp, onClose }: { comp: any, onClose: () => v
               <TableBody>
                 {itens.map(i => (
                   <TableRow key={i.id}>
-                    <TableCell className="text-xs">{i.tipo}</TableCell>
-                    <TableCell className="font-mono text-xs">{i.insumo_codigo || i.composicao_codigo}</TableCell>
+                    <TableCell className="text-xs">{i.tipo_item}</TableCell>
+                    <TableCell className="font-mono text-xs">{i.codigo_item}</TableCell>
                     <TableCell className="text-xs truncate max-w-[200px]" title={i.descricao}>{i.descricao}</TableCell>
                     <TableCell>{i.coeficiente}</TableCell>
                     <TableCell><Button variant="ghost" size="sm" onClick={()=>handleRemove(i.id)}><Trash2 className="w-4 h-4 text-red-500"/></Button></TableCell>

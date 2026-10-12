@@ -204,7 +204,7 @@ function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: st
   }, [rows, uf, mes]);
 
   const remove = async (r: any) => {
-    const { error } = await (supabase as any).from("catalogo_composicao_itens").delete().eq("fonte", PROPRIA).eq("composicao_codigo", r.codigo);
+    const { error } = await (supabase as any).from("catalogo_composicao_itens").delete().eq("fonte", PROPRIA).eq("codigo_composicao", r.codigo);
     if (error) return toast.error(error.message);
     const { error: e2 } = await (supabase as any).from("catalogo_composicoes").delete().eq("id", r.id);
     if (e2) return toast.error(e2.message);
@@ -335,11 +335,11 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
     if (!row) { setRows([]); return; }
     setLoading(true);
     (async () => {
-      const { data: itens } = await supabase
-        .from("base_composicao_itens")
+      const { data: itens } = await (supabase as any)
+        .from("catalogo_composicao_itens")
         .select("*")
         .eq("fonte", row.fonte)
-        .eq("composicao_codigo", row.codigo);
+        .eq("codigo_composicao", row.codigo);
 
       if (!itens || itens.length === 0) {
         setRows([]);
@@ -347,8 +347,8 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
         return;
       }
 
-      const insumoCodigos = itens.filter((i: any) => i.tipo !== 'COMPOSICAO').map((i: any) => i.insumo_codigo).filter(Boolean);
-      const compCodigos = itens.filter((i: any) => i.tipo === 'COMPOSICAO').map((i: any) => i.insumo_codigo).filter(Boolean);
+      const insumoCodigos = itens.filter((i: any) => i.tipo_item !== 'COMPOSICAO').map((i: any) => i.codigo_item).filter(Boolean);
+      const compCodigos = itens.filter((i: any) => i.tipo_item === 'COMPOSICAO').map((i: any) => i.codigo_item).filter(Boolean);
 
       let insumosPriceMap: Record<string, any> = {};
       let compPriceMap: Record<string, any> = {};
@@ -364,8 +364,8 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
         const { data: insData } = await (supabase as any).from("precos_historicos_insumos")
           .select("id, codigo_insumo, preco_desonerado, preco_nao_desonerado")
           .eq("fonte", row.fonte).eq("uf", effUf).eq("mes_ref", effMes)
-          .in("codigo", insumoCodigos).order("id", { ascending: false });
-        if (insData) insData.forEach((d: any) => { if (!insumosPriceMap[d.codigo]) insumosPriceMap[d.codigo_insumo] = d; });
+          .in("codigo_insumo", insumoCodigos).order("id", { ascending: false });
+        if (insData) insData.forEach((d: any) => { if (insumosPriceMap[d.codigo_insumo] == null) insumosPriceMap[d.codigo_insumo] = d; });
       }
 
       if (compCodigos.length > 0) {
@@ -377,7 +377,7 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
       }
 
       const rowsWithPrices = itens.map((i: any) => {
-        const p = i.tipo === 'COMPOSICAO' ? compPriceMap[i.insumo_codigo] : insumosPriceMap[i.insumo_codigo];
+        const p = i.tipo_item === 'COMPOSICAO' ? compPriceMap[i.codigo_item] : insumosPriceMap[i.codigo_item];
         return {
           ...i,
           preco_desonerado: p?.preco_desonerado || 0,
@@ -412,8 +412,8 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id}>
-                  <td>{r.tipo ?? "—"}</td>
-                  <td>{r.insumo_codigo ?? "—"}</td>
+                  <td>{r.tipo_item ?? "—"}</td>
+                  <td>{r.codigo_item ?? "—"}</td>
                   <td>{r.descricao}</td>
                   <td>{r.unidade ?? "—"}</td>
                   <td className="num">{Number(r.coeficiente).toLocaleString("pt-BR",{minimumFractionDigits:4,maximumFractionDigits:6})}</td>
@@ -477,26 +477,26 @@ function ItemPickerDialog({
       if (!q.trim()) { setResults([]); return; }
       setLoading(true);
       if (tipo === "INSUMO") {
-        let qy = supabase.from("base_insumos")
-          .select("codigo,descricao,unidade,preco_desonerado,preco_nao_desonerado")
-          .or(`codigo.ilike.%${q}%,descricao.ilike.%${q}%`).limit(20);
+        let qy: any = (supabase as any).from("precos_historicos_insumos")
+          .select("codigo_insumo,preco_desonerado,preco_nao_desonerado,catalogo_insumos!inner(descricao,unidade)")
+          .or(`codigo_insumo.ilike.%${q}%,catalogo_insumos.descricao.ilike.%${q}%`).limit(20);
         if (uf) qy = qy.eq("uf", uf);
         if (mes_ref) qy = qy.eq("mes_ref", mes_ref);
         const { data } = await qy;
         setResults((data ?? []).map((d: any) => ({
-          tipo: "INSUMO", codigo: d.codigo, descricao: d.descricao, unidade: d.unidade,
+          tipo: "INSUMO", codigo: d.codigo_insumo, descricao: d.catalogo_insumos?.descricao, unidade: d.catalogo_insumos?.unidade,
           preco_desonerado: Number(d.preco_desonerado) || 0,
           preco_nao_desonerado: Number(d.preco_nao_desonerado) || 0,
         })));
       } else {
-        let qy = supabase.from("base_composicoes")
-          .select("codigo,descricao,unidade,custo_desonerado,custo_nao_desonerado")
-          .or(`codigo.ilike.%${q}%,descricao.ilike.%${q}%`).limit(20);
+        let qy: any = (supabase as any).from("precos_historicos_composicoes")
+          .select("codigo_composicao,custo_desonerado,custo_nao_desonerado,catalogo_composicoes!inner(descricao,unidade)")
+          .or(`codigo_composicao.ilike.%${q}%,catalogo_composicoes.descricao.ilike.%${q}%`).limit(20);
         if (uf) qy = qy.eq("uf", uf);
         if (mes_ref) qy = qy.eq("mes_ref", mes_ref);
         const { data } = await qy;
         setResults((data ?? []).map((d: any) => ({
-          tipo: "COMPOSICAO", codigo: d.codigo, descricao: d.descricao, unidade: d.unidade,
+          tipo: "COMPOSICAO", codigo: d.codigo_composicao, descricao: d.catalogo_composicoes?.descricao, unidade: d.catalogo_composicoes?.unidade,
           preco_desonerado: Number(d.custo_desonerado) || 0,
           preco_nao_desonerado: Number(d.custo_nao_desonerado) || 0,
         })));
@@ -584,10 +584,10 @@ function NovaComposicaoDialog({ open, setOpen, onCreated }: { open: boolean; set
     if (error) return toast.error(error.message);
 
     const itens = lines.map(l => ({
-      fonte: PROPRIA, composicao_codigo: f.codigo.trim(),
-      insumo_codigo: l.codigo, descricao: l.descricao,
+      fonte: PROPRIA, codigo_composicao: f.codigo.trim(),
+      codigo_item: l.codigo, descricao: l.descricao,
       unidade: l.unidade || null, coeficiente: Number(l.coeficiente.replace(",", ".")) || 0,
-      tipo: l.tipo, uf: f.uf || null, mes_ref: f.mes_ref || null,
+      tipo_item: l.tipo,
     }));
     const { error: e2 } = await (supabase as any).from("catalogo_composicao_itens").insert(itens);
     if (e2) return toast.error(e2.message);

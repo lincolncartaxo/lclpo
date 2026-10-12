@@ -99,16 +99,16 @@ export function ImportExcelDialog({ orcId, regime, uf, mesRef, nextOrdem, onImpo
         for (let i = 0; i < codes.length; i += 200) {
           const ch = codes.slice(i, i + 200);
           const [{ data: c }, { data: s }] = await Promise.all([
-            supabase.from("base_composicoes").select("fonte,codigo,descricao,unidade").in("codigo", ch).in("fonte", fontes),
-            supabase.from("base_insumos").select("fonte,codigo,descricao,unidade,preco_desonerado,preco_nao_desonerado,mes_ref")
-              .in("codigo", ch).in("fonte", fontes).eq("uf", ufUse).order("mes_ref", { ascending: false }),
+            (supabase as any).from("catalogo_composicoes").select("fonte,codigo,descricao,unidade").in("codigo", ch).in("fonte", fontes),
+            (supabase as any).from("precos_historicos_insumos").select("fonte,codigo_insumo,preco_desonerado,preco_nao_desonerado,mes_ref,catalogo_insumos!inner(descricao,unidade)")
+              .in("codigo_insumo", ch).in("fonte", fontes).eq("uf", ufUse).order("mes_ref", { ascending: false }),
           ]);
           comps.push(...(c ?? [])); ins.push(...(s ?? []));
         }
         const cache = new Map<string, number>();
         for (const p of parsed) {
           if (!p.codigo) continue;
-          const pref = (list: any[]) => list.find(x => x.codigo === p.codigo && (!p.fonte || x.fonte === p.fonte))
+          const pref = (list: any[]) => list.find(x => (x.codigo ?? x.codigo_insumo) === p.codigo && (!p.fonte || x.fonte === p.fonte))
             ?? list.find(x => x.codigo === p.codigo);
           const c = pref(comps);
           if (c) {
@@ -126,7 +126,7 @@ export function ImportExcelDialog({ orcId, regime, uf, mesRef, nextOrdem, onImpo
           const s = pref(list);
           if (s) Object.assign(p, {
             precoBase: Number((regime === "desonerado" ? s.preco_desonerado : s.preco_nao_desonerado) ?? 0),
-            descBase: s.descricao, fonteBase: s.fonte, unidade: p.unidade || s.unidade || "",
+            descBase: s.catalogo_insumos?.descricao ?? s.descricao, fonteBase: s.fonte, unidade: p.unidade || s.catalogo_insumos?.unidade || s.unidade || "",
           });
         }
       }
