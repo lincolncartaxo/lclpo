@@ -33,6 +33,7 @@ function AdminPanel() {
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Painel de Controle Administrativo</h1>
           <p className="text-muted-foreground mt-2">CRUD completo de inquilinos, usuários, bases de referência e orçamentos.</p>
         </div>
+        <UploadBasesModal />
       </div>
 
       <Tabs defaultValue="usuarios" className="w-full" onValueChange={setActiveTab}>
@@ -231,6 +232,94 @@ function EmpresasManager() {
       </CardContent>
     </Card>
   )
+}
+
+
+
+function UploadBasesModal() {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({ tipo: 'insumo', fonte: 'SINAPI', uf: 'PB', mes_ref: '2026-10' });
+  const [file, setFile] = useState<File | null>(null);
+
+  const handleUpload = async () => {
+    if (!file) return toast.error("Selecione um arquivo CSV");
+    if (!form.fonte || !form.uf || !form.mes_ref) return toast.error("Preencha todos os filtros");
+    
+    setLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('tipo', form.tipo);
+      formData.append('fonte', form.fonte);
+      formData.append('uf', form.uf);
+      formData.append('mes_ref', form.mes_ref);
+      
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/import-precos`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session?.access_token}` },
+        body: formData
+      });
+      
+      const result = await response.json();
+      if (response.ok) {
+        toast.success(result.message);
+        setOpen(false);
+      } else {
+        toast.error(`Erro: ${result.error}`);
+      }
+    } catch (err: any) {
+      toast.error(`Erro ao processar: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="ml-auto"><Database className="w-4 h-4 mr-2"/> Upload de Preços (CSV)</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Importar Tabela de Preços (Catálogo + Histórico)</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          <p className="text-xs text-muted-foreground">O arquivo deve ser .CSV com as colunas exatas: <b>codigo, descricao, unidade, preco_desonerado, preco_nao_desonerado</b>.</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Tipo de Arquivo</Label>
+              <Select value={form.tipo} onValueChange={v=>setForm({...form, tipo: v})}>
+                <SelectTrigger><SelectValue/></SelectTrigger>
+                <SelectContent><SelectItem value="insumo">Insumos</SelectItem><SelectItem value="composicao">Composições</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Fonte / Tabela</Label>
+              <Select value={form.fonte} onValueChange={v=>setForm({...form, fonte: v})}>
+                <SelectTrigger><SelectValue/></SelectTrigger>
+                <SelectContent><SelectItem value="SINAPI">SINAPI</SelectItem><SelectItem value="SICRO">SICRO</SelectItem><SelectItem value="ORSE">ORSE</SelectItem><SelectItem value="SBC">SBC</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>UF</Label>
+              <Input maxLength={2} value={form.uf} onChange={e=>setForm({...form, uf: e.target.value.toUpperCase()})} placeholder="PB" />
+            </div>
+            <div>
+              <Label>Mês de Referência</Label>
+              <Input value={form.mes_ref} onChange={e=>setForm({...form, mes_ref: e.target.value})} placeholder="YYYY-MM (ex: 2026-10)" />
+            </div>
+            <div className="col-span-2">
+              <Label>Arquivo CSV</Label>
+              <Input type="file" accept=".csv" onChange={e => setFile(e.target.files?.[0] || null)} />
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handleUpload} disabled={loading || !file}>{loading ? "Processando..." : "Iniciar Importação"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function InsumosManager() {
