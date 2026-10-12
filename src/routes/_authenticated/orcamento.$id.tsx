@@ -518,7 +518,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf, refPrecos }: { 
           </tbody>
         </table>
       </div>
-      <ExplosaoSheet row={explodeRow} onClose={()=>setExplodeRow(null)} regime={regime} uf={uf} mesRef={parseRef(refPrecos).mes} />
+      <ExplosaoSheet row={explodeRow} onClose={()=>setExplodeRow(null)} regime={regime} uf={uf} mesRef={refPrecos ? parseRef(refPrecos).mes : null} />
       <ConfirmDialog
         open={!!confirmItem}
         title="Excluir item"
