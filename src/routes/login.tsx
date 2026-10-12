@@ -20,28 +20,60 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [nome, setNome] = useState("");
   const [loading, setLoading] = useState(false);
+  const AUTH_TIMEOUT_MS = 15000;
+
+  const withAuthTimeout = async <T,>(promise: Promise<T>): Promise<T> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timer = setTimeout(() => reject(new Error("O serviço de autenticação demorou mais que o esperado. Verifique sua conexão e tente novamente.")), AUTH_TIMEOUT_MS);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
 
   const signIn = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) return toast.error(error.message);
-    nav({ to: "/dashboard" });
+    try {
+      const { error } = await withAuthTimeout(supabase.auth.signInWithPassword({ email, password }));
+      if (error) return toast.error(error.message);
+      await nav({ to: "/dashboard" });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível entrar.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const signUp = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true);
-    const redirect = `${window.location.origin}/dashboard`;
-    const { error } = await supabase.auth.signUp({ email, password, options: { data: { nome }, emailRedirectTo: redirect } });
-    setLoading(false);
-    if (error) return toast.error(error.message);
-    toast.success("Conta criada! Verifique seu e-mail para confirmar.");
+    try {
+      const redirect = `${window.location.origin}/dashboard`;
+      const { error } = await withAuthTimeout(supabase.auth.signUp({ email, password, options: { data: { nome }, emailRedirectTo: redirect } }));
+      if (error) return toast.error(error.message);
+      toast.success("Conta criada! Verifique seu e-mail para confirmar.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível criar a conta.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const google = async () => {
-    const r = await lovable.auth.signInWithOAuth("google", { redirect_uri: `${window.location.origin}/dashboard` });
-    if (r.error) toast.error("Falha ao entrar com Google");
-    else if (!r.redirected) nav({ to: "/dashboard" });
+    setLoading(true);
+    try {
+      const r = await withAuthTimeout(lovable.auth.signInWithOAuth("google", { redirect_uri: `${window.location.origin}/dashboard` }));
+      if (r.error) toast.error(r.error.message || "Falha ao entrar com Google");
+      else if (!r.redirected) await nav({ to: "/dashboard" });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Falha ao entrar com Google.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -60,7 +92,7 @@ function LoginPage() {
           <h1 className="text-2xl font-semibold">Acessar plataforma</h1>
           <p className="text-sm text-muted-foreground mb-6">Entre com seus dados ou crie uma conta.</p>
 
-          <Button variant="outline" className="w-full mb-4" onClick={google}>Continuar com Google</Button>
+          <Button variant="outline" className="w-full mb-4" onClick={google} disabled={loading}>Continuar com Google</Button>
           <div className="relative my-4 text-center text-xs text-muted-foreground"><span className="bg-background px-2 relative z-10">ou com e-mail</span><div className="absolute inset-x-0 top-1/2 border-t" /></div>
 
           <Tabs defaultValue="signin">
