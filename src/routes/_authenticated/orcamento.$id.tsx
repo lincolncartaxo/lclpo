@@ -1304,7 +1304,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
         body, 
         theme: 'grid',
         headStyles: { 
-          fillColor: [31, 56, 100], // Dark Blue (#1f3864)
+          fillColor: [31, 56, 100], 
           textColor: [255, 255, 255], 
           fontSize: 8, 
           fontStyle: 'bold', 
@@ -1318,40 +1318,53 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
         alternateRowStyles: { 
           fillColor: [255, 255, 255] 
         },
-        didParseCell: function (data: any) {
+        willDrawCell: function (data: any) {
           if (data.section === 'body') {
             const firstCol = String(data.row.raw[0] || '').trim();
-            // Pega o prefixo numerico da string (ex: "1 - Etapa" -> "1", "1.1 - Sub" -> "1.1")
-            const match = firstCol.match(/^([0-9]+(?:\.[0-9]+)*)/);
-            if (match && data.row.raw[1] === '') { 
-              // Confirmamos que é uma linha de grupo pois as outras colunas (como Código/Fonte) estão vazias
-              const pfx = match[1];
-              const isRootEtapa = !pfx.includes('.');
-              
-              if (isRootEtapa) {
-                // Etapa Principal (1, 2, 3) - Fundo Branco/Transparente, Letra Preta, ou fundo cinza super claro
-                // De acordo com o novo print, a Etapa 1.2 "Movimentacao de Terra" está branca
-                // e o "Sem Etapa / 2.1" está com fundo dourado forte.
-                // Na verdade, no print 1 o Root (Sem etapa/2.1) tá Dourado Escuro e o Sub (1.1, 1.2, 1.3) tá branco.
-                data.cell.styles.fillColor = [186, 168, 121]; // Dourado escuro
-                data.cell.styles.textColor = [255, 255, 255];
-                data.cell.styles.fontStyle = 'bold';
-              } else {
-                // Subetapa (1.1, 1.2) - Fundo Branco
-                data.cell.styles.fillColor = [255, 255, 255]; // Branco
-                data.cell.styles.textColor = [0, 0, 0];
-                data.cell.styles.fontStyle = 'bold';
+            const isEtapa = firstCol !== '' && String(data.row.raw[1] || '').trim() === '' && String(data.row.raw[data.row.raw.length-1] || '').trim() === '';
+            
+            // Tratamento de mesclagem (ColSpan) para Etapas e Subetapas
+            if (isEtapa || firstCol === "Sem etapa" || firstCol === "SUBTOTAL" || firstCol.includes("BDI (") || firstCol === "TOTAL GERAL") {
+              if (data.column.index === 0) {
+                // Mescla a primeira célula até o final da tabela
+                doc.setFillColor(data.cell.styles.fillColor[0], data.cell.styles.fillColor[1], data.cell.styles.fillColor[2]);
+                doc.rect(data.cell.x, data.cell.y, data.table.width, data.cell.height, 'FD');
+                doc.setTextColor(data.cell.styles.textColor[0], data.cell.styles.textColor[1], data.cell.styles.textColor[2]);
+                doc.setFont("helvetica", data.cell.styles.fontStyle);
+                doc.text(firstCol, data.cell.x + 2, data.cell.y + (data.cell.height / 2), { baseline: 'middle' });
               }
-            } else if (firstCol === "Sem etapa") {
-                data.cell.styles.fillColor = [186, 168, 121]; // Dourado escuro
-                data.cell.styles.textColor = [255, 255, 255];
-                data.cell.styles.fontStyle = 'bold';
+              // Skip drawing standard borders/text for other cells in this row since we drew a full rect
+              return false;
             }
           }
         },
-        willDrawCell: function (data: any) {
-          // Draw dotted border manually if needed, but 'grid' theme is usually enough.
-          // For now, grid theme does solid borders.
+        didParseCell: function (data: any) {
+          if (data.section === 'body') {
+            const firstCol = String(data.row.raw[0] || '').trim();
+            const secondCol = String(data.row.raw[1] || '').trim();
+            const isEtapa = firstCol !== '' && secondCol === '' && String(data.row.raw[data.row.raw.length-1] || '').trim() === '';
+            const isSubitemMemoria = firstCol === '' && secondCol !== '' && String(data.row.raw[2] || '').trim() !== '';
+
+            if (isEtapa || firstCol === "Sem etapa") {
+              // Etapas e Subetapas ficam sempre Douradas na impressão final
+              data.cell.styles.fillColor = [186, 168, 121]; // Dourado escuro
+              data.cell.styles.textColor = [255, 255, 255];
+              data.cell.styles.fontStyle = 'bold';
+            } 
+            else if (isSubitemMemoria) {
+              // Subitens (Memória de Cálculo) - Itálico e recuo na coluna 1
+              data.cell.styles.fontStyle = 'italic';
+              data.cell.styles.textColor = [50, 50, 50]; // Cinza escuro para diferenciar
+              if (data.column.index === 1) {
+                data.cell.text = '   ' + data.cell.text; // Espaçamento lateral
+              }
+            } 
+            else if (firstCol !== '' && secondCol !== '') {
+              // Itens principais (Serviços) - Negrito e fundo branco
+              data.cell.styles.fontStyle = 'bold';
+              data.cell.styles.fillColor = [255, 255, 255];
+            }
+          }
         }
       });
     });
