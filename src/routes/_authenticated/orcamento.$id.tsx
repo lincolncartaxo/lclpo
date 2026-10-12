@@ -1179,19 +1179,90 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
     const doc = new jsPDF({ orientation: "landscape" });
     const secs = sections();
     if (secs.length === 0) return toast.error("Selecione ao menos uma aba");
-    doc.setFontSize(14);
-    doc.text(orc.nome || "Orçamento", 14, 14);
-    let y = 22;
+
     secs.forEach((s, idx) => {
       if (idx > 0) doc.addPage();
-      doc.setFontSize(12);
-      doc.text(s.title, 14, y);
-      const head = Array.isArray(s.rows[0]) && typeof s.rows[0][0] === "string" && s.rows.length > 1
-        ? [s.rows[0].map(String)]
-        : undefined;
-      const body = (head ? s.rows.slice(1) : s.rows).map(r => r.map(c => typeof c === "number" ? c.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(c)));
-      autoTable(doc, { startY: y + 4, head, body, styles: { fontSize: 8 } });
-      y = 14;
+      
+      // Header Text Block
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.text(`PROGRAMA:`, 14, 10);
+      doc.text(`CONCEDENTE:`, 14, 14);
+      doc.text(`CONVENENTE:`, 14, 18);
+      doc.text(`CONTRATO:`, 14, 22);
+      doc.text(`OBRA:`, 14, 26);
+      doc.text(`DATA BASE:`, 14, 30);
+      doc.text(`DESONERAÇÃO:`, 14, 34);
+
+      doc.setFont("helvetica", "normal");
+      doc.text(`ESPORTE`, 50, 10);
+      doc.text(orc.orgao || `MINISTÉRIO DA CIDADANIA`, 50, 14);
+      doc.text(orc.municipio || `Município de Vista Serrana - PB`, 50, 18);
+      doc.text(orc.contrato || `1078687-50`, 50, 22);
+      doc.setFont("helvetica", "bold");
+      doc.text(orc.nome ? orc.nome.toUpperCase() : `MODIFICAÇÃO E RECUPERAÇÃO DO GINÁSIO DE ESPORTES DO MUNICÍPIO`, 50, 26);
+      doc.setFont("helvetica", "normal");
+      doc.text(orc.ref_precos ? orc.ref_precos.split('|')[1] || orc.ref_precos : `01/2023`, 50, 30);
+      doc.setFont("helvetica", "bold");
+      doc.text(orc.regime === "desonerado" ? `SIM` : `NÃO`, 50, 34);
+
+      // Title Bar (Black Background)
+      doc.setFillColor(0, 0, 0);
+      doc.rect(14, 38, doc.internal.pageSize.width - 28, 6, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(10);
+      doc.text(s.title.toUpperCase(), doc.internal.pageSize.width / 2, 42.5, { align: "center" });
+
+      doc.setTextColor(0, 0, 0);
+
+      const hasHead = Array.isArray(s.rows[0]) && typeof s.rows[0][0] === "string" && s.rows.length > 1;
+      const head = hasHead ? [s.rows[0].map(String)] : undefined;
+      const body = (hasHead ? s.rows.slice(1) : s.rows).map(r => 
+        r.map(c => typeof c === "number" ? c.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(c))
+      );
+
+      autoTable(doc, { 
+        startY: 46, 
+        head, 
+        body, 
+        theme: 'grid',
+        headStyles: { 
+          fillColor: [31, 56, 100], // Dark Blue (#1f3864)
+          textColor: [255, 255, 255], 
+          fontSize: 8, 
+          fontStyle: 'bold', 
+          halign: 'center',
+          valign: 'middle'
+        },
+        bodyStyles: { 
+          fontSize: 7, 
+          textColor: [0, 0, 0] 
+        },
+        alternateRowStyles: { 
+          fillColor: [255, 255, 255] 
+        },
+        didParseCell: function (data: any) {
+          // Check if it's a hierarchy row (Etapa/Subetapa)
+          if (data.section === 'body') {
+            const firstCol = data.row.raw[0] || '';
+            const isRootEtapa = /^[0-9]+(\.0)?$/.test(firstCol);
+            const isSubEtapa = /^[0-9]+\.[0-9]+(\.[0-9]+)?$/.test(firstCol);
+            
+            if (isRootEtapa) {
+              data.cell.styles.fillColor = [186, 168, 121]; // Gold/brown
+              data.cell.styles.textColor = [255, 255, 255];
+              data.cell.styles.fontStyle = 'bold';
+            } else if (isSubEtapa) {
+              data.cell.styles.fillColor = [228, 223, 204]; // Light gold/brown
+              data.cell.styles.fontStyle = 'bold';
+            }
+          }
+        },
+        willDrawCell: function (data: any) {
+          // Draw dotted border manually if needed, but 'grid' theme is usually enough.
+          // For now, grid theme does solid borders.
+        }
+      });
     });
     doc.save(`${orc.nome || "orcamento"}.pdf`);
   };
