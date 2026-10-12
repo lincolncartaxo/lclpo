@@ -544,7 +544,7 @@ function ExplosaoSheet({ row, onClose, regime, uf, mesRef }: { row: Item | null;
     (async () => {
       const { data } = await (supabase as any)
         .from("catalogo_composicao_itens")
-        .select("*")
+        .select("*, catalogo_insumos(descricao, unidade), catalogo_composicoes(descricao, unidade)")
         .eq("fonte", row.fonte!)
         .eq("codigo_composicao", row.codigo!);
       const items = data ?? [];
@@ -557,10 +557,11 @@ function ExplosaoSheet({ row, onClose, regime, uf, mesRef }: { row: Item | null;
       if (codigos.length) {
         const priceCol = regime === "desonerado" ? "preco_desonerado" : "preco_nao_desonerado";
          let q: any = (supabase as any).from("precos_historicos_insumos").select(`codigo_insumo,fonte,uf,${priceCol}`).eq("fonte", row.fonte!).in("codigo_insumo", codigos as string[]);
-        if (uf) q = q.eq("uf", uf);
+        if (uf) q = q.in("uf", [uf, 'BR']);
         if (mesRef) q = q.eq("mes_ref", mesRef); else q = q.order("mes_ref", { ascending: false });
         const { data: ins } = await q;
         (ins ?? []).forEach((r: any) => {
+          // Previnir que uma versao sem mes de outra UF sobrescreva a correta (gambiarra leve pro sort)
           if (r.codigo_insumo && map[r.codigo_insumo] == null) map[r.codigo_insumo] = Number(r[priceCol] ?? 0);
         });
       }
