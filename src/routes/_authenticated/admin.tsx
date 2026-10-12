@@ -341,7 +341,7 @@ function InsumosManager() {
     
     // Flatten the result for the table
     const flatRows = (data || []).map((r: any) => ({
-      id: r.id,
+      
       codigo: r.codigo_insumo,
       fonte: r.fonte,
       uf: r.uf,
@@ -452,7 +452,7 @@ function ComposicoesManager() {
     if (error) { toast.error(error.message); return; }
     
     const flatRows = (data || []).map((r: any) => ({
-      id: r.id,
+      
       codigo: r.codigo_composicao,
       fonte: r.fonte,
       uf: r.uf,
