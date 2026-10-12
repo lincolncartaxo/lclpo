@@ -1319,23 +1319,33 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
           fillColor: [255, 255, 255] 
         },
         didParseCell: function (data: any) {
-          // Check if it's a hierarchy row (Etapa/Subetapa)
           if (data.section === 'body') {
-            const firstCol = data.row.raw[0] || '';
-            // Invertemos: o Root era Dourado na imagem original e Subetapa era cinza/dourado bem claro.
-            // Mas de acordo com o pedido, as cores pareciam invertidas. Vamos tentar outro padrão ou corrigir a regex
-            // if it's "1" it's root. if it's "1.1" it's sub.
-            const isRootEtapa = /^[0-9]+$/.test(firstCol.trim());
-            const isSubEtapa = /^[0-9]+\.[0-9]+$/.test(firstCol.trim());
-            
-            if (isRootEtapa) {
-              data.cell.styles.fillColor = [228, 223, 204]; // Light gold/brown
-              data.cell.styles.textColor = [0, 0, 0];
-              data.cell.styles.fontStyle = 'bold';
-            } else if (isSubEtapa) {
-              data.cell.styles.fillColor = [186, 168, 121]; // Gold/brown
-              data.cell.styles.textColor = [255, 255, 255];
-              data.cell.styles.fontStyle = 'bold';
+            const firstCol = String(data.row.raw[0] || '').trim();
+            // Pega o prefixo numerico da string (ex: "1 - Etapa" -> "1", "1.1 - Sub" -> "1.1")
+            const match = firstCol.match(/^([0-9]+(?:\.[0-9]+)*)/);
+            if (match && data.row.raw[1] === '') { 
+              // Confirmamos que é uma linha de grupo pois as outras colunas (como Código/Fonte) estão vazias
+              const pfx = match[1];
+              const isRootEtapa = !pfx.includes('.');
+              
+              if (isRootEtapa) {
+                // Etapa Principal (1, 2, 3) - Fundo Branco/Transparente, Letra Preta, ou fundo cinza super claro
+                // De acordo com o novo print, a Etapa 1.2 "Movimentacao de Terra" está branca
+                // e o "Sem Etapa / 2.1" está com fundo dourado forte.
+                // Na verdade, no print 1 o Root (Sem etapa/2.1) tá Dourado Escuro e o Sub (1.1, 1.2, 1.3) tá branco.
+                data.cell.styles.fillColor = [186, 168, 121]; // Dourado escuro
+                data.cell.styles.textColor = [255, 255, 255];
+                data.cell.styles.fontStyle = 'bold';
+              } else {
+                // Subetapa (1.1, 1.2) - Fundo Branco
+                data.cell.styles.fillColor = [255, 255, 255]; // Branco
+                data.cell.styles.textColor = [0, 0, 0];
+                data.cell.styles.fontStyle = 'bold';
+              }
+            } else if (firstCol === "Sem etapa") {
+                data.cell.styles.fillColor = [186, 168, 121]; // Dourado escuro
+                data.cell.styles.textColor = [255, 255, 255];
+                data.cell.styles.fontStyle = 'bold';
             }
           }
         },
