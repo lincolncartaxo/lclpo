@@ -1318,26 +1318,6 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
         alternateRowStyles: { 
           fillColor: [255, 255, 255] 
         },
-        willDrawCell: function (data: any) {
-          if (data.section === 'body') {
-            const firstCol = String(data.row.raw[0] || '').trim();
-            const isEtapa = firstCol !== '' && String(data.row.raw[1] || '').trim() === '' && String(data.row.raw[data.row.raw.length-1] || '').trim() === '';
-            
-            // Tratamento de mesclagem (ColSpan) para Etapas e Subetapas
-            if (isEtapa || firstCol === "Sem etapa" || firstCol === "SUBTOTAL" || firstCol.includes("BDI (") || firstCol === "TOTAL GERAL") {
-              if (data.column.index === 0) {
-                // Mescla a primeira célula até o final da tabela
-                doc.setFillColor(data.cell.styles.fillColor[0], data.cell.styles.fillColor[1], data.cell.styles.fillColor[2]);
-                doc.rect(data.cell.x, data.cell.y, data.table.width, data.cell.height, 'FD');
-                doc.setTextColor(data.cell.styles.textColor[0], data.cell.styles.textColor[1], data.cell.styles.textColor[2]);
-                doc.setFont("helvetica", data.cell.styles.fontStyle);
-                doc.text(firstCol, data.cell.x + 2, data.cell.y + (data.cell.height / 2), { baseline: 'middle' });
-              }
-              // Skip drawing standard borders/text for other cells in this row since we drew a full rect
-              return false;
-            }
-          }
-        },
         didParseCell: function (data: any) {
           if (data.section === 'body') {
             const firstCol = String(data.row.raw[0] || '').trim();
@@ -1345,28 +1325,21 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
             const isEtapa = firstCol !== '' && secondCol === '' && String(data.row.raw[data.row.raw.length-1] || '').trim() === '';
             const isSubitemMemoria = firstCol === '' && secondCol !== '' && String(data.row.raw[2] || '').trim() !== '';
 
-            if (isEtapa || firstCol === "Sem etapa") {
-              // Etapas e Subetapas ficam sempre Douradas na impressão final
+            if (isEtapa || firstCol === "Sem etapa" || firstCol === "SUBTOTAL" || firstCol.includes("BDI (") || firstCol === "TOTAL GERAL") {
               data.cell.styles.fillColor = [186, 168, 121]; // Dourado escuro
               data.cell.styles.textColor = [255, 255, 255];
               data.cell.styles.fontStyle = 'bold';
             } 
             else if (isSubitemMemoria) {
-              // Subitens (Memória de Cálculo) - Itálico e recuo na coluna 1
               data.cell.styles.fontStyle = 'italic';
-              data.cell.styles.textColor = [50, 50, 50]; // Cinza escuro para diferenciar
+              data.cell.styles.textColor = [50, 50, 50];
               if (data.column.index === 1) {
-                if (Array.isArray(data.cell.text)) {
-                  data.cell.text = data.cell.text.map((t: string) => '   ' + t);
-                } else if (typeof data.cell.text === 'string') {
-                  data.cell.text = '   ' + data.cell.text;
-                }
+                // Ao inves de concatenar espacos e quebrar a renderizacao no autotable, usamos celPadding para o recuo visual seguro
+                data.cell.styles.cellPadding = { left: 8, top: 1, bottom: 1, right: 1 };
               }
             } 
             else if (firstCol !== '' && secondCol !== '') {
-              // Itens principais (Serviços) - Negrito e fundo branco
               data.cell.styles.fontStyle = 'bold';
-              data.cell.styles.fillColor = [255, 255, 255];
             }
           }
         }
