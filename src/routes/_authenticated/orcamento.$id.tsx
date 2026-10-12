@@ -1343,10 +1343,9 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
         headerY += 4;
       });
 
-      // Title Bar (Black Background)
-      doc.setFillColor(0, 0, 0);
-      doc.rect(14, headerY, doc.internal.pageSize.width - 28, 6, "F");
-      doc.setTextColor(255, 255, 255);
+      // Título da seção sem desenho manual: evita incompatibilidades do
+      // jsPDF em tabelas longas com quebra de página.
+      doc.setTextColor(31, 56, 100);
       doc.setFontSize(10);
       doc.text(s.title.toUpperCase(), doc.internal.pageSize.width / 2, headerY + 4.5, { align: "center" });
 
@@ -1402,38 +1401,11 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
               const bgColor = isRootEtapa ? [186, 168, 121] : [228, 223, 204]; // Ouro forte para Root, Ouro Claro para Sub
               const txtColor = isRootEtapa ? [255, 255, 255] : [0, 0, 0];
 
-              if (data.column.index === 0) {
-                doc.setFillColor(bgColor[0], bgColor[1], bgColor[2]);
-                const tableWidth = Number(data.table?.width);
-                const cellX = Number(data.cell?.x);
-                const cellY = Number(data.cell?.y);
-                const cellHeight = Number(data.cell?.height);
-                const safeWidth = Number.isFinite(tableWidth) && tableWidth > 0
-                  ? tableWidth
-                  : doc.internal.pageSize.width - 28;
-                if (Number.isFinite(cellX) && Number.isFinite(cellY) && Number.isFinite(cellHeight) && cellHeight > 0) {
-                  doc.rect(cellX, cellY, safeWidth, cellHeight, 'FD');
-                }
-                doc.setTextColor(txtColor[0], txtColor[1], txtColor[2]);
-                doc.setFont("helvetica", "bold");
-                
-                doc.text(firstCol, data.cell.x + 2, data.cell.y + (data.cell.height / 2), { baseline: 'middle' });
-                
-                // Se for a aba da Planilha (onde o total esta no indice 8)
-                const lastColValPlanilha = String(data.row.raw[8] || '').trim();
-                // Se for a aba de Memoria (onde o total esta no indice 11)
-                const lastColValMemoria = String(data.row.raw[11] || '').trim();
-
-                let valorTotal = '';
-                if (data.row.raw.length === 9) valorTotal = lastColValPlanilha;
-                if (data.row.raw.length === 13) valorTotal = lastColValMemoria;
-
-                if (valorTotal && valorTotal !== '0') {
-                  const rightMargin = data.cell.x + data.table.width - 2;
-                  doc.text(valorTotal, rightMargin, data.cell.y + (data.cell.height / 2), { align: 'right', baseline: 'middle' });
-                }
-              }
-              return false; // Skip default rendering since we drew the full merged rect
+              // O autoTable pinta cada célula com segurança, inclusive após
+              // quebra de página. Não desenhar retângulos manualmente.
+              data.cell.styles.fillColor = bgColor as [number, number, number];
+              data.cell.styles.textColor = txtColor as [number, number, number];
+              data.cell.styles.fontStyle = 'bold';
             }
           }
         },
