@@ -104,17 +104,42 @@ function usePaged<T = any>(
       const from = (page - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
       
-      let tableName = table === 'base_insumos' ? 'precos_historicos_insumos' : 'precos_historicos_composicoes';
-      let metaTable = table === 'base_insumos' ? 'catalogo_insumos' : 'catalogo_composicoes';
-      let cols = table === 'base_insumos' ?
-        'codigo_insumo, uf, mes_ref, preco_desonerado, preco_nao_desonerado, fonte, catalogo_insumos!inner(descricao, unidade)' :
-        'codigo_composicao, uf, mes_ref, custo_desonerado, custo_nao_desonerado, fonte, catalogo_composicoes!inner(descricao, unidade)';
-        
-      let query: any = (supabase as any).from(tableName).select(cols, { count: "estimated" }).range(from, to);
+      const isInsumo = table === 'base_insumos';
+      const tableName = isInsumo ? 'precos_historicos_insumos' : 'precos_historicos_composicoes';
+      const metaTable = isInsumo ? 'catalogo_insumos' : 'catalogo_composicoes';
+      const codeColumn = isInsumo ? 'codigo_insumo' : 'codigo_composicao';
+      const metaCodeColumn = 'codigo';
+
+      // Não usar relação aninhada aqui: instalações antigas podem ter FKs
+      // diferentes ou cache de schema desatualizado no PostgREST.
+      let query: any = (supabase as any).from(tableName).select('*', { count: "estimated" }).range(from, to);
       if (fonte !== "__all") query = query.eq("fonte", fonte);
       if (uf !== "__all") query = query.eq("uf", uf);
       if (mes) query = query.eq("mes_ref", toMesRef(mes));
-      if (q.trim()) query = query.textSearch(`${metaTable}.descricao`, q);
+
+      let matchingCodes: string[] | null = null;
+      if (q.trim()) {
+        const term = `%${q.trim()}%`;
+        const [{ data: codeRows, error: codeError }, { data: descRows, error: descError }] = await Promise.all([
+          (supabase as any).from(metaTable).select(metaCodeColumn).ilike(metaCodeColumn, term),
+          (supabase as any).from(metaTable).select(metaCodeColumn).ilike("descricao", term),
+        ]);
+        if (codeError || descError) {
+          const searchError = codeError ?? descError;
+          console.error("Erro ao pesquisar catálogo", searchError);
+          toast.error(`Erro ao pesquisar a base: ${searchError.message}`);
+          setRows([]);
+          setCount(0);
+          return;
+        }
+        matchingCodes = Array.from(new Set([...(codeRows ?? []), ...(descRows ?? [])].map((r: any) => String(r.codigo))));
+        if (!matchingCodes.length) {
+          setRows([]);
+          setCount(0);
+          return;
+        }
+        query = query.in(codeColumn, matchingCodes);
+      }
       const { data, count: c, error } = await query;
       if (error) {
         console.error("Erro ao consultar base de preços", error);
@@ -124,6 +149,20 @@ function usePaged<T = any>(
         return;
       }
       
+      const codes = (data || []).map((r: any) => String(r[codeColumn])).filter(Boolean);
+      let metadataQuery: any = (supabase as any).from(metaTable).select("codigo,descricao,unidade").in(metaCodeColumn, codes);
+      if (fonte !== "__all") metadataQuery = metadataQuery.eq("fonte", fonte);
+      const { data: metadata, error: metadataError } = codes.length
+        ? await metadataQuery
+        : { data: [], error: null };
+      if (metadataError) {
+        console.error("Erro ao consultar descrições do catálogo", metadataError);
+        toast.error(`Erro ao consultar descrições: ${metadataError.message}`);
+        setRows([]);
+        setCount(0);
+        return;
+      }
+      const metadataMap = new Map<string, any>((metadata ?? []).map((r: any) => [String(r.codigo), r]));
       const flat = (data || []).map((r: any) => ({
         // A instalação legada não possui id nas tabelas históricas de preços.
         id: `${r.fonte}|${r.codigo_insumo || r.codigo_composicao}|${r.uf}|${r.mes_ref}`,
@@ -131,8 +170,8 @@ function usePaged<T = any>(
         fonte: r.fonte,
         uf: r.uf,
         mes_ref: r.mes_ref,
-        descricao: r.catalogo_insumos?.descricao || r.catalogo_composicoes?.descricao || '',
-        unidade: r.catalogo_insumos?.unidade || r.catalogo_composicoes?.unidade || '',
+        descricao: metadataMap.get(String(r[codeColumn]))?.descricao || '',
+        unidade: metadataMap.get(String(r[codeColumn]))?.unidade || '',
         preco_desonerado: r.preco_desonerado || 0,
         preco_nao_desonerado: r.preco_nao_desonerado || 0,
         custo_desonerado: r.custo_desonerado || 0,
@@ -491,26 +530,36 @@ function ItemPickerDialog({
       if (!q.trim()) { setResults([]); return; }
       setLoading(true);
       if (tipo === "INSUMO") {
+        const { data: catalogo } = await (supabase as any).from("catalogo_insumos")
+          .select("codigo,descricao,unidade")
+          .or(`codigo.ilike.%${q}%,descricao.ilike.%${q}%`).limit(20);
+        const codes = (catalogo ?? []).map((d: any) => d.codigo).filter(Boolean);
         let qy: any = (supabase as any).from("precos_historicos_insumos")
-          .select("codigo_insumo,preco_desonerado,preco_nao_desonerado,catalogo_insumos!inner(descricao,unidade)")
-          .or(`codigo_insumo.ilike.%${q}%,catalogo_insumos.descricao.ilike.%${q}%`).limit(20);
+          .select("codigo_insumo,preco_desonerado,preco_nao_desonerado")
+          .in("codigo_insumo", codes).limit(20);
         if (uf) qy = qy.eq("uf", uf);
         if (mes_ref) qy = qy.eq("mes_ref", mes_ref);
         const { data } = await qy;
+        const meta = new Map<string, any>((catalogo ?? []).map((d: any) => [String(d.codigo), d]));
         setResults((data ?? []).map((d: any) => ({
-          tipo: "INSUMO", codigo: d.codigo_insumo, descricao: d.catalogo_insumos?.descricao, unidade: d.catalogo_insumos?.unidade,
+          tipo: "INSUMO", codigo: d.codigo_insumo, descricao: meta.get(String(d.codigo_insumo))?.descricao, unidade: meta.get(String(d.codigo_insumo))?.unidade,
           preco_desonerado: Number(d.preco_desonerado) || 0,
           preco_nao_desonerado: Number(d.preco_nao_desonerado) || 0,
         })));
       } else {
+        const { data: catalogo } = await (supabase as any).from("catalogo_composicoes")
+          .select("codigo,descricao,unidade")
+          .or(`codigo.ilike.%${q}%,descricao.ilike.%${q}%`).limit(20);
+        const codes = (catalogo ?? []).map((d: any) => d.codigo).filter(Boolean);
         let qy: any = (supabase as any).from("precos_historicos_composicoes")
-          .select("codigo_composicao,custo_desonerado,custo_nao_desonerado,catalogo_composicoes!inner(descricao,unidade)")
-          .or(`codigo_composicao.ilike.%${q}%,catalogo_composicoes.descricao.ilike.%${q}%`).limit(20);
+          .select("codigo_composicao,custo_desonerado,custo_nao_desonerado")
+          .in("codigo_composicao", codes).limit(20);
         if (uf) qy = qy.eq("uf", uf);
         if (mes_ref) qy = qy.eq("mes_ref", mes_ref);
         const { data } = await qy;
+        const meta = new Map<string, any>((catalogo ?? []).map((d: any) => [String(d.codigo), d]));
         setResults((data ?? []).map((d: any) => ({
-          tipo: "COMPOSICAO", codigo: d.codigo_composicao, descricao: d.catalogo_composicoes?.descricao, unidade: d.catalogo_composicoes?.unidade,
+          tipo: "COMPOSICAO", codigo: d.codigo_composicao, descricao: meta.get(String(d.codigo_composicao))?.descricao, unidade: meta.get(String(d.codigo_composicao))?.unidade,
           preco_desonerado: Number(d.custo_desonerado) || 0,
           preco_nao_desonerado: Number(d.custo_nao_desonerado) || 0,
         })));
