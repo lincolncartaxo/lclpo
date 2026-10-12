@@ -240,7 +240,7 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
         <Field label="Base de Preços (Referência)">
           <Select value={parseRef(f.ref_precos).mes ? (f.ref_precos as string) : ""} onValueChange={(v)=>setF({...f, ref_precos: v})} disabled={!f.uf}>
             <SelectTrigger><SelectValue placeholder={f.uf ? (bases.length ? "Selecione a base" : "Nenhuma base para esta UF") : "Selecione a UF primeiro"} /></SelectTrigger>
-            <SelectContent className="max-h-72">{bases.map(b => { const v = `${b.fonte}|${String(b.mes_ref).slice(0,10)}`; return <SelectItem key={v} value={v}>{fmtRef(v)}</SelectItem>; })}</SelectContent>
+            <SelectContent className="max-h-72">{bases.map(b => { const v = `${b.fonte}|${String(b.mes_ref)}`; return <SelectItem key={v} value={v}>{fmtRef(v)}</SelectItem>; })}</SelectContent>
           </Select>
         </Field>
         <Field label="Engenheiro Responsável"><Input value={f.engenheiro ?? ""} onChange={(e)=>setF({...f,engenheiro:e.target.value})} /></Field>
