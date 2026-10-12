@@ -106,9 +106,9 @@ function usePaged<T = any>(
       
       let tableName = table === 'base_insumos' ? 'precos_historicos_insumos' : 'precos_historicos_composicoes';
       let metaTable = table === 'base_insumos' ? 'catalogo_insumos' : 'catalogo_composicoes';
-      let cols = table === 'base_insumos' ? 
-        'id, codigo_insumo, uf, mes_ref, preco_desonerado, preco_nao_desonerado, fonte, catalogo_insumos!inner(descricao, unidade)' :
-        'id, codigo_composicao, uf, mes_ref, custo_desonerado, custo_nao_desonerado, fonte, catalogo_composicoes!inner(descricao, unidade, classe)';
+      let cols = table === 'base_insumos' ?
+        'codigo_insumo, uf, mes_ref, preco_desonerado, preco_nao_desonerado, fonte, catalogo_insumos!inner(descricao, unidade)' :
+        'codigo_composicao, uf, mes_ref, custo_desonerado, custo_nao_desonerado, fonte, catalogo_composicoes!inner(descricao, unidade)';
         
       let query: any = (supabase as any).from(tableName).select(cols, { count: "estimated" }).range(from, to);
       if (fonte !== "__all") query = query.eq("fonte", fonte);
@@ -125,7 +125,8 @@ function usePaged<T = any>(
       }
       
       const flat = (data || []).map((r: any) => ({
-        id: r.id,
+        // A instalação legada não possui id nas tabelas históricas de preços.
+        id: `${r.fonte}|${r.codigo_insumo || r.codigo_composicao}|${r.uf}|${r.mes_ref}`,
         codigo: r.codigo_insumo || r.codigo_composicao,
         fonte: r.fonte,
         uf: r.uf,
@@ -219,7 +220,7 @@ function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: st
   const remove = async (r: any) => {
     const { error } = await (supabase as any).from("catalogo_composicao_itens").delete().eq("fonte", PROPRIA).eq("codigo_composicao", r.codigo);
     if (error) return toast.error(error.message);
-    const { error: e2 } = await (supabase as any).from("catalogo_composicoes").delete().eq("id", r.id);
+    const { error: e2 } = await (supabase as any).from("catalogo_composicoes").delete().eq("fonte", PROPRIA).eq("codigo", r.codigo);
     if (e2) return toast.error(e2.message);
     toast.success("Composição excluída"); setConfirmDel(null); onReload();
   };
@@ -292,7 +293,7 @@ function InsList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: str
     { uf, mes, fonte, q, page, reloadKey },
   );
   const remove = async (r: any) => {
-    const { error } = await (supabase as any).from("catalogo_insumos").delete().eq("id", r.id);
+    const { error } = await (supabase as any).from("catalogo_insumos").delete().eq("fonte", PROPRIA).eq("codigo", r.codigo);
     if (error) return toast.error(error.message);
     toast.success("Insumo excluído"); setConfirmDel(null); onReload();
   };
