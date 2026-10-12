@@ -2,17 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import Papa from "papaparse";
-import { createClient } from "@supabase/supabase-js";
 import { parseLocalizedNumber } from "@/lib/parse-localized-number";
-
-// Since we are running on the server (Node/Vite), we need to initialize a server-side client
-// to execute the RPC bypass without relying on the client-side session proxy directly for large inserts.
-function getServerSupabase() {
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const key = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !key) throw new Error("Supabase URL or Key is missing in env vars.");
-  return createClient(url, key);
-}
 
 const importSchema = z.object({
   fonte: z.string(),
@@ -25,8 +15,18 @@ const importSchema = z.object({
 export const importPrecosCSV = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => importSchema.parse(d))
-  .handler(async ({ data }) => {
-    const supabase = getServerSupabase();
+  .handler(async ({ data, context }) => {
+    // O middleware injeta um cliente com o Bearer token do usuário. Não criar
+    // aqui um cliente anônimo, pois isso perderia a identidade e o RLS.
+    const supabase = (context as any).supabase;
+    const userId = (context as any).userId as string;
+    if (!supabase || !userId) return { ok: false, error: "Sessão autenticada não encontrada." };
+
+    const { data: isAdmin, error: roleError } = await supabase.rpc("has_role", {
+      _user_id: userId,
+      _role: "admin",
+    });
+    if (roleError || !isAdmin) return { ok: false, error: "Somente administradores podem importar bases de preços." };
     
     // Parse CSV
         // Detect delimiter
