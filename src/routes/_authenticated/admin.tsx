@@ -325,31 +325,62 @@ function UploadBasesModal() {
 function InsumosManager() {
   const [q, setQ] = useState("")
   const [rows, setRows] = useState<any[]>([])
-  const [form, setForm] = useState<any>({ id: null, codigo: '', descricao: '', unidade: '', preco_desonerado: 0, preco_nao_desonerado: 0, fonte: 'SINAPI' })
+  const [form, setForm] = useState<any>({ id: null, codigo: '', descricao: '', unidade: '', preco_desonerado: 0, preco_nao_desonerado: 0, fonte: 'SINAPI', uf: 'PB', mes_ref: '2026-10' })
   const [open, setOpen] = useState(false)
 
   const search = async () => {
-    let query = supabase.from('base_insumos').select('*').limit(50)
-    if (q) query = query.textSearch('descricao', q)
-    const { data } = await query
-    setRows(data || [])
+    // Agora busca cruzando o catalogo_insumos com o precos_historicos_insumos
+    // Para simplificar a visualização administrativa global, buscamos no catálogo e fazemos join com o historico
+    let query = (supabase as any).from('precos_historicos_insumos').select('id, codigo_insumo, fonte, uf, mes_ref, preco_desonerado, preco_nao_desonerado, catalogo_insumos!inner(descricao, unidade)').limit(50)
+    if (q) query = query.textSearch('catalogo_insumos.descricao', q)
+    const { data, error } = await query
+    if (error) { toast.error(error.message); return; }
+    
+    // Flatten the result for the table
+    const flatRows = (data || []).map((r: any) => ({
+      id: r.id,
+      codigo: r.codigo_insumo,
+      fonte: r.fonte,
+      uf: r.uf,
+      mes_ref: r.mes_ref,
+      descricao: r.catalogo_insumos?.descricao || '',
+      unidade: r.catalogo_insumos?.unidade || '',
+      preco_desonerado: r.preco_desonerado,
+      preco_nao_desonerado: r.preco_nao_desonerado
+    }))
+    setRows(flatRows)
   }
 
   const handleSave = async () => {
-    const payload = { ...form, preco_desonerado: Number(form.preco_desonerado), preco_nao_desonerado: Number(form.preco_nao_desonerado) }
-    if (!payload.id) delete payload.id
-    const { error } = await supabase.from('base_insumos').upsert(payload)
-    if (error) return toast.error(error.message)
-    toast.success("Insumo salvo!")
+    // 1. Salva/Atualiza o Metadado no Catálogo
+    const { error: catError } = await (supabase as any).from('catalogo_insumos').upsert({
+      codigo: form.codigo, fonte: form.fonte, descricao: form.descricao, unidade: form.unidade
+    }, { onConflict: 'codigo, fonte' })
+    if (catError) return toast.error(catError.message)
+
+    // 2. Salva o Preço
+    const payload = {
+      codigo_insumo: form.codigo,
+      fonte: form.fonte,
+      uf: form.uf,
+      mes_ref: form.mes_ref,
+      preco_desonerado: Number(form.preco_desonerado),
+      preco_nao_desonerado: Number(form.preco_nao_desonerado)
+    }
+    
+    const { error: priceError } = await (supabase as any).from('precos_historicos_insumos').upsert(payload, { onConflict: 'codigo_insumo, fonte, uf, mes_ref' })
+    if (priceError) return toast.error(priceError.message)
+    
+    toast.success("Insumo salvo/atualizado na nova arquitetura!")
     setOpen(false)
     search()
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Excluir insumo da base global?")) return
-    const { error } = await supabase.from('base_insumos').delete().eq('id', id)
+    if (!confirm("Excluir este preço histórico da base global? (O metadado no catálogo será mantido).")) return
+    const { error } = await (supabase as any).from('precos_historicos_insumos').delete().eq('id', id)
     if (error) toast.error(error.message)
-    else { toast.success("Excluído"); search() }
+    else { toast.success("Preço Excluído"); search() }
   }
 
   return (
@@ -372,6 +403,8 @@ function InsumosManager() {
               <div className="col-span-2"><Label>Descrição</Label><Input value={form.descricao} onChange={e=>setForm({...form, descricao: e.target.value})} /></div>
               <div><Label>Código</Label><Input value={form.codigo} onChange={e=>setForm({...form, codigo: e.target.value})} /></div>
               <div><Label>Unidade</Label><Input value={form.unidade} onChange={e=>setForm({...form, unidade: e.target.value})} /></div>
+              <div><Label>UF</Label><Input value={form.uf} onChange={e=>setForm({...form, uf: e.target.value})} placeholder="PB" /></div>
+              <div><Label>Mês Ref.</Label><Input value={form.mes_ref} onChange={e=>setForm({...form, mes_ref: e.target.value})} placeholder="2026-10" /></div>
               <div><Label>Preço Desonerado (R$)</Label><Input type="number" step="0.01" value={form.preco_desonerado} onChange={e=>setForm({...form, preco_desonerado: e.target.value})} /></div>
               <div><Label>Preço Não Desonerado (R$)</Label><Input type="number" step="0.01" value={form.preco_nao_desonerado} onChange={e=>setForm({...form, preco_nao_desonerado: e.target.value})} /></div>
               <div className="col-span-2"><Label>Fonte</Label><Input value={form.fonte} onChange={e=>setForm({...form, fonte: e.target.value})} /></div>
@@ -381,11 +414,11 @@ function InsumosManager() {
         </Dialog>
 
         <Table>
-          <TableHeader><TableRow><TableHead>Código</TableHead><TableHead>Fonte</TableHead><TableHead>Descrição</TableHead><TableHead>Unid</TableHead><TableHead className="text-right">Deson.</TableHead><TableHead className="text-right">Não Deson.</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>Código</TableHead><TableHead>Fonte</TableHead><TableHead>UF / Mês</TableHead><TableHead>Descrição</TableHead><TableHead>Unid</TableHead><TableHead className="text-right">Deson.</TableHead><TableHead className="text-right">Não Deson.</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
           <TableBody>
             {rows.map((r, i) => (
               <TableRow key={i}>
-                <TableCell className="font-mono text-xs">{r.codigo}</TableCell><TableCell>{r.fonte}</TableCell><TableCell className="max-w-xs truncate">{r.descricao}</TableCell><TableCell>{r.unidade}</TableCell>
+                <TableCell className="font-mono text-xs">{r.codigo}</TableCell><TableCell>{r.fonte}</TableCell><TableCell className="text-xs text-muted-foreground">{r.uf} - {r.mes_ref}</TableCell><TableCell className="max-w-xs truncate" title={r.descricao}>{r.descricao}</TableCell><TableCell>{r.unidade}</TableCell>
                 <TableCell className="text-right">R$ {r.preco_desonerado}</TableCell>
                 <TableCell className="text-right">R$ {r.preco_nao_desonerado}</TableCell>
                 <TableCell className="text-right space-x-2">
@@ -404,32 +437,58 @@ function InsumosManager() {
 function ComposicoesManager() {
   const [q, setQ] = useState("")
   const [rows, setRows] = useState<any[]>([])
-  const [form, setForm] = useState<any>({ id: null, codigo: '', descricao: '', unidade: '', custo_desonerado: 0, custo_nao_desonerado: 0, fonte: 'SINAPI' })
+  const [form, setForm] = useState<any>({ id: null, codigo: '', descricao: '', unidade: '', custo_desonerado: 0, custo_nao_desonerado: 0, fonte: 'SINAPI', uf: 'PB', mes_ref: '2026-10' })
   const [open, setOpen] = useState(false)
   const [itensModalComp, setItensModalComp] = useState<any>(null)
 
   const search = async () => {
-    let query = supabase.from('base_composicoes').select('*').limit(50)
-    if (q) query = query.textSearch('descricao', q)
-    const { data } = await query
-    setRows(data || [])
+    let query = (supabase as any).from('precos_historicos_composicoes').select('id, codigo_composicao, fonte, uf, mes_ref, custo_desonerado, custo_nao_desonerado, catalogo_composicoes!inner(descricao, unidade)').limit(50)
+    if (q) query = query.textSearch('catalogo_composicoes.descricao', q)
+    const { data, error } = await query
+    if (error) { toast.error(error.message); return; }
+    
+    const flatRows = (data || []).map((r: any) => ({
+      id: r.id,
+      codigo: r.codigo_composicao,
+      fonte: r.fonte,
+      uf: r.uf,
+      mes_ref: r.mes_ref,
+      descricao: r.catalogo_composicoes?.descricao || '',
+      unidade: r.catalogo_composicoes?.unidade || '',
+      custo_desonerado: r.custo_desonerado,
+      custo_nao_desonerado: r.custo_nao_desonerado
+    }))
+    setRows(flatRows)
   }
 
   const handleSave = async () => {
-    const payload = { ...form, custo_desonerado: Number(form.custo_desonerado), custo_nao_desonerado: Number(form.custo_nao_desonerado) }
-    if (!payload.id) delete payload.id
-    const { error } = await supabase.from('base_composicoes').upsert(payload)
-    if (error) return toast.error(error.message)
-    toast.success("Composição salva!")
+    const { error: catError } = await (supabase as any).from('catalogo_composicoes').upsert({
+      codigo: form.codigo, fonte: form.fonte, descricao: form.descricao, unidade: form.unidade
+    }, { onConflict: 'codigo, fonte' })
+    if (catError) return toast.error(catError.message)
+
+    const payload = {
+      codigo_composicao: form.codigo,
+      fonte: form.fonte,
+      uf: form.uf,
+      mes_ref: form.mes_ref,
+      custo_desonerado: Number(form.custo_desonerado),
+      custo_nao_desonerado: Number(form.custo_nao_desonerado)
+    }
+    
+    const { error: priceError } = await (supabase as any).from('precos_historicos_composicoes').upsert(payload, { onConflict: 'codigo_composicao, fonte, uf, mes_ref' })
+    if (priceError) return toast.error(priceError.message)
+    
+    toast.success("Composição salva na nova arquitetura!")
     setOpen(false)
     search()
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Excluir composição? Todos os itens internos dela também deveriam ser excluídos/órfãos.")) return
-    const { error } = await supabase.from('base_composicoes').delete().eq('id', id)
+    if (!confirm("Excluir este preço histórico da composição?")) return
+    const { error } = await (supabase as any).from('precos_historicos_composicoes').delete().eq('id', id)
     if (error) toast.error(error.message)
-    else { toast.success("Excluído"); search() }
+    else { toast.success("Preço Excluído"); search() }
   }
 
   return (
@@ -453,6 +512,8 @@ function ComposicoesManager() {
               <div className="col-span-2"><Label>Descrição</Label><Input value={form.descricao} onChange={e=>setForm({...form, descricao: e.target.value})} /></div>
               <div><Label>Código</Label><Input value={form.codigo} onChange={e=>setForm({...form, codigo: e.target.value})} /></div>
               <div><Label>Unidade</Label><Input value={form.unidade} onChange={e=>setForm({...form, unidade: e.target.value})} /></div>
+              <div><Label>UF</Label><Input value={form.uf} onChange={e=>setForm({...form, uf: e.target.value})} placeholder="PB" /></div>
+              <div><Label>Mês Ref.</Label><Input value={form.mes_ref} onChange={e=>setForm({...form, mes_ref: e.target.value})} placeholder="2026-10" /></div>
               <div><Label>Custo Desonerado</Label><Input type="number" step="0.01" value={form.custo_desonerado} onChange={e=>setForm({...form, custo_desonerado: e.target.value})} /></div>
               <div><Label>Custo Não Desonerado</Label><Input type="number" step="0.01" value={form.custo_nao_desonerado} onChange={e=>setForm({...form, custo_nao_desonerado: e.target.value})} /></div>
               <div className="col-span-2"><Label>Fonte</Label><Input value={form.fonte} onChange={e=>setForm({...form, fonte: e.target.value})} /></div>
@@ -465,11 +526,11 @@ function ComposicoesManager() {
         {itensModalComp && <ItensDaComposicaoModal comp={itensModalComp} onClose={() => setItensModalComp(null)} />}
 
         <Table>
-          <TableHeader><TableRow><TableHead>Código</TableHead><TableHead>Descrição</TableHead><TableHead>Unid</TableHead><TableHead className="text-right">Deson.</TableHead><TableHead className="text-right">Não Deson.</TableHead><TableHead className="text-center">Ações</TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>Código</TableHead><TableHead>UF/Mês</TableHead><TableHead>Descrição</TableHead><TableHead>Unid</TableHead><TableHead className="text-right">Deson.</TableHead><TableHead className="text-right">Não Deson.</TableHead><TableHead className="text-center">Ações</TableHead></TableRow></TableHeader>
           <TableBody>
             {rows.map((r, i) => (
               <TableRow key={i}>
-                <TableCell className="font-mono text-xs">{r.codigo}</TableCell><TableCell className="max-w-xs truncate">{r.descricao}</TableCell><TableCell>{r.unidade}</TableCell>
+                <TableCell className="font-mono text-xs">{r.codigo}</TableCell><TableCell className="text-xs text-muted-foreground">{r.uf} - {r.mes_ref}</TableCell><TableCell className="max-w-xs truncate" title={r.descricao}>{r.descricao}</TableCell><TableCell>{r.unidade}</TableCell>
                 <TableCell className="text-right">R$ {r.custo_desonerado}</TableCell>
                 <TableCell className="text-right">R$ {r.custo_nao_desonerado}</TableCell>
                 <TableCell className="text-center space-x-1 whitespace-nowrap">
