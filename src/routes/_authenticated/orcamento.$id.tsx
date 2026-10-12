@@ -1321,37 +1321,63 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
           fillColor: [255, 255, 255] 
         },
         
-        didParseCell: function (data: any) {
+        willDrawCell: function (data: any) {
           if (data.section === 'body') {
             const firstCol = String(data.row.raw[0] || '').trim();
             const secondCol = String(data.row.raw[1] || '').trim();
             const thirdCol = String(data.row.raw[2] || '').trim();
             
-            // Etapa = Tem nome na coluna 1, mas as colunas 2 e 3 (fonte/codigo ou descricoes dependendo da aba) estao vazias.
-            const isEtapa = firstCol !== '' && secondCol === '' && thirdCol === ''; 
+            // Definição ultra-rigorosa de linha de etapa (Tem nome, mas col2 e col3 são vazias)
+            const isEtapa = firstCol !== '' && secondCol === '' && thirdCol === '';
             const isTotais = firstCol === "SUBTOTAL" || firstCol.includes("BDI (") || firstCol === "TOTAL GERAL";
-            const isSubitemMemoria = firstCol === '' && secondCol !== '' && thirdCol !== ''; // Na memoria, a desc e a "vez" ficam na col 2 e 3
 
             if (isEtapa || firstCol === "Sem etapa" || isTotais) {
+              // Descobre se é root ou subetapa
               const prefixMatch = firstCol.match(/^([0-9]+(?:\.[0-9]+)*)/);
               let isRootEtapa = true;
               if (prefixMatch) {
                  isRootEtapa = !prefixMatch[1].includes('.');
               } else if (firstCol !== "Sem etapa" && !isTotais) {
-                 // Se nao tem numero mas eh etapa, assume root
                  isRootEtapa = true;
               }
 
-              if (isRootEtapa) {
-                data.cell.styles.fillColor = [186, 168, 121]; // Dourado Escuro
-                data.cell.styles.textColor = [255, 255, 255];
-              } else {
-                data.cell.styles.fillColor = [228, 223, 204]; // Dourado Claro (Subetapa)
-                data.cell.styles.textColor = [0, 0, 0];
+              const bgColor = isRootEtapa ? [186, 168, 121] : [228, 223, 204]; // Ouro forte para Root, Ouro Claro para Sub
+              const txtColor = isRootEtapa ? [255, 255, 255] : [0, 0, 0];
+
+              if (data.column.index === 0) {
+                doc.setFillColor(bgColor[0], bgColor[1], bgColor[2]);
+                doc.rect(data.cell.x, data.cell.y, data.table.width, data.cell.height, 'FD');
+                doc.setTextColor(txtColor[0], txtColor[1], txtColor[2]);
+                doc.setFont("helvetica", "bold");
+                
+                doc.text(firstCol, data.cell.x + 2, data.cell.y + (data.cell.height / 2), { baseline: 'middle' });
+                
+                // Se for a aba da Planilha (onde o total esta no indice 8)
+                const lastColValPlanilha = String(data.row.raw[8] || '').trim();
+                // Se for a aba de Memoria (onde o total esta no indice 11)
+                const lastColValMemoria = String(data.row.raw[11] || '').trim();
+
+                let valorTotal = '';
+                if (data.row.raw.length === 9) valorTotal = lastColValPlanilha;
+                if (data.row.raw.length === 13) valorTotal = lastColValMemoria;
+
+                if (valorTotal && valorTotal !== '0') {
+                  const rightMargin = data.cell.x + data.table.width - 2;
+                  doc.text(valorTotal, rightMargin, data.cell.y + (data.cell.height / 2), { align: 'right', baseline: 'middle' });
+                }
               }
-              data.cell.styles.fontStyle = 'bold';
-            } 
-            else if (isSubitemMemoria) {
+              return false; // Skip default rendering since we drew the full merged rect
+            }
+          }
+        },
+        didParseCell: function (data: any) {
+          if (data.section === 'body') {
+            const firstCol = String(data.row.raw[0] || '').trim();
+            const secondCol = String(data.row.raw[1] || '').trim();
+            const thirdCol = String(data.row.raw[2] || '').trim();
+            const isSubitemMemoria = firstCol === '' && secondCol !== '' && thirdCol !== '';
+
+            if (isSubitemMemoria) {
               data.cell.styles.fontStyle = 'italic';
               data.cell.styles.textColor = [50, 50, 50];
               if (data.column.index === 1) {
@@ -1359,7 +1385,6 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
               }
             } 
             else if (firstCol !== '' && secondCol !== '') {
-              // Itens base da planilha
               data.cell.styles.fontStyle = 'bold';
             }
           }
