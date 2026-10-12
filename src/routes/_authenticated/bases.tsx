@@ -416,18 +416,30 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
       let compPriceMap: Record<string, any> = {};
 
       if (insumoCodigos.length > 0) {
-        // Mesma regra da função de cálculo: UF padrão PB e mês mais recente da UF quando não informado.
+        // Mesma regra da função SQL: UF específica com fallback nacional BR.
         const effUf = uf === "__all" ? "PB" : uf;
         let effMes = toMesRef(mes);
         if (!effMes) {
-          const { data: m } = await (supabase as any).from("precos_historicos_insumos").select("mes_ref").eq("fonte", row.fonte).eq("uf", effUf).order("mes_ref", { ascending: false }).limit(1);
+          const { data: m } = await (supabase as any).from("precos_historicos_insumos")
+            .select("mes_ref,uf")
+            .eq("fonte", row.fonte)
+            .in("uf", [effUf, "BR"])
+            .order("mes_ref", { ascending: false })
+            .limit(1);
           effMes = (m?.[0] as any)?.mes_ref ?? "";
         }
         const { data: insData } = await (supabase as any).from("precos_historicos_insumos")
-          .select("id, codigo_insumo, preco_desonerado, preco_nao_desonerado")
-          .eq("fonte", row.fonte).eq("uf", effUf).eq("mes_ref", effMes)
-          .in("codigo_insumo", insumoCodigos).order("id", { ascending: false });
-        if (insData) insData.forEach((d: any) => { if (insumosPriceMap[d.codigo_insumo] == null) insumosPriceMap[d.codigo_insumo] = d; });
+          .select("codigo_insumo,uf,mes_ref,preco_desonerado,preco_nao_desonerado")
+          .eq("fonte", row.fonte)
+          .in("uf", [effUf, "BR"])
+          .eq("mes_ref", effMes)
+          .in("codigo_insumo", insumoCodigos);
+        const orderedInsData = [...(insData ?? [])].sort((a: any, b: any) => {
+          const aExact = a.uf === effUf ? 1 : 0;
+          const bExact = b.uf === effUf ? 1 : 0;
+          return bExact - aExact;
+        });
+        orderedInsData.forEach((d: any) => { if (insumosPriceMap[d.codigo_insumo] == null) insumosPriceMap[d.codigo_insumo] = d; });
       }
 
       if (compCodigos.length > 0) {
