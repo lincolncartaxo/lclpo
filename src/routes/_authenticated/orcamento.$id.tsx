@@ -1165,11 +1165,28 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
   const exportXlsx = async () => {
     const XLSX = await import("xlsx");
     const wb = XLSX.utils.book_new();
-    sections().forEach(s => {
-      const ws = XLSX.utils.aoa_to_sheet(s.rows);
-      XLSX.utils.book_append_sheet(wb, ws, s.title.substring(0, 31));
+    const secs = sections();
+    
+    if (secs.length === 0) return toast.error("Selecione ao menos uma aba");
+
+    secs.forEach(s => {
+      const headerInfo: any[][] = [];
+      if (orc.orgao) headerInfo.push(['CONCEDENTE / ÓRGÃO:', orc.orgao]);
+      if (orc.municipio) headerInfo.push(['MUNICÍPIO / UF:', `${orc.municipio} - ${orc.uf || ''}`]);
+      if (orc.contrato) headerInfo.push(['CONTRATO:', orc.contrato]);
+      if (orc.nome) headerInfo.push(['OBRA:', orc.nome.toUpperCase()]);
+      if (orc.ref_precos) headerInfo.push(['DATA BASE:', orc.ref_precos.split('|')[1] || orc.ref_precos]);
+      headerInfo.push(['DESONERAÇÃO:', orc.regime === "desonerado" ? "SIM" : "NÃO"]);
+      headerInfo.push([]); // blank line
+      headerInfo.push([s.title.toUpperCase()]); // Title of the sheet
+      headerInfo.push([]); // blank line
+
+      // Prepend the metadata header to the table data
+      const finalRows = [...headerInfo, ...s.rows];
+      const ws = XLSX.utils.aoa_to_sheet(finalRows);
+      XLSX.utils.book_append_sheet(wb, ws, s.title.substring(0, 31).replace(/[\[\]\*\?\/\:]/g, ''));
     });
-    if (wb.SheetNames.length === 0) return toast.error("Selecione ao menos uma aba");
+    
     XLSX.writeFile(wb, `${orc.nome || "orcamento"}.xlsx`);
   };
 
@@ -1183,35 +1200,31 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
     secs.forEach((s, idx) => {
       if (idx > 0) doc.addPage();
       
-      // Header Text Block
-      doc.setFont("helvetica", "bold");
+      let headerY = 10;
       doc.setFontSize(8);
-      doc.text(`PROGRAMA:`, 14, 10);
-      doc.text(`CONCEDENTE:`, 14, 14);
-      doc.text(`CONVENENTE:`, 14, 18);
-      doc.text(`CONTRATO:`, 14, 22);
-      doc.text(`OBRA:`, 14, 26);
-      doc.text(`DATA BASE:`, 14, 30);
-      doc.text(`DESONERAÇÃO:`, 14, 34);
+      
+      const headerInfo = [];
+      if (orc.orgao) headerInfo.push({ label: 'CONCEDENTE / ÓRGÃO:', value: orc.orgao });
+      if (orc.municipio) headerInfo.push({ label: 'MUNICÍPIO / UF:', value: `${orc.municipio} - ${orc.uf || ''}` });
+      if (orc.contrato) headerInfo.push({ label: 'CONTRATO:', value: orc.contrato });
+      if (orc.nome) headerInfo.push({ label: 'OBRA:', value: orc.nome.toUpperCase(), isBold: true });
+      if (orc.ref_precos) headerInfo.push({ label: 'DATA BASE:', value: orc.ref_precos.split('|')[1] || orc.ref_precos });
+      headerInfo.push({ label: 'DESONERAÇÃO:', value: orc.regime === "desonerado" ? "SIM" : "NÃO", isBold: true });
 
-      doc.setFont("helvetica", "normal");
-      doc.text(`ESPORTE`, 50, 10);
-      doc.text(orc.orgao || `MINISTÉRIO DA CIDADANIA`, 50, 14);
-      doc.text(orc.municipio || `Município de Vista Serrana - PB`, 50, 18);
-      doc.text(orc.contrato || `1078687-50`, 50, 22);
-      doc.setFont("helvetica", "bold");
-      doc.text(orc.nome ? orc.nome.toUpperCase() : `MODIFICAÇÃO E RECUPERAÇÃO DO GINÁSIO DE ESPORTES DO MUNICÍPIO`, 50, 26);
-      doc.setFont("helvetica", "normal");
-      doc.text(orc.ref_precos ? orc.ref_precos.split('|')[1] || orc.ref_precos : `01/2023`, 50, 30);
-      doc.setFont("helvetica", "bold");
-      doc.text(orc.regime === "desonerado" ? `SIM` : `NÃO`, 50, 34);
+      headerInfo.forEach(info => {
+        doc.setFont("helvetica", "bold");
+        doc.text(info.label, 14, headerY);
+        doc.setFont("helvetica", info.isBold ? "bold" : "normal");
+        doc.text(info.value, 50, headerY);
+        headerY += 4;
+      });
 
       // Title Bar (Black Background)
       doc.setFillColor(0, 0, 0);
-      doc.rect(14, 38, doc.internal.pageSize.width - 28, 6, "F");
+      doc.rect(14, headerY, doc.internal.pageSize.width - 28, 6, "F");
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(10);
-      doc.text(s.title.toUpperCase(), doc.internal.pageSize.width / 2, 42.5, { align: "center" });
+      doc.text(s.title.toUpperCase(), doc.internal.pageSize.width / 2, headerY + 4.5, { align: "center" });
 
       doc.setTextColor(0, 0, 0);
 
@@ -1222,7 +1235,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
       );
 
       autoTable(doc, { 
-        startY: 46, 
+        startY: headerY + 8, 
         head, 
         body, 
         theme: 'grid',
@@ -1245,15 +1258,19 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
           // Check if it's a hierarchy row (Etapa/Subetapa)
           if (data.section === 'body') {
             const firstCol = data.row.raw[0] || '';
-            const isRootEtapa = /^[0-9]+(\.0)?$/.test(firstCol);
-            const isSubEtapa = /^[0-9]+\.[0-9]+(\.[0-9]+)?$/.test(firstCol);
+            // Invertemos: o Root era Dourado na imagem original e Subetapa era cinza/dourado bem claro.
+            // Mas de acordo com o pedido, as cores pareciam invertidas. Vamos tentar outro padrão ou corrigir a regex
+            // if it's "1" it's root. if it's "1.1" it's sub.
+            const isRootEtapa = /^[0-9]+$/.test(firstCol.trim());
+            const isSubEtapa = /^[0-9]+\.[0-9]+$/.test(firstCol.trim());
             
             if (isRootEtapa) {
-              data.cell.styles.fillColor = [186, 168, 121]; // Gold/brown
-              data.cell.styles.textColor = [255, 255, 255];
+              data.cell.styles.fillColor = [228, 223, 204]; // Light gold/brown
+              data.cell.styles.textColor = [0, 0, 0];
               data.cell.styles.fontStyle = 'bold';
             } else if (isSubEtapa) {
-              data.cell.styles.fillColor = [228, 223, 204]; // Light gold/brown
+              data.cell.styles.fillColor = [186, 168, 121]; // Gold/brown
+              data.cell.styles.textColor = [255, 255, 255];
               data.cell.styles.fontStyle = 'bold';
             }
           }
