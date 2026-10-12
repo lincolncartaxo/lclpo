@@ -28,7 +28,10 @@ export const importPrecosCSV = createServerFn({ method: "POST" })
     const supabase = getServerSupabase();
     
     // Parse CSV
-    const parsed = Papa.parse(data.csvContent, { header: true, skipEmptyLines: true });
+        // Detect delimiter
+    const firstLine = data.csvContent.split('\n')[0] || '';
+    const delimiter = firstLine.includes(';') ? ';' : ',';
+    const parsed = Papa.parse(data.csvContent, { header: true, skipEmptyLines: true, delimiter });
     
     if (data.tipo === 'composicao-analitica') {
       // Formato esperado: codigo_composicao, tipo_item (INSUMO/COMPOSICAO), codigo_item, coeficiente
