@@ -4,7 +4,7 @@
 CREATE TABLE IF NOT EXISTS public.organization_members (
   organization_id uuid NOT NULL REFERENCES public.empresas(id) ON DELETE CASCADE,
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  role text NOT NULL DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'editor', 'viewer')),
+  role text NOT NULL DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'editor', 'viewer', 'member')),
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (organization_id, user_id)
 );
