@@ -1325,9 +1325,25 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
           if (data.section === 'body') {
             const firstCol = String(data.row.raw[0] || '').trim();
             const secondCol = String(data.row.raw[1] || '').trim();
+            
+            // Re-aplicando a cor dourada na celula!
+            // isEtapa: tem texto na primeira coluna, a segunda coluna (descricao do item) esta vazia e a penultima (ou ultima) tem o Total.
+            const isEtapa = firstCol !== '' && secondCol === '' && String(data.row.raw[data.row.raw.length-1] || '').trim() !== ''; 
+            const isTotais = firstCol === "SUBTOTAL" || firstCol.includes("BDI (") || firstCol === "TOTAL GERAL";
             const isSubitemMemoria = firstCol === '' && secondCol !== '' && String(data.row.raw[2] || '').trim() !== '';
 
-            if (isSubitemMemoria) {
+            if (isEtapa || firstCol === "Sem etapa" || isTotais) {
+              const isRootEtapa = !firstCol.includes('.') || firstCol === "Sem etapa" || isTotais;
+              if (isRootEtapa) {
+                data.cell.styles.fillColor = [186, 168, 121]; // Dourado escuro
+                data.cell.styles.textColor = [255, 255, 255];
+              } else {
+                data.cell.styles.fillColor = [245, 245, 245]; // Cinza claro para subetapas
+                data.cell.styles.textColor = [0, 0, 0];
+              }
+              data.cell.styles.fontStyle = 'bold';
+            } 
+            else if (isSubitemMemoria) {
               data.cell.styles.fontStyle = 'italic';
               data.cell.styles.textColor = [50, 50, 50];
               if (data.column.index === 1) {
