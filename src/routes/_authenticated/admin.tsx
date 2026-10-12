@@ -74,12 +74,12 @@ function UsuariosManager() {
   }, [])
 
   const handleSave = async () => {
-    const payload = { 
-      nome: form.nome_completo, 
-      
-      id_empresa: form.id_empresa === 'none' ? null : form.id_empresa
-    }
-    const { error } = await supabase.from('profiles').update(payload).eq('id', form.id)
+    const { error } = await supabase.rpc('admin_update_user_profile' as any, {
+      p_user_id: form.id,
+      p_nome: form.nome_completo || '',
+      p_id_empresa: form.id_empresa === 'none' ? null : form.id_empresa,
+      p_role: form.role || 'user',
+    })
     if (error) return toast.error(error.message)
     toast.success("Usuário atualizado")
     setOpen(false)
@@ -88,7 +88,7 @@ function UsuariosManager() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Excluir este perfil de usuário? O login na auth pode persistir se não for removido no painel do Supabase.")) return
-    const { error } = await supabase.from('profiles').delete().eq('id', id)
+    const { error } = await supabase.rpc('admin_delete_user_profile' as any, { p_user_id: id })
     if (error) toast.error(error.message)
     else { toast.success("Excluído com sucesso"); fetchUsers() }
   }
