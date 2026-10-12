@@ -1132,6 +1132,60 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
       rows.push(["", "", "", "", "", "", "", "TOTAL c/ BDI", totalComBdi]);
       out.push({ key: "planilha", title: "Planilha Orçamentária", rows });
     }
+    
+    if (sel.memoria) {
+      const rows: (string|number)[][] = [["Item","Serviço / Descrição","Vez","X1","X2","Y1","Y2","Z1","Z2","Parcial","Total","Geral","Un."]];
+      Object.values(groups).forEach(g => {
+        rows.push([g.label, "", "", "", "", "", "", "", "", "", "", "", ""]);
+        g.list.forEach(i => {
+          // Linha Pai
+          rows.push([i.item ?? "", i.descricao, "", "", "", "", "", "", "", "", "", Number(i.quantidade), i.unidade ?? ""]);
+          // Linhas Filhas (Mems)
+          const mems = i.memoria || [];
+          mems.forEach((m: any) => {
+             const fDim = (d1: number, d2: number) => { if (d1 + d2 === 0) return 1; if (d2 !== 0) return (d1 + d2) / 2; return d1; };
+             const p = fDim(m.x1, m.x2) * fDim(m.y1, m.y2) * fDim(m.z1, m.z2);
+             rows.push(["", m.descricao, Number(m.vez), Number(m.x1), Number(m.x2), Number(m.y1), Number(m.y2), Number(m.z1), Number(m.z2), p, p * m.vez, "", ""]);
+          });
+        });
+      });
+      out.push({ key: "memoria", title: "Memória de Cálculo", rows });
+    }
+    
+    if (sel.abc) {
+      const rows: (string|number)[][] = [["Item","Fonte","Código","Descrição","Un.","Qtd","Preço Unit S/BDI","Preço Unit C/BDI","Total","Peso %","Peso Acum %"]];
+      
+      const map = new Map<string, any>();
+      items.filter((i: any) => i.quantidade > 0 && i.preco_unitario > 0).forEach((i: any) => {
+        const key = (i.codigo || i.descricao).trim().toUpperCase();
+        if (map.has(key)) {
+          const existing = map.get(key);
+          existing.quantidade += Number(i.quantidade);
+        } else {
+          map.set(key, { ...i, quantidade: Number(i.quantidade) });
+        }
+      });
+
+      const list = Array.from(map.values()).map((i: any) => {
+        const precoCBdi = i.preco_unitario * (1+bdiPct);
+        const total = i.quantidade * precoCBdi;
+        return { ...i, precoCBdi, total };
+      });
+
+      list.sort((a: any, b: any) => b.total - a.total);
+      const totalOrcamento = list.reduce((sum: number, i: any) => sum + i.total, 0);
+
+      let acumulado = 0;
+      list.forEach((i: any, index: number) => {
+        const peso = (i.total / totalOrcamento) * 100;
+        acumulado += peso;
+        rows.push([index + 1, i.fonte ?? "", i.codigo ?? "", i.descricao, i.unidade ?? "", Number(i.quantidade), Number(i.preco_unitario), Number(i.precoCBdi), Number(i.total), Number(peso.toFixed(2)), Number(acumulado.toFixed(2))]);
+      });
+      
+      rows.push(["", "", "", "TOTAL GERAL CURVA ABC", "", "", "", "", totalOrcamento, 100, ""]);
+      out.push({ key: "abc", title: "Curva ABC", rows });
+    }
+
     if (sel.resumo) {
       const grouped: Record<string, number> = {};
       Object.values(groups).forEach(g => { grouped[g.label] = g.list.reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario),0); });
@@ -1164,6 +1218,8 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
 
   const exportXlsx = async () => {
     const XLSX = await import("xlsx");
+    // Usamos xlsx-js-style para aplicar o estilo ao excel se possivel, mas a versao pura de xlsx comunitária ignora estilos de celula exceto se usarmos libs pagas.
+    // O que podemos fazer para a versao gratuita de Excel é formatar ao menos a largura das colunas e os merges.
     const wb = XLSX.utils.book_new();
     const secs = sections();
     
@@ -1179,11 +1235,19 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
       headerInfo.push(['DESONERAÇÃO:', orc.regime === "desonerado" ? "SIM" : "NÃO"]);
       headerInfo.push([]); // blank line
       headerInfo.push([s.title.toUpperCase()]); // Title of the sheet
-      headerInfo.push([]); // blank line
+      
+      const titleRowIndex = headerInfo.length - 1;
 
       // Prepend the metadata header to the table data
       const finalRows = [...headerInfo, ...s.rows];
       const ws = XLSX.utils.aoa_to_sheet(finalRows);
+      
+      // Auto-size basic col width and merges
+      ws['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 60 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 15 }];
+      ws['!merges'] = [
+        { s: { r: titleRowIndex, c: 0 }, e: { r: titleRowIndex, c: s.rows[0].length > 1 ? s.rows[0].length - 1 : 8 } }
+      ];
+      
       XLSX.utils.book_append_sheet(wb, ws, s.title.substring(0, 31).replace(/[\[\]\*\?\/\:]/g, ''));
     });
     
