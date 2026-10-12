@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import Papa from "papaparse";
 import { createClient } from "@supabase/supabase-js";
+import { parseLocalizedNumber } from "@/lib/parse-localized-number";
 
 // Since we are running on the server (Node/Vite), we need to initialize a server-side client
 // to execute the RPC bypass without relying on the client-side session proxy directly for large inserts.
@@ -80,8 +81,8 @@ export const importPrecosCSV = createServerFn({ method: "POST" })
       const rawPd = row.preco_desonerado || row.custo_desonerado || '0';
       const rawPnd = row.preco_nao_desonerado || row.custo_nao_desonerado || '0';
       
-      const pd = parseFloat(String(rawPd).replace('.', '').replace(',', '.'));
-      const pnd = parseFloat(String(rawPnd).replace('.', '').replace(',', '.'));
+      const pd = parseLocalizedNumber(rawPd);
+      const pnd = parseLocalizedNumber(rawPnd);
 
       precos.push({
         codigo_insumo: data.tipo === 'insumo' ? String(row.codigo).trim() : undefined,
@@ -89,8 +90,8 @@ export const importPrecosCSV = createServerFn({ method: "POST" })
         fonte: data.fonte,
         uf: data.uf,
         mes_ref: data.mes_ref,
-        preco_desonerado: isNaN(pd) ? 0 : pd,
-        preco_nao_desonerado: isNaN(pnd) ? 0 : pnd
+        preco_desonerado: pd,
+        preco_nao_desonerado: pnd
       });
     }
 
