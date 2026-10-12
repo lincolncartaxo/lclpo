@@ -97,14 +97,35 @@ function usePaged<T = any>(
     const t = setTimeout(async () => {
       const from = (page - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
-      let query: any = supabase.from(table).select(columns, { count: "exact" }).range(from, to).order("codigo");
+      
+      let tableName = table === 'base_insumos' ? 'precos_historicos_insumos' : 'precos_historicos_composicoes';
+      let metaTable = table === 'base_insumos' ? 'catalogo_insumos' : 'catalogo_composicoes';
+      let cols = table === 'base_insumos' ? 
+        'id, codigo_insumo, uf, mes_ref, preco_desonerado, preco_nao_desonerado, fonte, catalogo_insumos!inner(descricao, unidade, origem)' :
+        'id, codigo_composicao, uf, mes_ref, custo_desonerado, custo_nao_desonerado, fonte, catalogo_composicoes!inner(descricao, unidade, classe)';
+        
+      let query: any = (supabase as any).from(tableName).select(cols, { count: "estimated" }).range(from, to);
       if (fonte !== "__all") query = query.eq("fonte", fonte);
-      // Composições são universais; UF/mês selecionam os preços dos insumos usados no cálculo.
-      if (table === "base_insumos" && uf !== "__all") query = query.eq("uf", uf);
-      if (table === "base_insumos" && mes) query = query.eq("mes_ref", toMesRef(mes));
-      if (q.trim()) query = query.or(`descricao.ilike.%${q}%,codigo.ilike.%${q}%`);
+      if (uf !== "__all") query = query.eq("uf", uf);
+      if (mes) query = query.eq("mes_ref", toMesRef(mes));
+      if (q.trim()) query = query.textSearch(`${metaTable}.descricao`, q);
       const { data, count: c } = await query;
-      setRows((data as T[]) ?? []);
+      
+      const flat = (data || []).map((r: any) => ({
+        id: r.id,
+        codigo: r.codigo_insumo || r.codigo_composicao,
+        fonte: r.fonte,
+        uf: r.uf,
+        mes_ref: r.mes_ref,
+        descricao: r.catalogo_insumos?.descricao || r.catalogo_composicoes?.descricao || '',
+        unidade: r.catalogo_insumos?.unidade || r.catalogo_composicoes?.unidade || '',
+        preco_desonerado: r.preco_desonerado || 0,
+        preco_nao_desonerado: r.preco_nao_desonerado || 0,
+        custo_desonerado: r.custo_desonerado || 0,
+        custo_nao_desonerado: r.custo_nao_desonerado || 0,
+        origem: r.catalogo_insumos?.origem || ''
+      }));
+      setRows(flat as any);
       setCount(c ?? 0);
     }, 250);
     return () => clearTimeout(t);
@@ -163,7 +184,7 @@ function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: st
     (async () => {
       const out: Record<string, string> = {};
       await Promise.all(fontes.map(async (f) => {
-        const { data } = await supabase.from("base_insumos").select("mes_ref").eq("fonte", f).eq("uf", effUf).order("mes_ref", { ascending: false }).limit(1);
+        const { data } = await (supabase as any).from("precos_historicos_insumos").select("mes_ref").eq("fonte", f).eq("uf", effUf).order("mes_ref", { ascending: false }).limit(1);
         out[f] = (data?.[0] as any)?.mes_ref ?? "";
       }));
       setLatestMes(out);
@@ -183,9 +204,9 @@ function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: st
   }, [rows, uf, mes]);
 
   const remove = async (r: any) => {
-    const { error } = await supabase.from("base_composicao_itens").delete().eq("fonte", PROPRIA).eq("composicao_codigo", r.codigo);
+    const { error } = await (supabase as any).from("catalogo_composicao_itens").delete().eq("fonte", PROPRIA).eq("composicao_codigo", r.codigo);
     if (error) return toast.error(error.message);
-    const { error: e2 } = await supabase.from("base_composicoes").delete().eq("id", r.id);
+    const { error: e2 } = await (supabase as any).from("catalogo_composicoes").delete().eq("id", r.id);
     if (e2) return toast.error(e2.message);
     toast.success("Composição excluída"); setConfirmDel(null); onReload();
   };
@@ -258,7 +279,7 @@ function InsList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: str
     { uf, mes, fonte, q, page, reloadKey },
   );
   const remove = async (r: any) => {
-    const { error } = await supabase.from("base_insumos").delete().eq("id", r.id);
+    const { error } = await (supabase as any).from("catalogo_insumos").delete().eq("id", r.id);
     if (error) return toast.error(error.message);
     toast.success("Insumo excluído"); setConfirmDel(null); onReload();
   };
@@ -337,14 +358,14 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
         const effUf = uf === "__all" ? "PB" : uf;
         let effMes = toMesRef(mes);
         if (!effMes) {
-          const { data: m } = await supabase.from("base_insumos").select("mes_ref").eq("fonte", row.fonte).eq("uf", effUf).order("mes_ref", { ascending: false }).limit(1);
+          const { data: m } = await (supabase as any).from("precos_historicos_insumos").select("mes_ref").eq("fonte", row.fonte).eq("uf", effUf).order("mes_ref", { ascending: false }).limit(1);
           effMes = (m?.[0] as any)?.mes_ref ?? "";
         }
-        const { data: insData } = await supabase.from("base_insumos")
-          .select("id, codigo, preco_desonerado, preco_nao_desonerado")
+        const { data: insData } = await (supabase as any).from("precos_historicos_insumos")
+          .select("id, codigo_insumo, preco_desonerado, preco_nao_desonerado")
           .eq("fonte", row.fonte).eq("uf", effUf).eq("mes_ref", effMes)
           .in("codigo", insumoCodigos).order("id", { ascending: false });
-        if (insData) insData.forEach((d: any) => { if (!insumosPriceMap[d.codigo]) insumosPriceMap[d.codigo] = d; });
+        if (insData) insData.forEach((d: any) => { if (!insumosPriceMap[d.codigo]) insumosPriceMap[d.codigo_insumo] = d; });
       }
 
       if (compCodigos.length > 0) {
@@ -554,7 +575,7 @@ function NovaComposicaoDialog({ open, setOpen, onCreated }: { open: boolean; set
     if (!f.codigo.trim() || !f.descricao.trim()) return toast.error("Código e descrição obrigatórios");
     if (lines.length === 0) return toast.error("Adicione pelo menos 1 item à CPU (a partir do banco)");
 
-    const { error } = await supabase.from("base_composicoes").insert({
+    const { error } = await (supabase as any).from("base_propria_composicoes").insert({
       fonte: PROPRIA, codigo: f.codigo.trim(), descricao: f.descricao.trim(), unidade: f.unidade.trim() || null,
       uf: f.uf || null, mes_ref: f.mes_ref || null,
       custo_desonerado: totalDeson,
@@ -568,7 +589,7 @@ function NovaComposicaoDialog({ open, setOpen, onCreated }: { open: boolean; set
       unidade: l.unidade || null, coeficiente: Number(l.coeficiente.replace(",", ".")) || 0,
       tipo: l.tipo, uf: f.uf || null, mes_ref: f.mes_ref || null,
     }));
-    const { error: e2 } = await supabase.from("base_composicao_itens").insert(itens);
+    const { error: e2 } = await (supabase as any).from("catalogo_composicao_itens").insert(itens);
     if (e2) return toast.error(e2.message);
 
     toast.success("Composição criada");
@@ -650,7 +671,7 @@ function NovoInsumoDialog({ open, setOpen, onCreated }: { open: boolean; setOpen
   const reset = () => setF({ codigo: "", descricao: "", unidade: "un", origem: "", uf: "", mes_ref: "", preco_desonerado: "0", preco_nao_desonerado: "0" });
   const submit = async () => {
     if (!f.codigo.trim() || !f.descricao.trim()) return toast.error("Código e descrição obrigatórios");
-    const { error } = await supabase.from("base_insumos").insert({
+    const { error } = await (supabase as any).from("base_propria_insumos").insert({
       fonte: PROPRIA, codigo: f.codigo.trim(), descricao: f.descricao.trim(), unidade: f.unidade.trim() || null,
       origem: f.origem.trim() || null, uf: f.uf || null, mes_ref: f.mes_ref || null,
       preco_desonerado: Number(f.preco_desonerado.replace(",", ".")) || 0,
