@@ -1356,7 +1356,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
               data.cell.styles.fontStyle = 'italic';
               data.cell.styles.textColor = [50, 50, 50]; // Cinza escuro para diferenciar
               if (data.column.index === 1) {
-                data.cell.text = '   ' + data.cell.text; // Espaçamento lateral
+                data.cell.text = data.cell.text.map((t: string) => '   ' + t); // Espaçamento lateral
               }
             } 
             else if (firstCol !== '' && secondCol !== '') {
