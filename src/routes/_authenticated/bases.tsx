@@ -107,7 +107,7 @@ function usePaged<T = any>(
       let tableName = table === 'base_insumos' ? 'precos_historicos_insumos' : 'precos_historicos_composicoes';
       let metaTable = table === 'base_insumos' ? 'catalogo_insumos' : 'catalogo_composicoes';
       let cols = table === 'base_insumos' ? 
-        'id, codigo_insumo, uf, mes_ref, preco_desonerado, preco_nao_desonerado, fonte, catalogo_insumos!inner(descricao, unidade, origem)' :
+        'id, codigo_insumo, uf, mes_ref, preco_desonerado, preco_nao_desonerado, fonte, catalogo_insumos!inner(descricao, unidade)' :
         'id, codigo_composicao, uf, mes_ref, custo_desonerado, custo_nao_desonerado, fonte, catalogo_composicoes!inner(descricao, unidade, classe)';
         
       let query: any = (supabase as any).from(tableName).select(cols, { count: "estimated" }).range(from, to);
