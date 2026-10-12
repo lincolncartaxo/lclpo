@@ -95,12 +95,15 @@ type Item = {
 
 const UFS = ["AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT","PA","PB","PE","PI","PR","RJ","RN","RO","RR","RS","SC","SE","SP","TO"];
 function parseRef(ref: string | null | undefined): { fonte: string | null; mes: string | null } {
-  const m = /^(.+)\|(\d{4}-\d{2}-\d{2})$/.exec(ref ?? "");
-  return m ? { fonte: m[1], mes: m[2] } : { fonte: null, mes: null };
+  if (!ref || !ref.includes("|")) return { fonte: null, mes: null };
+  const parts = ref.split("|");
+  return { fonte: parts[0], mes: parts[1] };
 }
 function fmtRef(ref: string | null | undefined) {
-  const { fonte, mes } = parseRef(ref);
-  return fonte && mes ? `${fonte} - ${mes.slice(5,7)}/${mes.slice(0,4)}` : (ref ?? "");
+  const p = parseRef(ref);
+  if (!p.fonte || !p.mes) return ref ?? "—";
+  const parts = p.mes.split("-");
+  return parts.length >= 2 ? `${p.fonte} | ${parts[1]}/${parts[0]}` : `${p.fonte} | ${p.mes}`;
 }
 
 async function recalculateBudgetPrices(orcamentoId: string, regime: string, uf: string | null, mesRef: string | null = null) {
