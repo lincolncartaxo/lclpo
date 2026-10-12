@@ -21,7 +21,13 @@ const UFS = ["AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT","P
 const FONTES = ["SINAPI", "DER", "SICRO3", "SBC", "ORSE", "PRÓPRIA", "Outras"];
 const PAGE_SIZE = 10;
 const PROPRIA = "PRÓPRIA";
-const toMesRef = (mes: string) => mes && /^\d{4}-\d{2}$/.test(mes) ? `${mes}-01` : mes;
+// O catálogo novo usa a chave canônica YYYY-MM; migrations antigas aceitavam
+// YYYY-MM-01, por isso normalizamos os dois formatos sem acrescentar dia.
+const toMesRef = (mes: string) => {
+  if (!mes) return mes;
+  const match = mes.match(/^(\d{4}-\d{2})/);
+  return match?.[1] ?? mes;
+};
 
 function Filtros({
   uf, setUf, mes, setMes, fonte, setFonte,
@@ -109,7 +115,14 @@ function usePaged<T = any>(
       if (uf !== "__all") query = query.eq("uf", uf);
       if (mes) query = query.eq("mes_ref", toMesRef(mes));
       if (q.trim()) query = query.textSearch(`${metaTable}.descricao`, q);
-      const { data, count: c } = await query;
+      const { data, count: c, error } = await query;
+      if (error) {
+        console.error("Erro ao consultar base de preços", error);
+        toast.error(`Erro ao consultar a base: ${error.message}`);
+        setRows([]);
+        setCount(0);
+        return;
+      }
       
       const flat = (data || []).map((r: any) => ({
         id: r.id,
