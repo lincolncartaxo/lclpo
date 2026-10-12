@@ -1123,7 +1123,8 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
     if (sel.planilha) {
       const rows: (string|number)[][] = [["Item","Fonte","Código","Descrição","Un.","Quant.","Preço Unit.","Preço Unit. c/ BDI","Total"]];
       Object.values(groups).forEach(g => {
-        rows.push([g.label, "", "", "", "", "", "", "", g.list.reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario)*(1+bdiPct),0)]);
+        const totalG = g.list.reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario)*(1+bdiPct),0);
+        rows.push([g.label, "", "", "", "", "", "", "", totalG.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })]);
         g.list.forEach(i => {
           const pu = Number(i.preco_unitario); const puBdi = pu*(1+bdiPct);
           rows.push([i.item ?? "", i.fonte ?? "", i.codigo ?? "", i.descricao, i.unidade ?? "", Number(i.quantidade), pu, puBdi, Number(i.quantidade)*puBdi]);
@@ -1136,7 +1137,8 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
     if (sel.memoria) {
       const rows: (string|number)[][] = [["Item","Serviço / Descrição","Vez","X1","X2","Y1","Y2","Z1","Z2","Parcial","Total","Geral","Un."]];
       Object.values(groups).forEach(g => {
-        rows.push([g.label, "", "", "", "", "", "", "", "", "", "", "", ""]);
+                const totalG = g.list.reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario)*(1+bdiPct),0);
+        rows.push([g.label, "", "", "", "", "", "", "", "", "", "", totalG.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), ""]);
         g.list.forEach(i => {
           // Linha Pai
           rows.push([i.item ?? "", i.descricao, "", "", "", "", "", "", "", "", "", Number(i.quantidade), i.unidade ?? ""]);
@@ -1318,23 +1320,52 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
         alternateRowStyles: { 
           fillColor: [255, 255, 255] 
         },
+        willDrawCell: function (data: any) {
+          if (data.section === 'body') {
+            const firstCol = String(data.row.raw[0] || '').trim();
+            const secondCol = String(data.row.raw[1] || '').trim();
+            const isEtapa = firstCol !== '' && secondCol === '' && String(data.row.raw[data.row.raw.length-1] || '').trim() !== ''; // means total is present, but others are blank
+            const isTotais = firstCol === "SUBTOTAL" || firstCol.includes("BDI (") || firstCol === "TOTAL GERAL";
+            
+            // Check if it's a hierarchy row (Etapa/Subetapa)
+            if (isEtapa || firstCol === "Sem etapa" || isTotais) {
+              if (data.column.index === 0) {
+                // Determine root vs sub based on prefix
+                const isRootEtapa = !firstCol.includes('.') || firstCol === "Sem etapa" || isTotais;
+                const bgColor = isRootEtapa ? [186, 168, 121] : [245, 245, 245]; // Ouro forte para Root, Cinza bem clarinho (quase branco) para Subetapa
+                const txtColor = isRootEtapa ? [255, 255, 255] : [0, 0, 0];
+
+                doc.setFillColor(bgColor[0], bgColor[1], bgColor[2]);
+                doc.rect(data.cell.x, data.cell.y, data.table.width, data.cell.height, 'FD');
+                doc.setTextColor(txtColor[0], txtColor[1], txtColor[2]);
+                doc.setFont("helvetica", "bold");
+                
+                // Print the first column text (The Etapa name)
+                doc.text(firstCol, data.cell.x + 2, data.cell.y + (data.cell.height / 2), { baseline: 'middle' });
+                
+                // Se tiver valor na ultima coluna (como o Total da etapa), imprimir ele tambem alinhado a direita
+                const lastColVal = String(data.row.raw[data.row.raw.length-1] || '').trim();
+                if (lastColVal) {
+                  // align right in the last column's area
+                  const lastCol = data.table.columns[data.table.columns.length - 1];
+                  doc.text(lastColVal, lastCol.x + lastCol.width - 2, data.cell.y + (data.cell.height / 2), { align: 'right', baseline: 'middle' });
+                }
+              }
+              // Skip drawing standard borders/text for other cells in this row since we drew a full rect over them
+              return false;
+            }
+          }
+        },
         didParseCell: function (data: any) {
           if (data.section === 'body') {
             const firstCol = String(data.row.raw[0] || '').trim();
             const secondCol = String(data.row.raw[1] || '').trim();
-            const isEtapa = firstCol !== '' && secondCol === '' && String(data.row.raw[data.row.raw.length-1] || '').trim() === '';
             const isSubitemMemoria = firstCol === '' && secondCol !== '' && String(data.row.raw[2] || '').trim() !== '';
 
-            if (isEtapa || firstCol === "Sem etapa" || firstCol === "SUBTOTAL" || firstCol.includes("BDI (") || firstCol === "TOTAL GERAL") {
-              data.cell.styles.fillColor = [186, 168, 121]; // Dourado escuro
-              data.cell.styles.textColor = [255, 255, 255];
-              data.cell.styles.fontStyle = 'bold';
-            } 
-            else if (isSubitemMemoria) {
+            if (isSubitemMemoria) {
               data.cell.styles.fontStyle = 'italic';
               data.cell.styles.textColor = [50, 50, 50];
               if (data.column.index === 1) {
-                // Ao inves de concatenar espacos e quebrar a renderizacao no autotable, usamos celPadding para o recuo visual seguro
                 data.cell.styles.cellPadding = { left: 8, top: 1, bottom: 1, right: 1 };
               }
             } 
