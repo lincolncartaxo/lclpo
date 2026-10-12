@@ -1248,9 +1248,16 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
       out.push({ key: "resumo", title: "Resumo", rows });
     }
     if (sel.cronograma) {
+      const cronogramaRows: (string|number)[][] = [
+        ["Etapa", ...Array.from({ length: cronoMeses }, (_, i) => `M${i + 1} (%)`), "Σ (%)", "Total estimado"],
+      ];
+      Object.values(groups).forEach(g => {
+        const total = g.list.reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario)*(1+bdiPct),0);
+        const percentuais = Array.from({ length: cronoMeses }, (_, i) => Number((((crono[g.label]?.[i + 1] ?? 0) * 100)).toFixed(2)));
+        cronogramaRows.push([g.label, ...percentuais, Number(percentuais.reduce((s, v) => s + v, 0).toFixed(2)), total]);
+      });
       out.push({ key: "cronograma", title: "Cronograma F/F", rows: [
-        ["Etapa","Total estimado"],
-        ...Object.values(groups).map(g => [g.label, g.list.reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario)*(1+bdiPct),0)]),
+        ...cronogramaRows,
       ]});
     }
     if (sel.qci) {
@@ -1305,11 +1312,14 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
   };
 
   const exportPdf = async () => {
-    const { default: jsPDF } = await import("jspdf");
-    const autoTable = (await import("jspdf-autotable")).default;
-    const doc = new jsPDF({ orientation: "landscape" });
-    const secs = sections();
-    if (secs.length === 0) return toast.error("Selecione ao menos uma aba");
+    try {
+      const { default: jsPDF } = await import("jspdf");
+      const autoTableModule = await import("jspdf-autotable");
+      const autoTable = (autoTableModule as any).default ?? (autoTableModule as any).autoTable;
+      if (typeof autoTable !== "function") throw new Error("Módulo de tabelas PDF não foi carregado.");
+      const doc = new jsPDF({ orientation: "landscape" });
+      const secs = sections();
+      if (secs.length === 0) return toast.error("Selecione ao menos uma aba");
 
     secs.forEach((s, idx) => {
       if (idx > 0) doc.addPage();
@@ -1439,7 +1449,11 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
         }
       });
     });
-    doc.save(`${orc.nome || "orcamento"}.pdf`);
+      doc.save(`${orc.nome || "orcamento"}.pdf`);
+    } catch (error) {
+      console.error("Erro ao exportar relatório PDF", error);
+      toast.error(error instanceof Error ? `Não foi possível exportar o PDF: ${error.message}` : "Não foi possível exportar o PDF.");
+    }
   };
 
   /** Transferegov: modalidade PLE (Por Eventos) ou BM (Boletim de Medição). */
@@ -1448,15 +1462,18 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
   const [tgFrente, setTgFrente] = useState("");
   const [tgErros, setTgErros] = useState<string[] | null>(null);
   const [crono, setCrono] = useState<Record<string, Record<number, number>>>({});
+  const [cronoMeses, setCronoMeses] = useState(6);
   useEffect(() => {
-    if (!tgOpen) return;
     (async () => {
       const { data } = await supabase.from("orcamento_cronograma").select("*").eq("orcamento_id", orcId);
       const g: Record<string, Record<number, number>> = {};
       (data ?? []).forEach((r: any) => { (g[r.etapa] ??= {})[r.mes] = Number(r.percentual); });
       setCrono(g);
+      const maxSavedMonth = (data ?? []).reduce((max: number, r: any) => Math.max(max, Number(r.mes) || 0), 0);
+      const storedMonths = Number(window.localStorage.getItem(`orcamento_${orcId}_cronograma_meses`));
+      setCronoMeses(Math.min(36, Math.max(1, maxSavedMonth, Number.isFinite(storedMonths) && storedMonths > 0 ? Math.trunc(storedMonths) : 6)));
     })();
-  }, [tgOpen, orcId]);
+  }, [orcId, tgOpen]);
 
   const buildTransferegov = (modo: "PLE" | "BM") => {
     const erros: string[] = [];
