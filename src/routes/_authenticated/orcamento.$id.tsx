@@ -852,6 +852,14 @@ function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: It
   const subtotalAll = Object.values(totaisPorEtapa).reduce((a, b) => a + b, 0);
   const [meses, setMeses] = useState(6);
   const [grid, setGrid] = useState<Record<string, Record<number, number>>>({});
+  const mesesStorageKey = `orcamento_${orcId}_cronograma_meses`;
+
+  useEffect(() => {
+    const savedMonths = Number(window.localStorage.getItem(mesesStorageKey));
+    if (Number.isFinite(savedMonths) && savedMonths >= 1) {
+      setMeses(Math.min(36, Math.max(1, Math.trunc(savedMonths))));
+    }
+  }, [mesesStorageKey]);
 
   useEffect(() => {
     (async () => {
@@ -859,6 +867,10 @@ function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: It
       const g: Record<string, Record<number, number>> = {};
       (data ?? []).forEach((r: any) => { (g[r.etapa] ??= {})[r.mes] = Number(r.percentual); });
       setGrid(g);
+      const maxSavedMonth = (data ?? []).reduce((max: number, r: any) => Math.max(max, Number(r.mes) || 0), 0);
+      if (maxSavedMonth > 0) {
+        setMeses(current => Math.min(36, Math.max(current, maxSavedMonth)));
+      }
     })();
   }, [orcId]);
 
@@ -901,7 +913,11 @@ function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: It
     <div className="mt-4">
       <div className="flex items-center gap-3 mb-3">
         <Label>Meses:</Label>
-        <Input className="w-24" type="number" min={1} max={36} value={meses} onChange={(e)=>setMeses(Math.max(1, Math.min(36, Number(e.target.value))))} />
+        <Input className="w-24" type="number" min={1} max={36} value={meses} onChange={(e)=>{
+          const value = Math.max(1, Math.min(36, Number(e.target.value) || 1));
+          setMeses(value);
+          window.localStorage.setItem(mesesStorageKey, String(value));
+        }} />
         <p className="text-xs text-muted-foreground">Informe o percentual de execução de cada etapa por mês (0 a 100%).</p>
       </div>
       <div className="overflow-x-auto rounded border bg-card">
