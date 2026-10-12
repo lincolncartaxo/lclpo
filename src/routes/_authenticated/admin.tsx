@@ -331,7 +331,7 @@ function InsumosManager() {
   const search = async () => {
     // Agora busca cruzando o catalogo_insumos com o precos_historicos_insumos
     // Para simplificar a visualização administrativa global, buscamos no catálogo e fazemos join com o historico
-    let query = (supabase as any).from('precos_historicos_insumos').select('id, codigo_insumo, fonte, uf, mes_ref, preco_desonerado, preco_nao_desonerado, catalogo_insumos!inner(descricao, unidade)').limit(50)
+    let query = (supabase as any).from('precos_historicos_insumos').select('codigo_insumo, fonte, uf, mes_ref, preco_desonerado, preco_nao_desonerado, catalogo_insumos!inner(descricao, unidade)').limit(50)
     if (q) query = query.textSearch('catalogo_insumos.descricao', q)
     const { data, error } = await query
     if (error) { toast.error(error.message); return; }
@@ -376,9 +376,10 @@ function InsumosManager() {
     search()
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (r: any) => {
     if (!confirm("Excluir este preço histórico da base global? (O metadado no catálogo será mantido).")) return
-    const { error } = await (supabase as any).from('precos_historicos_insumos').delete().eq('id', id)
+    const { error } = await (supabase as any).from('precos_historicos_insumos').delete()
+      .eq('codigo_insumo', r.codigo).eq('fonte', r.fonte).eq('uf', r.uf).eq('mes_ref', r.mes_ref)
     if (error) toast.error(error.message)
     else { toast.success("Preço Excluído"); search() }
   }
@@ -423,7 +424,7 @@ function InsumosManager() {
                 <TableCell className="text-right">R$ {r.preco_nao_desonerado}</TableCell>
                 <TableCell className="text-right space-x-2">
                   <Button variant="outline" size="sm" onClick={() => { setForm(r); setOpen(true) }}><Edit className="w-4 h-4"/></Button>
-                  <Button variant="destructive" size="sm" onClick={() => handleDelete(r.id)}><Trash2 className="w-4 h-4"/></Button>
+                  <Button variant="destructive" size="sm" onClick={() => handleDelete(r)}><Trash2 className="w-4 h-4"/></Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -442,7 +443,7 @@ function ComposicoesManager() {
   const [itensModalComp, setItensModalComp] = useState<any>(null)
 
   const search = async () => {
-    let query = (supabase as any).from('precos_historicos_composicoes').select('id, codigo_composicao, fonte, uf, mes_ref, custo_desonerado, custo_nao_desonerado, catalogo_composicoes!inner(descricao, unidade)').limit(50)
+    let query = (supabase as any).from('precos_historicos_composicoes').select('codigo_composicao, fonte, uf, mes_ref, custo_desonerado, custo_nao_desonerado, catalogo_composicoes!inner(descricao, unidade)').limit(50)
     if (q) query = query.textSearch('catalogo_composicoes.descricao', q)
     const { data, error } = await query
     if (error) { toast.error(error.message); return; }
@@ -484,9 +485,10 @@ function ComposicoesManager() {
     search()
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (r: any) => {
     if (!confirm("Excluir este preço histórico da composição?")) return
-    const { error } = await (supabase as any).from('precos_historicos_composicoes').delete().eq('id', id)
+    const { error } = await (supabase as any).from('precos_historicos_composicoes').delete()
+      .eq('codigo_composicao', r.codigo).eq('fonte', r.fonte).eq('uf', r.uf).eq('mes_ref', r.mes_ref)
     if (error) toast.error(error.message)
     else { toast.success("Preço Excluído"); search() }
   }
@@ -536,7 +538,7 @@ function ComposicoesManager() {
                 <TableCell className="text-center space-x-1 whitespace-nowrap">
                   <Button variant="secondary" size="sm" onClick={() => setItensModalComp(r)} title="Itens da Composição"><ListPlus className="w-4 h-4"/></Button>
                   <Button variant="outline" size="sm" onClick={() => { setForm(r); setOpen(true) }}><Edit className="w-4 h-4"/></Button>
-                  <Button variant="destructive" size="sm" onClick={() => handleDelete(r.id)}><Trash2 className="w-4 h-4"/></Button>
+                  <Button variant="destructive" size="sm" onClick={() => handleDelete(r)}><Trash2 className="w-4 h-4"/></Button>
                 </TableCell>
               </TableRow>
             ))}
