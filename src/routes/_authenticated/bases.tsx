@@ -402,6 +402,15 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
 
       const insumoCodigos = itens.filter((i: any) => i.tipo_item !== 'COMPOSICAO').map((i: any) => i.codigo_item).filter(Boolean);
       const compCodigos = itens.filter((i: any) => i.tipo_item === 'COMPOSICAO').map((i: any) => i.codigo_item).filter(Boolean);
+      const [{ data: insumoMeta }, { data: compMeta }] = await Promise.all([
+        insumoCodigos.length
+          ? (supabase as any).from("catalogo_insumos").select("codigo,descricao,unidade").eq("fonte", row.fonte).in("codigo", insumoCodigos)
+          : Promise.resolve({ data: [] }),
+        compCodigos.length
+          ? (supabase as any).from("catalogo_composicoes").select("codigo,descricao,unidade").eq("fonte", row.fonte).in("codigo", compCodigos)
+          : Promise.resolve({ data: [] }),
+      ]);
+      const metadata = new Map<string, any>([...(insumoMeta ?? []), ...(compMeta ?? [])].map((m: any) => [String(m.codigo), m]));
 
       let insumosPriceMap: Record<string, any> = {};
       let compPriceMap: Record<string, any> = {};
@@ -431,8 +440,11 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
 
       const rowsWithPrices = itens.map((i: any) => {
         const p = i.tipo_item === 'COMPOSICAO' ? compPriceMap[i.codigo_item] : insumosPriceMap[i.codigo_item];
+        const m = metadata.get(String(i.codigo_item));
         return {
           ...i,
+          descricao: m?.descricao ?? "",
+          unidade: m?.unidade ?? "",
           preco_desonerado: p?.preco_desonerado || 0,
           preco_nao_desonerado: p?.preco_nao_desonerado || 0,
         };
@@ -443,8 +455,10 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
     })();
   }, [row, uf, mes]);
 
-  const totalDeson = rows.reduce((acc, r) => acc + trunc2(Number(r.coeficiente) * (r.preco_desonerado || 0)), 0);
-  const totalNaoDeson = rows.reduce((acc, r) => acc + trunc2(Number(r.coeficiente) * (r.preco_nao_desonerado || 0)), 0);
+  // A função SQL soma com precisão total e arredonda somente na exibição.
+  // Truncar cada linha antes da soma gerava diferenças de centavos.
+  const totalDeson = trunc2(rows.reduce((acc, r) => acc + Number(r.coeficiente) * (r.preco_desonerado || 0), 0));
+  const totalNaoDeson = trunc2(rows.reduce((acc, r) => acc + Number(r.coeficiente) * (r.preco_nao_desonerado || 0), 0));
 
   return (
     <Sheet open={!!row} onOpenChange={(o)=>{ if (!o) onClose(); }}>
