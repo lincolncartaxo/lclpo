@@ -6,9 +6,10 @@ const AUTH_URL = "https://idp.transferegov.sistema.gov.br/idp/jwt";
 const PO_URL = "https://mandatarias.transferegov.sistema.gov.br/projeto-basico/api/v1/po";
 
 async function autenticar() {
-  const epcad = process.env["TRANSFEREGOV_EP_CAD_TOKEN"];
-  const user = process.env["TRANSFEREGOV_USUARIO"];
-  const pass = process.env["TRANSFEREGOV_SENHA"];
+  // Suporte duplo: process.env (Node/Local) e import.meta.env (Cloudflare Workers)
+  const epcad = (typeof process !== 'undefined' ? process.env["TRANSFEREGOV_EP_CAD_TOKEN"] : undefined) || import.meta.env.VITE_TRANSFEREGOV_EP_CAD_TOKEN || import.meta.env.TRANSFEREGOV_EP_CAD_TOKEN;
+  const user = (typeof process !== 'undefined' ? process.env["TRANSFEREGOV_USUARIO"] : undefined) || import.meta.env.VITE_TRANSFEREGOV_USUARIO || import.meta.env.TRANSFEREGOV_USUARIO;
+  const pass = (typeof process !== 'undefined' ? process.env["TRANSFEREGOV_SENHA"] : undefined) || import.meta.env.VITE_TRANSFEREGOV_SENHA || import.meta.env.TRANSFEREGOV_SENHA;
   if (!epcad || !user || !pass) throw new Error("Credenciais do Transferegov não configuradas.");
   const url = `${AUTH_URL}?usuario=${encodeURIComponent(user)}&senha=${encodeURIComponent(pass)}`;
   const r = await fetch(url, { method: "POST", headers: { Authorization: `Bearer ${epcad}`, "Content-Type": "application/json" } });
