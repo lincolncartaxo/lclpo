@@ -829,14 +829,21 @@ function ResumoTab({ orcId, items, subtotal, totalEncargos, totalComBdi, orc }: 
 }
 
 /* ---------- CRONOGRAMA F/F ---------- */
+function normalizeCronogramaEtapa(etapa: string) {
+  const value = String(etapa || "").trim();
+  return value === "1 - Serviço Preliminares" ? "1 - Serviços Preliminares" : value;
+}
+
 function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: Item[]; totalComBdi: number }) {
   const [etapasExtra] = useEtapasExtra(orcId);
+  const [persistedEtapas, setPersistedEtapas] = useState<string[]>([]);
   const etapasExistentes = useMemo(() => {
     const set = new Set<string>();
-    items.forEach(i => { if (i.etapa) set.add(i.etapa); });
-    etapasExtra.forEach(e => set.add(e));
+    items.forEach(i => { if (i.etapa) set.add(normalizeCronogramaEtapa(i.etapa)); });
+    etapasExtra.forEach(e => set.add(normalizeCronogramaEtapa(e)));
+    persistedEtapas.forEach(e => set.add(normalizeCronogramaEtapa(e)));
     return Array.from(set);
-  }, [items, etapasExtra]);
+  }, [items, etapasExtra, persistedEtapas]);
   const groups = useMemo(() => groupItemsByEtapa(items, etapasExistentes), [items, etapasExistentes]);
   const etapas = useMemo(
     () => Object.values(groups).map(g => g.label).filter(l => l !== "Sem etapa" || (groups["Sem etapa"]?.list.length ?? 0) > 0),
@@ -865,8 +872,17 @@ function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: It
     (async () => {
       const { data } = await supabase.from("orcamento_cronograma").select("*").eq("orcamento_id", orcId);
       const g: Record<string, Record<number, number>> = {};
-      (data ?? []).forEach((r: any) => { (g[r.etapa] ??= {})[r.mes] = Number(r.percentual); });
+      (data ?? []).forEach((r: any) => {
+        const etapa = normalizeCronogramaEtapa(r.etapa);
+        let percentual = Number(r.percentual);
+        // Compatibilidade com registros antigos que armazenavam 20 em vez de 0,20.
+        if (percentual > 1 && percentual <= 100) percentual /= 100;
+        (g[etapa] ??= {})[r.mes] = percentual;
+      });
       setGrid(g);
+      // Etapas criadas por outro usuário também passam a aparecer neste navegador.
+      // Elas não dependem mais apenas do localStorage de cada usuário.
+      setPersistedEtapas(Object.keys(g));
       const maxSavedMonth = (data ?? []).reduce((max: number, r: any) => Math.max(max, Number(r.mes) || 0), 0);
       if (maxSavedMonth > 0) {
         setMeses(current => Math.min(36, Math.max(current, maxSavedMonth)));
@@ -880,8 +896,10 @@ function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: It
 
   const saveCell = async (etapa: string, mes: number, percent: number) => {
     const val = Math.max(0, Math.min(100, percent)) / 100;
-    updateCell(etapa, mes, val);
-    await supabase.from("orcamento_cronograma").upsert({ orcamento_id: orcId, etapa, mes, percentual: val }, { onConflict: "orcamento_id,etapa,mes" });
+    const etapaNormalizada = normalizeCronogramaEtapa(etapa);
+    updateCell(etapaNormalizada, mes, val);
+    const { error } = await supabase.from("orcamento_cronograma").upsert({ orcamento_id: orcId, etapa: etapaNormalizada, mes, percentual: val }, { onConflict: "orcamento_id,etapa,mes" });
+    if (error) toast.error(`Não foi possível salvar o cronograma: ${error.message}`);
   };
 
   const fator = totalComBdi / Math.max(subtotalAll, 1);
