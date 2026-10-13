@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Plus, FileSpreadsheet } from "lucide-react";
+import { Plus, FileSpreadsheet, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,14 +24,26 @@ function Dashboard() {
   const [form, setForm] = useState({ nome: "", objeto: "", municipio: "", uf: "", orgao: "" });
   const [loading, setLoading] = useState(false);
 
-  const load = async () => {
+    const load = async () => {
     const { data, error } = await supabase.from("orcamentos").select("id,nome,objeto,municipio,status,updated_at").order("updated_at", { ascending: false }).limit(50);
     if (error) return toast.error(error.message);
-    // Removemos a busca pesada de todos os itens de todos os orçamentos de uma vez, 
-    // pois causava gargalo severo (Full Table Scan de rede) no Login.
     setOrcs((data ?? []).map((o) => ({ ...o, total: undefined })));
   };
   useEffect(() => { load(); }, []);
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.preventDefault(); // Impede o Link de navegar
+    e.stopPropagation();
+    if (!confirm("Tem certeza que deseja excluir este orçamento permanentemente?")) return;
+    
+    setLoading(true);
+    const { error } = await supabase.from("orcamentos").delete().eq("id", id);
+    setLoading(false);
+    
+    if (error) return toast.error("Erro ao excluir: " + error.message);
+    toast.success("Orçamento excluído com sucesso!");
+    load();
+  };
 
   const create = async () => {
     if (!form.nome) return toast.error("Informe o nome do orçamento");
@@ -82,13 +94,18 @@ function Dashboard() {
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
           {orcs.map((o) => (
-            <Link key={o.id} to="/orcamento/$id" params={{ id: o.id }} className="rounded-lg border bg-card p-5 hover:border-primary transition">
+            <Link key={o.id} to="/orcamento/$id" params={{ id: o.id }} className="rounded-lg border bg-card p-5 hover:border-primary transition group block">
               <div className="flex items-start justify-between">
-                <div>
+                <div className="pr-4">
                   <h3 className="font-semibold">{o.nome}</h3>
                   <p className="text-sm text-muted-foreground">{o.municipio || "—"} · {o.objeto?.slice(0,60) || "Sem objeto"}</p>
                 </div>
-                <span className="text-xs px-2 py-1 rounded bg-secondary">{o.status}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs px-2 py-1 rounded bg-secondary">{o.status}</span>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity" onClick={(e) => handleDelete(o.id, e)} title="Excluir orçamento">
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
               </div>
               <div className="mt-4 text-sm font-medium text-blue-600 hover:underline">Abrir orçamento →</div>
             </Link>
