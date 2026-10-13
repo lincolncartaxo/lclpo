@@ -1344,6 +1344,10 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
       for (let i = 0; i < s.rows.length; i++) {
         const row = s.rows[i] as any[];
         const excelRow = dataStart + i;
+        // O cabeçalho já recebeu fundo azul-marinho, fonte branca e
+        // alinhamento centralizado acima. Não deixe a regra das linhas de
+        // dados sobrescrever esse estilo.
+        if (hasHead && i === 0) continue;
         const first = String(row[0] ?? "").trim();
         const second = String(row[1] ?? "").trim();
         const third = String(row[2] ?? "").trim();
