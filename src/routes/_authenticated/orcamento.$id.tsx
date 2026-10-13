@@ -1378,43 +1378,26 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
           fillColor: [255, 255, 255] 
         },
         
-        willDrawCell: function (data: any) {
-          if (data.section === 'body') {
-            const firstCol = String(data.row.raw[0] || '').trim();
-            const secondCol = String(data.row.raw[1] || '').trim();
-            const thirdCol = String(data.row.raw[2] || '').trim();
-            
-            // Definição ultra-rigorosa de linha de etapa (Tem nome, mas col2 e col3 são vazias)
-            const isEtapa = firstCol !== '' && secondCol === '' && thirdCol === '';
-            const isTotais = firstCol === "SUBTOTAL" || firstCol.includes("BDI (") || firstCol === "TOTAL GERAL";
-
-            if (isEtapa || firstCol === "Sem etapa" || isTotais) {
-              // Descobre se é root ou subetapa
-              const prefixMatch = firstCol.match(/^([0-9]+(?:\.[0-9]+)*)/);
-              let isRootEtapa = true;
-              if (prefixMatch) {
-                 isRootEtapa = !prefixMatch[1].includes('.');
-              } else if (firstCol !== "Sem etapa" && !isTotais) {
-                 isRootEtapa = true;
-              }
-
-              const bgColor = isRootEtapa ? [186, 168, 121] : [228, 223, 204]; // Ouro forte para Root, Ouro Claro para Sub
-              const txtColor = isRootEtapa ? [255, 255, 255] : [0, 0, 0];
-
-              // O autoTable pinta cada célula com segurança, inclusive após
-              // quebra de página. Não desenhar retângulos manualmente.
-              data.cell.styles.fillColor = bgColor as [number, number, number];
-              data.cell.styles.textColor = txtColor as [number, number, number];
-              data.cell.styles.fontStyle = 'bold';
-            }
-          }
-        },
         didParseCell: function (data: any) {
           if (data.section === 'body') {
             const firstCol = String(data.row.raw[0] || '').trim();
             const secondCol = String(data.row.raw[1] || '').trim();
             const thirdCol = String(data.row.raw[2] || '').trim();
             const isSubitemMemoria = firstCol === '' && secondCol !== '' && thirdCol !== '';
+            const isEtapa = firstCol !== '' && secondCol === '' && thirdCol === '';
+            const isTotais = firstCol === "SUBTOTAL" || firstCol.includes("BDI (") || firstCol === "TOTAL GERAL";
+
+            if (isEtapa || firstCol === "Sem etapa" || isTotais) {
+              const prefixMatch = firstCol.match(/^([0-9]+(?:\.[0-9]+)*)/);
+              const isRootEtapa = !prefixMatch || !prefixMatch[1].includes('.');
+              // Hachura visual da linha inteira, sem desenho manual: o
+              // autoTable mantém este fundo também nas quebras de página.
+              data.cell.styles.fillColor = isTotais
+                ? [220, 230, 241]
+                : isRootEtapa ? [214, 224, 236] : [239, 243, 247];
+              data.cell.styles.fontStyle = 'bold';
+              data.cell.styles.textColor = [31, 56, 100];
+            }
 
             if (isSubitemMemoria) {
               data.cell.styles.fontStyle = 'italic';
