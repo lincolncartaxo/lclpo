@@ -64,8 +64,13 @@ function UsuariosManager() {
   const [open, setOpen] = useState(false)
 
   const fetchUsers = async () => {
-    const { data } = await supabase.from('profiles').select('*, empresas(nome)')
-    setUsers(data || [])
+    const { data, error } = await (supabase as any).rpc('admin_list_users_with_roles')
+    if (error) return toast.error(`Não foi possível carregar usuários: ${error.message}`)
+    setUsers((data || []).map((u: any) => ({
+      ...u,
+      id: u.user_id,
+      empresas: u.empresa_nome ? { nome: u.empresa_nome } : null,
+    })))
   }
   
   useEffect(() => {
