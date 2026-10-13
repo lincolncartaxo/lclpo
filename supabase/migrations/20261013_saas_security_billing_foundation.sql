@@ -1,0 +1,127 @@
+-- Fundação comercial do LclPlan.
+-- Esta migration não cria checkout nem cobra o cliente: prepara isolamento,
+-- planos, assinatura local e auditoria para integração posterior com o provedor.
+
+-- Catálogos oficiais: leitura para usuários autenticados; escrita somente por
+-- service_role ou administradores aprovados pelo banco.
+ALTER TABLE IF EXISTS public.catalogo_insumos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.catalogo_composicoes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.precos_historicos_insumos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.precos_historicos_composicoes ENABLE ROW LEVEL SECURITY;
+
+GRANT SELECT ON TABLE
+  public.catalogo_insumos,
+  public.catalogo_composicoes,
+  public.precos_historicos_insumos,
+  public.precos_historicos_composicoes
+TO authenticated;
+
+DROP POLICY IF EXISTS "catalogo insumos leitura autenticada" ON public.catalogo_insumos;
+CREATE POLICY "catalogo insumos leitura autenticada"
+ON public.catalogo_insumos FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "catalogo composicoes leitura autenticada" ON public.catalogo_composicoes;
+CREATE POLICY "catalogo composicoes leitura autenticada"
+ON public.catalogo_composicoes FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "precos insumos leitura autenticada" ON public.precos_historicos_insumos;
+CREATE POLICY "precos insumos leitura autenticada"
+ON public.precos_historicos_insumos FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "precos composicoes leitura autenticada" ON public.precos_historicos_composicoes;
+CREATE POLICY "precos composicoes leitura autenticada"
+ON public.precos_historicos_composicoes FOR SELECT TO authenticated USING (true);
+
+-- Escrita de catálogo/preços não fica disponível pelo PostgREST para usuários
+-- comuns. O pipeline de importação deve usar service_role ou uma RPC protegida.
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON TABLE
+  public.catalogo_insumos,
+  public.catalogo_composicoes,
+  public.precos_historicos_insumos,
+  public.precos_historicos_composicoes
+FROM anon, authenticated;
+
+REVOKE ALL ON FUNCTION public.upsert_precos_insumos_lote(jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.upsert_precos_insumos_lote(jsonb) FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.upsert_precos_insumos_lote(jsonb) TO service_role;
+
+-- Planos declarativos: limites e funcionalidades podem ser alterados sem
+-- espalhar regras comerciais pelo frontend.
+CREATE TABLE IF NOT EXISTS public.plan_definitions (
+  code text PRIMARY KEY,
+  name text NOT NULL,
+  max_users integer NOT NULL CHECK (max_users > 0),
+  max_budgets integer NOT NULL CHECK (max_budgets > 0),
+  max_import_rows integer NOT NULL CHECK (max_import_rows > 0),
+  features jsonb NOT NULL DEFAULT '{}'::jsonb,
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+INSERT INTO public.plan_definitions (code, name, max_users, max_budgets, max_import_rows, features)
+VALUES
+  ('free', 'Gratuito', 1, 3, 500, '{"exports": true, "transferegov": false}'::jsonb),
+  ('pro', 'Profissional', 5, 50, 10000, '{"exports": true, "transferegov": true}'::jsonb),
+  ('business', 'Empresarial', 25, 500, 100000, '{"exports": true, "transferegov": true, "audit": true}'::jsonb)
+ON CONFLICT (code) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS public.organization_subscriptions (
+  organization_id uuid PRIMARY KEY REFERENCES public.empresas(id) ON DELETE CASCADE,
+  plan_code text NOT NULL REFERENCES public.plan_definitions(code),
+  status text NOT NULL DEFAULT 'trialing' CHECK (status IN ('trialing', 'active', 'past_due', 'canceled', 'paused')),
+  trial_ends_at timestamptz,
+  current_period_end timestamptz,
+  provider text,
+  provider_customer_id text,
+  provider_subscription_id text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+INSERT INTO public.organization_subscriptions (organization_id, plan_code, status, trial_ends_at)
+SELECT id, 'free', 'active', NULL
+FROM public.empresas
+ON CONFLICT (organization_id) DO NOTHING;
+
+ALTER TABLE public.plan_definitions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.organization_subscriptions ENABLE ROW LEVEL SECURITY;
+GRANT SELECT ON public.plan_definitions TO authenticated;
+GRANT SELECT ON public.organization_subscriptions TO authenticated;
+
+DROP POLICY IF EXISTS "planos leitura autenticada" ON public.plan_definitions;
+CREATE POLICY "planos leitura autenticada"
+ON public.plan_definitions FOR SELECT TO authenticated USING (active = true);
+
+DROP POLICY IF EXISTS "assinatura membro leitura" ON public.organization_subscriptions;
+CREATE POLICY "assinatura membro leitura"
+ON public.organization_subscriptions FOR SELECT TO authenticated
+USING (public.is_organization_member(organization_id));
+
+-- Registro mínimo para suporte, conformidade e investigação de alterações.
+CREATE TABLE IF NOT EXISTS public.audit_events (
+  id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  organization_id uuid REFERENCES public.empresas(id) ON DELETE SET NULL,
+  actor_user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  event_type text NOT NULL,
+  entity_type text,
+  entity_id text,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS audit_events_org_created_idx
+  ON public.audit_events (organization_id, created_at DESC);
+ALTER TABLE public.audit_events ENABLE ROW LEVEL SECURITY;
+GRANT SELECT, INSERT ON public.audit_events TO authenticated;
+
+DROP POLICY IF EXISTS "auditoria membro leitura" ON public.audit_events;
+CREATE POLICY "auditoria membro leitura"
+ON public.audit_events FOR SELECT TO authenticated
+USING (organization_id IS NULL OR public.is_organization_member(organization_id));
+
+DROP POLICY IF EXISTS "auditoria próprio registro" ON public.audit_events;
+CREATE POLICY "auditoria próprio registro"
+ON public.audit_events FOR INSERT TO authenticated
+WITH CHECK (actor_user_id = auth.uid() AND (organization_id IS NULL OR public.is_organization_member(organization_id)));
+
+REVOKE UPDATE, DELETE, TRUNCATE ON public.audit_events FROM anon, authenticated;

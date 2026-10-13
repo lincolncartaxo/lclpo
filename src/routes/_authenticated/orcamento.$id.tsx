@@ -1581,7 +1581,13 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
       </div>
       <div className="flex gap-3 flex-wrap">
         <Button onClick={exportXlsx}><FileDown className="mr-2 size-4"/>Exportar .xlsx</Button>
-        <Button variant="secondary" onClick={exportPdf}><FileDown className="mr-2 size-4"/>Exportar .pdf</Button>
+        <Button
+          variant="outline"
+          className="transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground"
+          onClick={exportPdf}
+        >
+          <FileDown className="mr-2 size-4"/>Exportar .pdf
+        </Button>
         <Button variant="outline" onClick={()=>{ setTgErros(null); setTgOpen(true); }}><FileDown className="mr-2 size-4"/>JSON Transferegov</Button>
       </div>
       <Dialog open={tgOpen} onOpenChange={setTgOpen}>
