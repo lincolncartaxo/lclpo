@@ -1317,13 +1317,13 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
       // Metadados, título, cabeçalho e linhas de etapa seguem a mesma
       // hierarquia visual do PDF.
       for (let r = 0; r < titleRowIndex; r++) {
-        setStyle(r, 0, { font: { bold: true, color: blue }, alignment: { vertical: "center" } });
+        setStyle(r, 0, { font: { bold: true, color: { rgb: blue } }, alignment: { vertical: "center" } });
         if (cell(r, 1)) setStyle(r, 1, { alignment: { vertical: "center" } });
       }
       for (let c = 0; c <= lastCol; c++) {
         setStyle(titleRowIndex, c, {
           fill: { fgColor: { rgb: blue } },
-          font: { bold: true, color: "FFFFFF", sz: 12 },
+          font: { bold: true, color: { rgb: "FFFFFF" }, sz: 12 },
           alignment: { horizontal: "center", vertical: "center" },
           border: allBorders,
         });
@@ -1335,7 +1335,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
         for (let c = 0; c <= lastCol; c++) {
           setStyle(dataStart, c, {
             fill: { fgColor: { rgb: blue } },
-            font: { bold: true, color: "FFFFFF" },
+            font: { bold: true, color: { rgb: "FFFFFF" } },
             alignment: { horizontal: "center", vertical: "center", wrapText: true },
             border: allBorders,
           });
@@ -1360,7 +1360,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
           const header = hasHead ? String((s.rows[0] as any[])[c] ?? "").toUpperCase() : "";
           const style: any = { border: allBorders, alignment: { vertical: "center", wrapText: true } };
           if (isStage || isTotal) style.fill = { fgColor: { rgb: fill } };
-          if (isStage || isTotal || (first !== "" && second !== "")) style.font = { bold: true, color: blue };
+          if (isStage || isTotal || (first !== "" && second !== "")) style.font = { bold: true, color: { rgb: blue } };
           if (typeof value === "number") {
             style.numFmt = /%/.test(header) ? "0.00" : /(PREÇO|CUSTO|TOTAL|INVESTIMENTO|REPASSE|CONTRAPARTIDA|BDI)/.test(header) ? 'R$ #,##0.00' : "#,##0.0000";
             style.alignment = { ...style.alignment, horizontal: "right" };
@@ -1369,10 +1369,14 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
         }
       }
 
-      // Larguras proporcionais ao relatório PDF e congelamento do cabeçalho.
-      ws['!cols'] = Array.from({ length: lastCol + 1 }, (_, c) => ({
-        wch: c === 0 ? 22 : c === 1 ? 18 : c === 2 ? 18 : c === 3 ? 58 : 16,
-      }));
+      // Larguras compactas e proporcionais ao conteúdo, sem deixar uma
+      // descrição isolada expandir toda a planilha.
+      ws['!cols'] = Array.from({ length: lastCol + 1 }, (_, c) => {
+        const values = s.rows.map(row => String((row as any[])[c] ?? ""));
+        const contentWidth = Math.max(0, ...values.map(value => value.length));
+        const limit = c === 0 ? 18 : c === 3 ? 42 : 18;
+        return { wch: Math.min(limit, Math.max(10, contentWidth + 2)) };
+      });
       ws['!rows'] = [{ hpt: 22 }, ...Array.from({ length: finalRows.length - 1 }, () => ({ hpt: 18 }))];
       (ws as any)['!freeze'] = { xSplit: 0, ySplit: dataStart + (hasHead ? 1 : 0) };
       ws['!merges'] = [
