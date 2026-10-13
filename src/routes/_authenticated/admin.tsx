@@ -653,7 +653,7 @@ function OrcamentosManager() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Tem certeza? Esta ação deletará o orçamento e todos os seus itens da base de dados global permanentemente.")) return
-    const { error } = await supabase.from('orcamentos').delete().eq('id', id)
+    const { error } = await (supabase as any).from('orcamentos').delete().eq('id', id)
     if (error) toast.error(error.message)
     else { toast.success("Orçamento excluído"); fetch() }
   }
