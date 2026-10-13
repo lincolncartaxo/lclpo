@@ -34,7 +34,7 @@ function TeamPage() {
     if (prof?.empresas) {
       setEmpresa(prof.empresas)
       // Buscar todos os membros dessa empresa
-      const { data: mems } = await (supabase as any).from('profiles').select('*').eq('empresa', prof.empresas.id)
+      const { data: mems } = await (supabase as any).from('profiles').select('*').eq('id_empresa', prof.empresas.id)
       setMembers(mems || [])
     }
     
@@ -54,7 +54,7 @@ function TeamPage() {
     if (e1) { setLoading(false); return toast.error(e1.message) }
     
     // 2. Vincular usuário logado como dono/membro dessa empresa
-    await (supabase as any).from('profiles').update({ empresa: newEmpresa.id }).eq('id', user?.id)
+    await (supabase as any).from('profiles').update({ id_empresa: newEmpresa.id }).eq('id', user?.id)
     
     toast.success("Sua empresa foi criada!")
     loadData()
@@ -74,7 +74,7 @@ function TeamPage() {
     if (memberId === user?.id) return toast.error("Você não pode remover a si mesmo")
     if (!confirm("Remover este usuário do seu time? Ele perderá acesso a todos os orçamentos da empresa.")) return
     
-    const { error } = await (supabase as any).from('profiles').update({ empresa: null }).eq('id', memberId)
+    const { error } = await (supabase as any).from('profiles').update({ id_empresa: null }).eq('id', memberId)
     if (error) return toast.error("Erro ao remover: " + error.message)
     
     toast.success("Usuário removido da empresa")

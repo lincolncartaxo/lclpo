@@ -82,7 +82,7 @@ function UsuariosManager() {
     const { error } = await supabase.rpc('admin_update_user_profile' as any, {
       p_user_id: form.id,
       p_nome: form.nome_completo || '',
-      p_empresa: form.empresa === 'none' ? null : form.id_empresa,
+      p_id_empresa: form.id_empresa === 'none' ? null : form.id_empresa,
       p_role: form.role || 'user',
     })
     if (error) return toast.error(error.message)
@@ -119,7 +119,7 @@ function UsuariosManager() {
               </div>
               <div>
                 <Label>Empresa (Tenant)</Label>
-                <Select value={form.empresa||'none'} onValueChange={v=>setForm({...form, empresa: v})}>
+                <Select value={form.id_empresa||'none'} onValueChange={v=>setForm({...form, id_empresa: v})}>
                   <SelectTrigger><SelectValue/></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Sem vínculo</SelectItem>
@@ -148,7 +148,7 @@ function UsuariosManager() {
                 <TableCell>{u.role || 'user'}</TableCell>
                 <TableCell>{u.empresas?.nome || '-'}</TableCell>
                 <TableCell className="text-right space-x-2">
-                  <Button variant="outline" size="sm" onClick={() => { setForm({id: u.id, nome_completo: u.nome, role: u.role, empresa: u.id_empresa || u.empresa || 'none'}); setOpen(true) }}><Edit className="w-4 h-4"/></Button>
+                  <Button variant="outline" size="sm" onClick={() => { setForm({id: u.id, nome_completo: u.nome, role: u.role, id_empresa: u.id_empresa || 'none'}); setOpen(true) }}><Edit className="w-4 h-4"/></Button>
                   <Button variant="destructive" size="sm" onClick={() => handleDelete(u.id)}><Trash2 className="w-4 h-4"/></Button>
                 </TableCell>
               </TableRow>
