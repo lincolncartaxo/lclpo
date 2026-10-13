@@ -160,7 +160,11 @@ function EmpresasManager() {
   const [form, setForm] = useState<any>({ id: null, nome: '', plano: 'basic', status: 'ativo' })
   const [open, setOpen] = useState(false)
 
-  const fetch = async () => { const { data } = await (supabase as any).from('empresas').select('*').order('nome'); setEmpresas(data || []) }
+  const fetch = async () => {
+    const { data, error } = await (supabase as any).rpc('admin_list_organization_plans')
+    if (error) return toast.error(`Não foi possível carregar os planos: ${error.message}`)
+    setEmpresas(data || [])
+  }
   useEffect(() => { fetch() }, [])
 
   const handleSave = async () => {
@@ -201,7 +205,7 @@ function EmpresasManager() {
                 <Label>Plano</Label>
                 <Select value={form.plano} onValueChange={v=>setForm({...form, plano: v})}>
                   <SelectTrigger><SelectValue/></SelectTrigger>
-                  <SelectContent><SelectItem value="basic">Basic</SelectItem><SelectItem value="pro">Pro</SelectItem><SelectItem value="enterprise">Enterprise</SelectItem></SelectContent>
+                  <SelectContent><SelectItem value="basic">Basic / Gratuito</SelectItem><SelectItem value="free">Gratuito</SelectItem><SelectItem value="pro">Pro</SelectItem><SelectItem value="business">Business</SelectItem><SelectItem value="enterprise">Enterprise</SelectItem></SelectContent>
                 </Select>
               </div>
               <div>
@@ -217,15 +221,18 @@ function EmpresasManager() {
         </Dialog>
 
         <Table>
-          <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Plano</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Plano</TableHead><TableHead>Usuários</TableHead><TableHead>Orçamentos</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
           <TableBody>
             {empresas.map(e => (
               <TableRow key={e.id}>
-                <TableCell className="font-medium">{e.nome}</TableCell><TableCell>{e.plano}</TableCell>
-                <TableCell><span className={`px-2 py-1 rounded-full text-xs font-semibold ${e.status === 'ativo' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{e.status?.toUpperCase()}</span></TableCell>
+                <TableCell className="font-medium">{e.organization_name}</TableCell>
+                <TableCell><span className="font-semibold uppercase">{e.plan_code}</span><div className="text-xs text-muted-foreground">{e.subscription_status}</div></TableCell>
+                <TableCell className={Number(e.users_used) >= Number(e.users_limit) ? "font-semibold text-amber-700" : ""}>{e.users_used} / {e.users_limit}</TableCell>
+                <TableCell className={Number(e.budgets_used) >= Number(e.budgets_limit) ? "font-semibold text-amber-700" : ""}>{e.budgets_used} / {e.budgets_limit}</TableCell>
+                <TableCell><span className={`px-2 py-1 rounded-full text-xs font-semibold ${e.organization_status === 'ativo' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{e.organization_status?.toUpperCase()}</span></TableCell>
                 <TableCell className="text-right space-x-2">
-                  <Button variant="outline" size="sm" onClick={() => { setForm(e); setOpen(true) }}><Edit className="w-4 h-4"/></Button>
-                  <Button variant="destructive" size="sm" onClick={() => handleDelete(e.id)}><Trash2 className="w-4 h-4"/></Button>
+                  <Button variant="outline" size="sm" onClick={() => { setForm({ id: e.organization_id, nome: e.organization_name, plano: e.legacy_plan || e.plan_code, status: e.status || 'ativo' }); setOpen(true) }}><Edit className="w-4 h-4"/></Button>
+                  <Button variant="destructive" size="sm" onClick={() => handleDelete(e.organization_id)}><Trash2 className="w-4 h-4"/></Button>
                 </TableCell>
               </TableRow>
             ))}
