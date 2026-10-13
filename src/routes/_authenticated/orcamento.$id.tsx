@@ -1300,8 +1300,12 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
       const lastCol = Math.max(0, (s.rows[0]?.length ?? 1) - 1);
       const cell = (r: number, c: number) => ws[XLSX.utils.encode_cell({ r, c })] as any;
       const setStyle = (r: number, c: number, style: any) => {
-        const target = cell(r, c);
-        if (target) target.s = { ...(target.s || {}), ...style };
+        const ref = XLSX.utils.encode_cell({ r, c });
+        // aoa_to_sheet não cria células para posições vazias. Criamos essas
+        // células para que a faixa de cor da etapa ocupe a linha inteira.
+        if (!ws[ref]) ws[ref] = { v: "", t: "s" };
+        const target = ws[ref] as any;
+        target.s = { ...(target.s || {}), ...style };
       };
       const blue = "1F3864";
       const rootFill = "D6E0EC";
@@ -1374,7 +1378,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
       XLSX.utils.book_append_sheet(wb, ws, s.title.substring(0, 31).replace(/[\[\]\*\?\/\:]/g, ''));
     });
     
-    XLSX.writeFile(wb, `${orc.nome || "orcamento"}.xlsx`);
+    XLSX.writeFile(wb, `${orc.nome || "orcamento"}.xlsx`, { cellStyles: true });
   };
 
   const exportPdf = async () => {
