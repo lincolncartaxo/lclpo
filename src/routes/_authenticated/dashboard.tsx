@@ -39,7 +39,12 @@ function Dashboard() {
     const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase.from("orcamentos").insert({ ...form, user_id: user!.id }).select().single();
     setLoading(false);
-    if (error) return toast.error(error.message);
+    if (error) {
+      const limitMessage = error.message?.includes("Limite do plano atingido")
+        ? `${error.message} Faça upgrade quando os planos pagos estiverem disponíveis.`
+        : error.message;
+      return toast.error(limitMessage);
+    }
     setOpen(false);
     nav({ to: "/orcamento/$id", params: { id: data!.id } });
   };
