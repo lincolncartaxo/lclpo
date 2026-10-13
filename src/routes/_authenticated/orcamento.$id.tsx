@@ -1274,9 +1274,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
   };
 
   const exportXlsx = async () => {
-    const XLSX = await import("xlsx");
-    // Usamos xlsx-js-style para aplicar o estilo ao excel se possivel, mas a versao pura de xlsx comunitária ignora estilos de celula exceto se usarmos libs pagas.
-    // O que podemos fazer para a versao gratuita de Excel é formatar ao menos a largura das colunas e os merges.
+    const XLSX = await import("xlsx-js-style");
     const wb = XLSX.utils.book_new();
     const secs = sections();
     
@@ -1298,11 +1296,79 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
       // Prepend the metadata header to the table data
       const finalRows = [...headerInfo, ...s.rows];
       const ws = XLSX.utils.aoa_to_sheet(finalRows);
-      
-      // Auto-size basic col width and merges
-      ws['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 60 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 15 }];
+
+      const lastCol = Math.max(0, (s.rows[0]?.length ?? 1) - 1);
+      const cell = (r: number, c: number) => ws[XLSX.utils.encode_cell({ r, c })] as any;
+      const setStyle = (r: number, c: number, style: any) => {
+        const target = cell(r, c);
+        if (target) target.s = { ...(target.s || {}), ...style };
+      };
+      const blue = "1F3864";
+      const rootFill = "D6E0EC";
+      const subFill = "EFF3F7";
+      const totalFill = "DCE6F1";
+      const border = { style: "thin", color: { rgb: "B7C3D0" } };
+      const allBorders = { top: border, bottom: border, left: border, right: border };
+
+      // Metadados, título, cabeçalho e linhas de etapa seguem a mesma
+      // hierarquia visual do PDF.
+      for (let r = 0; r < titleRowIndex; r++) {
+        setStyle(r, 0, { font: { bold: true, color: blue }, alignment: { vertical: "center" } });
+        if (cell(r, 1)) setStyle(r, 1, { alignment: { vertical: "center" } });
+      }
+      for (let c = 0; c <= lastCol; c++) {
+        setStyle(titleRowIndex, c, {
+          fill: { fgColor: { rgb: blue } },
+          font: { bold: true, color: "FFFFFF", sz: 12 },
+          alignment: { horizontal: "center", vertical: "center" },
+          border: allBorders,
+        });
+      }
+
+      const hasHead = Array.isArray(s.rows[0]) && typeof s.rows[0][0] === "string" && s.rows.length > 1;
+      const dataStart = headerInfo.length;
+      if (hasHead) {
+        for (let c = 0; c <= lastCol; c++) {
+          setStyle(dataStart, c, {
+            fill: { fgColor: { rgb: blue } },
+            font: { bold: true, color: "FFFFFF" },
+            alignment: { horizontal: "center", vertical: "center", wrapText: true },
+            border: allBorders,
+          });
+        }
+      }
+      for (let i = 0; i < s.rows.length; i++) {
+        const row = s.rows[i] as any[];
+        const excelRow = dataStart + i;
+        const first = String(row[0] ?? "").trim();
+        const second = String(row[1] ?? "").trim();
+        const third = String(row[2] ?? "").trim();
+        const isStage = first !== "" && second === "" && third === "";
+        const isTotal = first === "SUBTOTAL" || first.includes("BDI (") || first === "TOTAL GERAL";
+        const prefix = first.match(/^([0-9]+(?:\.[0-9]+)*)/);
+        const fill = isTotal ? totalFill : (!prefix || !prefix[1].includes(".")) ? rootFill : subFill;
+        for (let c = 0; c <= lastCol; c++) {
+          const value = row[c];
+          const header = hasHead ? String((s.rows[0] as any[])[c] ?? "").toUpperCase() : "";
+          const style: any = { border: allBorders, alignment: { vertical: "center", wrapText: true } };
+          if (isStage || isTotal) style.fill = { fgColor: { rgb: fill } };
+          if (isStage || isTotal || (first !== "" && second !== "")) style.font = { bold: true, color: blue };
+          if (typeof value === "number") {
+            style.numFmt = /%/.test(header) ? "0.00" : /(PREÇO|CUSTO|TOTAL|INVESTIMENTO|REPASSE|CONTRAPARTIDA|BDI)/.test(header) ? 'R$ #,##0.00' : "#,##0.0000";
+            style.alignment = { ...style.alignment, horizontal: "right" };
+          }
+          setStyle(excelRow, c, style);
+        }
+      }
+
+      // Larguras proporcionais ao relatório PDF e congelamento do cabeçalho.
+      ws['!cols'] = Array.from({ length: lastCol + 1 }, (_, c) => ({
+        wch: c === 0 ? 22 : c === 1 ? 18 : c === 2 ? 18 : c === 3 ? 58 : 16,
+      }));
+      ws['!rows'] = [{ hpt: 22 }, ...Array.from({ length: finalRows.length - 1 }, () => ({ hpt: 18 }))];
+      (ws as any)['!freeze'] = { xSplit: 0, ySplit: dataStart + (hasHead ? 1 : 0) };
       ws['!merges'] = [
-        { s: { r: titleRowIndex, c: 0 }, e: { r: titleRowIndex, c: s.rows[0].length > 1 ? s.rows[0].length - 1 : 8 } }
+        { s: { r: titleRowIndex, c: 0 }, e: { r: titleRowIndex, c: lastCol } }
       ];
       
       XLSX.utils.book_append_sheet(wb, ws, s.title.substring(0, 31).replace(/[\[\]\*\?\/\:]/g, ''));
