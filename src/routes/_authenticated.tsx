@@ -30,6 +30,7 @@ function AuthLayout() {
         <nav className="flex-1 px-3 py-4 space-y-1 text-sm">
           <NavItem to="/dashboard" icon={LayoutDashboard}>Orçamentos</NavItem>
           <NavItem to="/bases" icon={Database}>Bases</NavItem>
+          <NavItem to="/team" icon={Building2}>Minha Empresa</NavItem>
           <AdminLink />
         </nav>
         <div className="p-3 border-t border-sidebar-border">
