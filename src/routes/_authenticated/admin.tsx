@@ -148,7 +148,7 @@ function UsuariosManager() {
                 <TableCell>{u.role || 'user'}</TableCell>
                 <TableCell>{u.empresas?.nome || '-'}</TableCell>
                 <TableCell className="text-right space-x-2">
-                  <Button variant="outline" size="sm" onClick={() => { setForm({id: u.id, nome_completo: u.nome, role: u.role, id_empresa: u.id_empresa||'none'}); setOpen(true) }}><Edit className="w-4 h-4"/></Button>
+                  <Button variant="outline" size="sm" onClick={() => { setForm({id: u.id, nome_completo: u.nome, role: u.role, id_empresa: u.id_empresa || 'none'}); setOpen(true) }}><Edit className="w-4 h-4"/></Button>
                   <Button variant="destructive" size="sm" onClick={() => handleDelete(u.id)}><Trash2 className="w-4 h-4"/></Button>
                 </TableCell>
               </TableRow>
@@ -659,7 +659,7 @@ function OrcamentosManager() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Tem certeza? Esta ação deletará o orçamento e todos os seus itens da base de dados global permanentemente.")) return
-    const { error } = await supabase.from('orcamentos').delete().eq('id', id)
+    const { error } = await (supabase as any).from('orcamentos').delete().eq('id', id)
     if (error) toast.error(error.message)
     else { toast.success("Orçamento excluído"); fetch() }
   }

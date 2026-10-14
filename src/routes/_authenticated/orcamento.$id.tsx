@@ -44,6 +44,22 @@ function useEtapasExtra(orcId: string) {
     if (typeof window === "undefined") return [];
     try { return JSON.parse(window.localStorage.getItem(key) || "[]"); } catch { return []; }
   });
+
+  // Hydrate from Database (Cronograma) to prevent stages from disappearing across devices/logins
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("orcamento_cronograma").select("etapa").eq("orcamento_id", orcId);
+      if (data && data.length > 0) {
+        const dbEtapas = data.map(r => r.etapa);
+        setEtapasExtra(prev => {
+          const merged = Array.from(new Set([...prev, ...dbEtapas]));
+          if (merged.length !== prev.length) return merged;
+          return prev;
+        });
+      }
+    })();
+  }, [orcId]);
+
   useEffect(() => {
     if (typeof window !== "undefined") window.localStorage.setItem(key, JSON.stringify(etapasExtra));
   }, [etapasExtra, key]);
