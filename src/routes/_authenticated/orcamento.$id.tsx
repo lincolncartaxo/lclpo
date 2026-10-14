@@ -1249,8 +1249,16 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
     ]});
     if (sel.composicao) {
       out.push({ key: "composicao", title: "Composições", rows: [
-        ["Composição","Fonte","Código do item","Tipo","Coeficiente / Quantidade","Descrição","Un.",`Preço unitário (${orc.regime === "desonerado" ? "Desonerado" : "Não desonerado"})`,"Total"],
-        ...analiticas.map(r => [r.composicao, r.fonte, r.codigo_item, r.tipo_item, Number(r.coeficiente), r.descricao ?? "", r.unidade ?? "", Number(r.preco_unitario ?? 0), Number(r.subtotal ?? 0)]),
+        ["Tipo","Código","Descrição","Un.","Coef.",`Preço Unit. (${orc.regime === "desonerado" ? "Desonerado" : "Não desonerado"})`,"Subtotal"],
+        ...analiticas.map(r => [
+          r.isParent ? `COMPOSIÇÃO (${r.fonte})` : String(r.tipo_item ?? "INSUMO").toUpperCase(),
+          r.isParent ? r.composicao : r.codigo_item,
+          r.descricao ?? "",
+          r.unidade ?? "",
+          Number(r.coeficiente),
+          Number(r.preco_unitario ?? 0),
+          Number(r.subtotal ?? 0),
+        ]),
       ]});
     }
     if (sel.planilha) {
@@ -1438,8 +1446,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
         const third = String(row[2] ?? "").trim();
         const isStage = first !== "" && second === "" && third === "";
         const isTotal = first === "SUBTOTAL" || first.includes("BDI (") || first === "TOTAL GERAL";
-        const previousFirst = i > 0 ? String((s.rows[i - 1] as any[])?.[0] ?? "").trim() : "";
-        const isCompositionItem = s.key === "composicao" && first !== "" && first !== previousFirst;
+        const isCompositionItem = s.key === "composicao" && first.startsWith("COMPOSIÇÃO (");
         const prefix = first.match(/^([0-9]+(?:\.[0-9]+)*)/);
         const fill = isTotal ? totalFill : (!prefix || !prefix[1].includes(".")) ? rootFill : subFill;
         for (let c = 0; c <= lastCol; c++) {
@@ -1549,8 +1556,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
             const firstCol = String(data.row.raw[0] || '').trim();
             const secondCol = String(data.row.raw[1] || '').trim();
             const thirdCol = String(data.row.raw[2] || '').trim();
-            const previousRaw = data.row.index > 0 ? String((hasHead ? s.rows[data.row.index] : s.rows[data.row.index - 1])?.[0] ?? '').trim() : '';
-            const isCompositionItem = s.key === 'composicao' && firstCol !== '' && firstCol !== previousRaw;
+            const isCompositionItem = s.key === 'composicao' && firstCol.startsWith('COMPOSIÇÃO (');
             const isSubitemMemoria = firstCol === '' && secondCol !== '' && thirdCol !== '';
             const isEtapa = firstCol !== '' && secondCol === '' && thirdCol === '';
             const isTotais = firstCol === "SUBTOTAL" || firstCol.includes("BDI (") || firstCol === "TOTAL GERAL";
