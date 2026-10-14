@@ -691,6 +691,7 @@ function EditarComposicaoDialog({ row, onClose, onSaved }: { row: any | null; on
   const [unidade, setUnidade] = useState("");
   const [lines, setLines] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   useEffect(() => {
     if (!row) return;
     setDescricao(row.descricao ?? ""); setUnidade(row.unidade ?? ""); setLoading(true);
@@ -708,6 +709,8 @@ function EditarComposicaoDialog({ row, onClose, onSaved }: { row: any | null; on
     if (error) return toast.error(error.message);
     const { error: delError } = await (supabase as any).from("catalogo_composicao_itens").delete().eq("fonte", PROPRIA).eq("codigo_composicao", row.codigo);
     if (delError) return toast.error(delError.message);
+    const invalid = lines.some(l => !String(l.codigo_item ?? "").trim() || !String(l.fonte_item ?? "").trim() || !["INSUMO", "COMPOSICAO"].includes(String(l.tipo_item).toUpperCase()));
+    if (invalid) return toast.error("Preencha fonte, tipo e código de todos os subitens");
     const { error: insertError } = await (supabase as any).from("catalogo_composicao_itens").insert(lines.map(l => ({
       fonte: PROPRIA, codigo_composicao: row.codigo, fonte_item: l.fonte_item || null,
       tipo_item: l.tipo_item, codigo_item: l.codigo_item, coeficiente: Number(String(l.coeficiente).replace(",", ".")) || 0,
@@ -715,13 +718,23 @@ function EditarComposicaoDialog({ row, onClose, onSaved }: { row: any | null; on
     if (insertError) return toast.error(insertError.message);
     toast.success("Composição atualizada"); onSaved();
   };
+  const addBlank = () => setLines(prev => [...prev, { fonte_item: "SINAPI", tipo_item: "INSUMO", codigo_item: "", coeficiente: "1" }]);
+  const addPicked = (item: PickedItem) => setLines(prev => [...prev, { fonte_item: item.fonte, tipo_item: item.tipo, codigo_item: item.codigo, coeficiente: "1" }]);
   return <Dialog open={!!row} onOpenChange={(open)=>{ if (!open) onClose(); }}>
     <DialogContent className="max-w-4xl">
       <DialogHeader><DialogTitle>Editar composição própria</DialogTitle></DialogHeader>
       {row && <p className="text-sm text-muted-foreground">{row.codigo} · {row.fonte}</p>}
       <div className="grid grid-cols-3 gap-3"><div className="col-span-2"><Label>Descrição</Label><Input value={descricao} onChange={e=>setDescricao(e.target.value)} /></div><div><Label>Unidade</Label><Input value={unidade} onChange={e=>setUnidade(e.target.value)} /></div></div>
-      <div className="rounded border max-h-72 overflow-auto"><table className="budget-table"><thead><tr><th>Fonte</th><th>Tipo</th><th>Código</th><th>Coeficiente</th></tr></thead><tbody>{lines.map((l,i)=><tr key={`${l.codigo_item}-${i}`}><td>{l.fonte_item || "—"}</td><td>{l.tipo_item}</td><td>{l.codigo_item}</td><td><Input className="h-8 text-right" value={l.coeficiente} onChange={e=>setLines(prev=>prev.map((x,j)=>j===i?{...x,coeficiente:e.target.value}:x))}/></td></tr>)}{!loading && !lines.length && <tr><td colSpan={4} className="p-4 text-center text-sm text-muted-foreground">Nenhum subitem encontrado.</td></tr>}</tbody></table></div>
+      <div className="flex gap-2 justify-end"><Button type="button" size="sm" variant="secondary" onClick={()=>setPickerOpen(true)}><Plus className="size-3 mr-1"/>Adicionar do banco</Button><Button type="button" size="sm" variant="outline" onClick={addBlank}><Plus className="size-3 mr-1"/>Adicionar linha</Button></div>
+      <div className="rounded border max-h-72 overflow-auto"><table className="budget-table"><thead><tr><th>Fonte</th><th>Tipo</th><th>Código</th><th>Coeficiente</th><th></th></tr></thead><tbody>{lines.map((l,i)=><tr key={`${l.codigo_item}-${i}`}>
+        <td><Input className="h-8 w-28" value={l.fonte_item ?? ""} onChange={e=>setLines(prev=>prev.map((x,j)=>j===i?{...x,fonte_item:e.target.value}:x))}/></td>
+        <td><Select value={String(l.tipo_item).toUpperCase()} onValueChange={v=>setLines(prev=>prev.map((x,j)=>j===i?{...x,tipo_item:v}:x))}><SelectTrigger className="h-8 w-32"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="INSUMO">INSUMO</SelectItem><SelectItem value="COMPOSICAO">COMPOSIÇÃO</SelectItem></SelectContent></Select></td>
+        <td><Input className="h-8 w-32" value={l.codigo_item ?? ""} onChange={e=>setLines(prev=>prev.map((x,j)=>j===i?{...x,codigo_item:e.target.value}:x))}/></td>
+        <td><Input className="h-8 w-28 text-right" value={l.coeficiente} onChange={e=>setLines(prev=>prev.map((x,j)=>j===i?{...x,coeficiente:e.target.value}:x))}/></td>
+        <td><button type="button" className="text-destructive" title="Excluir subitem" onClick={()=>setLines(prev=>prev.filter((_,j)=>j!==i))}><Trash2 className="size-4"/></button></td>
+      </tr>)}{!loading && !lines.length && <tr><td colSpan={5} className="p-4 text-center text-sm text-muted-foreground">Nenhum subitem encontrado.</td></tr>}</tbody></table></div>
       <DialogFooter><Button onClick={save} disabled={loading}>Salvar alterações</Button></DialogFooter>
+      <ItemPickerDialog open={pickerOpen} setOpen={setPickerOpen} uf="" mes_ref="" onPick={addPicked} />
     </DialogContent>
   </Dialog>;
 }
