@@ -690,6 +690,7 @@ function ExplosaoSheet({ row, onClose, regime, uf, mesRef }: { row: Item | null;
 function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, refPrecos }: any) {
   const FONTES_ALL = ["SINAPI","DER","SICRO3","SBC","ORSE","PRÓPRIA","Outras"];
   const [tab, setTab] = useState("base");
+  const [tipoBase, setTipoBase] = useState<"COMPOSICAO" | "INSUMO">("COMPOSICAO");
   const ref = parseRef(refPrecos);
   const mesUse: string | null = ref.mes;
   const [fonte, setFonte] = useState<string>(ref.fonte ?? "__all");
@@ -704,10 +705,36 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
 
   const ufUse = (uf && String(uf).trim()) || "PB";
 
+  const resolvePrice = async (r: any) => {
+    if (r.tipo_item === "COMPOSICAO") {
+      const { data, error } = await supabase.rpc("calcular_custo_composicao" as any, {
+        p_fonte: r.fonte, p_codigo: String(r.codigo),
+        p_uf: ufUse, p_mes_ref: (mesUse ?? null) as any, p_regime: regime,
+      });
+      if (error) throw error;
+      return Number(data ?? 0);
+    }
+
+    const coluna = regime === "desonerado" ? "preco_desonerado" : "preco_nao_desonerado";
+    let query: any = (supabase as any).from("precos_historicos_insumos")
+      .select(`uf,mes_ref,${coluna}`)
+      .eq("codigo_insumo", String(r.codigo))
+      .eq("fonte", r.fonte);
+    if (mesUse) query = query.eq("mes_ref", mesUse);
+    const { data, error } = await query.order("mes_ref", { ascending: false }).limit(100);
+    if (error) throw error;
+    const rows = data ?? [];
+    const match = rows.find((p: any) => String(p.uf).toUpperCase() === ufUse.toUpperCase())
+      ?? rows.find((p: any) => String(p.uf).toUpperCase() === "BR")
+      ?? rows[0];
+    return Number(match?.[coluna] ?? 0);
+  };
+
   useEffect(() => {
     const t = setTimeout(async () => {
       const makeQuery = (byCode: boolean) => {
-        let x: any = (supabase as any).from("catalogo_composicoes")
+        const tabela = tipoBase === "COMPOSICAO" ? "catalogo_composicoes" : "catalogo_insumos";
+        let x: any = (supabase as any).from(tabela)
           .select("codigo,fonte,descricao,unidade")
           .limit(30);
         if (fonte !== "__all") x = x.eq("fonte", fonte);
@@ -723,33 +750,24 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
          fonte: r.fonte,
          descricao: r.descricao,
          unidade: r.unidade,
+         tipo_item: tipoBase,
       }));
       setResults(rows);
       setPrices({});
       const entries = await Promise.all(rows.map(async (r: any) => {
         try {
-          const { data: p } = await supabase.rpc("calcular_custo_composicao" as any, {
-            p_fonte: r.fonte, p_codigo: String(r.codigo),
-            p_uf: ufUse, p_mes_ref: (mesUse ?? null) as any, p_regime: regime,
-          });
-          return [`${r.fonte}|${r.codigo}`, Number(p ?? 0)] as const;
+          return [`${r.fonte}|${r.codigo}`, await resolvePrice(r)] as const;
         } catch { return [`${r.fonte}|${r.codigo}`, 0] as const; }
       }));
       setPrices(Object.fromEntries(entries));
     }, 250);
     return () => clearTimeout(t);
-  }, [q, fonte, regime, ufUse, mesUse]);
+  }, [q, fonte, tipoBase, regime, ufUse, mesUse]);
 
   const addFromBase = async (r: any) => {
-    // Sempre calcula recursivamente a partir dos insumos (UF do orçamento, último mês disponível)
     let preco = 0;
     try {
-      const { data, error } = await supabase.rpc("calcular_custo_composicao" as any, {
-        p_fonte: r.fonte, p_codigo: String(r.codigo),
-        p_uf: ufUse, p_mes_ref: mesUse ?? null, p_regime: regime,
-      });
-      if (error) throw error;
-      preco = Number(data ?? 0);
+      preco = await resolvePrice(r);
     } catch {
       preco = 0;
     }
@@ -786,6 +804,14 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList><TabsTrigger value="base">Das bases de preços</TabsTrigger><TabsTrigger value="manual">Item manual</TabsTrigger></TabsList>
           <TabsContent value="base">
+            <div className="flex gap-2 mt-2" role="group" aria-label="Tipo de item da base">
+              <Button type="button" size="sm" variant={tipoBase === "COMPOSICAO" ? "default" : "outline"} onClick={() => setTipoBase("COMPOSICAO")}>
+                Composições
+              </Button>
+              <Button type="button" size="sm" variant={tipoBase === "INSUMO" ? "default" : "outline"} onClick={() => setTipoBase("INSUMO")}>
+                Insumos
+              </Button>
+            </div>
             <div className="flex gap-2 mt-2">
               <Select value={fonte} onValueChange={(v)=>setFonte(v)}>
                 <SelectTrigger className="w-40"><SelectValue/></SelectTrigger>
@@ -794,12 +820,12 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
                   {FONTES_ALL.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <div className="relative flex-1"><Search className="absolute left-2 top-2.5 size-4 text-muted-foreground"/><Input className="pl-8" placeholder="Buscar código ou descrição…" value={q} onChange={(e)=>setQ(e.target.value)} /></div>
+              <div className="relative flex-1"><Search className="absolute left-2 top-2.5 size-4 text-muted-foreground"/><Input className="pl-8" placeholder={`Buscar ${tipoBase === "COMPOSICAO" ? "composição" : "insumo"} por código ou descrição…`} value={q} onChange={(e)=>setQ(e.target.value)} /></div>
             </div>
             <div className="mt-3 max-h-80 overflow-auto rounded border">
               <table className="budget-table">
-                <thead><tr><th>Fonte</th><th>Cód.</th><th>Descrição</th><th>Un.</th><th className="num">Preço</th><th></th></tr></thead>
-                <tbody>{results.map((r,i)=>{ const pk = `${r.fonte}|${r.codigo}`; const pv = prices[pk]; return (<tr key={i}><td>{r.fonte}</td><td>{r.codigo}</td><td>{r.descricao}</td><td>{r.unidade}</td><td className="num">{pv===undefined ? "…" : fmtBRL(pv)}</td><td><Button size="sm" variant="secondary" onClick={()=>addFromBase(r)}>Adicionar</Button></td></tr>);})}</tbody>
+                <thead><tr><th>Tipo</th><th>Fonte</th><th>Cód.</th><th>Descrição</th><th>Un.</th><th className="num">Preço</th><th></th></tr></thead>
+                <tbody>{results.map((r,i)=>{ const pk = `${r.fonte}|${r.codigo}`; const pv = prices[pk]; return (<tr key={i}><td>{r.tipo_item === "COMPOSICAO" ? "Composição" : "Insumo"}</td><td>{r.fonte}</td><td>{r.codigo}</td><td>{r.descricao}</td><td>{r.unidade}</td><td className="num">{pv===undefined ? "…" : fmtBRL(pv)}</td><td><Button size="sm" variant="secondary" onClick={()=>addFromBase(r)}>Adicionar</Button></td></tr>);})}</tbody>
               </table>
             </div>
           </TabsContent>
