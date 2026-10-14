@@ -470,9 +470,9 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
           deson = Number(desonResult.data ?? 0); naoDeson = Number(naoResult.data ?? 0);
         } else {
           const { data: prices } = await (supabase as any).from("precos_historicos_insumos")
-            .select("uf,preco_desonerado,preco_nao_desonerado").in("codigo_insumo", [String(i.codigo_item), String(i.codigo_item).padStart(8, "0")]).eq("fonte", fonteItem)
-            .in("uf", [effUf, "BR"]).eq("mes_ref", effMes).order("uf", { ascending: false });
-          const price = (prices ?? []).find((p: any) => Number(p.preco_desonerado) > 0 || Number(p.preco_nao_desonerado) > 0) ?? prices?.[0];
+            .select("preco_desonerado,preco_nao_desonerado").in("codigo_insumo", [String(i.codigo_item), String(i.codigo_item).padStart(8, "0")]).eq("fonte", fonteItem)
+            .in("uf", [effUf, "BR"]).eq("mes_ref", effMes).order("uf", { ascending: false }).limit(1);
+          const price = prices?.[0];
           deson = Number(price?.preco_desonerado ?? 0); naoDeson = Number(price?.preco_nao_desonerado ?? 0);
         }
         return { ...i, fonte_item: fonteItem, descricao: meta?.descricao ?? "", unidade: meta?.unidade ?? "", preco_desonerado: deson, preco_nao_desonerado: naoDeson };
