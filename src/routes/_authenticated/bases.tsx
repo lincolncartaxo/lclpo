@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { fmtBRL } from "@/lib/format";
-import { Search, ChevronLeft, ChevronRight, Layers, Plus, Trash2 } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Layers, Plus, Trash2, Copy } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/bases")({
@@ -109,6 +109,33 @@ function usePaged<T = any>(
       const metaTable = isInsumo ? 'catalogo_insumos' : 'catalogo_composicoes';
       const codeColumn = isInsumo ? 'codigo_insumo' : 'codigo_composicao';
       const metaCodeColumn = 'codigo';
+
+      // Composições PRÓPRIAS não possuem uma linha em precos_historicos_composicoes:
+      // seu custo é calculado pelos itens analíticos do catálogo.
+      if (!isInsumo && fonte === PROPRIA) {
+        let ownQuery: any = (supabase as any).from('catalogo_composicoes')
+          .select('id,codigo,descricao,unidade,fonte,organization_id', { count: 'estimated' })
+          .eq('fonte', PROPRIA).range(from, to);
+        if (q.trim()) ownQuery = ownQuery.or(`codigo.ilike.%${q.trim()}%,descricao.ilike.%${q.trim()}%`);
+        const { data: ownRows, count: ownCount, error: ownError } = await ownQuery;
+        if (ownError) {
+          toast.error(`Erro ao consultar composições próprias: ${ownError.message}`);
+          setRows([]); setCount(0); return;
+        }
+        setRows((ownRows ?? []).map((r: any) => ({
+          id: r.id,
+          codigo: r.codigo,
+          fonte: r.fonte,
+          uf: null,
+          mes_ref: null,
+          descricao: r.descricao,
+          unidade: r.unidade,
+          custo_desonerado: 0,
+          custo_nao_desonerado: 0,
+        })) as any);
+        setCount(ownCount ?? 0);
+        return;
+      }
 
       // Não usar relação aninhada aqui: instalações antigas podem ter FKs
       // diferentes ou cache de schema desatualizado no PostgREST.
@@ -264,6 +291,16 @@ function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: st
     toast.success("Composição excluída"); setConfirmDel(null); onReload();
   };
 
+  const duplicate = async (r: any) => {
+    const codigo = window.prompt("Código da nova composição", `${r.codigo}-COPIA`);
+    if (!codigo?.trim()) return;
+    const { error } = await (supabase as any).rpc("duplicar_composicao_propria", {
+      p_composicao_id: r.id, p_codigo: codigo.trim(), p_descricao: `${r.descricao} - Cópia`,
+    });
+    if (error) return toast.error(error.message);
+    toast.success("Composição duplicada como modelo"); onReload();
+  };
+
   return (
     <div className="mt-4">
       <div className="flex items-center justify-between gap-2 mb-3">
@@ -296,7 +333,10 @@ function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: st
                 <td className="num">{fmtBRL(n)}</td>
                 <td className="text-right">
                   {r.fonte === PROPRIA && (
-                    <button onClick={()=>setConfirmDel(r)} className="text-destructive hover:opacity-70"><Trash2 className="size-4"/></button>
+                    <div className="flex justify-end gap-2">
+                      <button onClick={()=>duplicate(r)} className="text-primary hover:opacity-70" title="Duplicar como modelo"><Copy className="size-4"/></button>
+                      <button onClick={()=>setConfirmDel(r)} className="text-destructive hover:opacity-70" title="Excluir"><Trash2 className="size-4"/></button>
+                    </div>
                   )}
                 </td>
               </tr>
@@ -530,6 +570,7 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
 /* ---------- ITEM PICKER (busca em base_insumos OU base_composicoes) ---------- */
 type PickedItem = {
   tipo: "INSUMO" | "COMPOSICAO";
+  fonte: string;
   codigo: string;
   descricao: string;
   unidade: string | null;
@@ -558,7 +599,7 @@ function ItemPickerDialog({
       setLoading(true);
       if (tipo === "INSUMO") {
         const { data: catalogo } = await (supabase as any).from("catalogo_insumos")
-          .select("codigo,descricao,unidade")
+          .select("codigo,descricao,unidade,fonte")
           .or(`codigo.ilike.%${q}%,descricao.ilike.%${q}%`).limit(20);
         const codes = (catalogo ?? []).map((d: any) => d.codigo).filter(Boolean);
         let qy: any = (supabase as any).from("precos_historicos_insumos")
@@ -569,13 +610,13 @@ function ItemPickerDialog({
         const { data } = await qy;
         const meta = new Map<string, any>((catalogo ?? []).map((d: any) => [String(d.codigo), d]));
         setResults((data ?? []).map((d: any) => ({
-          tipo: "INSUMO", codigo: d.codigo_insumo, descricao: meta.get(String(d.codigo_insumo))?.descricao, unidade: meta.get(String(d.codigo_insumo))?.unidade,
+          tipo: "INSUMO", fonte: meta.get(String(d.codigo_insumo))?.fonte ?? "", codigo: d.codigo_insumo, descricao: meta.get(String(d.codigo_insumo))?.descricao, unidade: meta.get(String(d.codigo_insumo))?.unidade,
           preco_desonerado: Number(d.preco_desonerado) || 0,
           preco_nao_desonerado: Number(d.preco_nao_desonerado) || 0,
         })));
       } else {
         const { data: catalogo } = await (supabase as any).from("catalogo_composicoes")
-          .select("codigo,descricao,unidade")
+          .select("codigo,descricao,unidade,fonte")
           .or(`codigo.ilike.%${q}%,descricao.ilike.%${q}%`).limit(20);
         const codes = (catalogo ?? []).map((d: any) => d.codigo).filter(Boolean);
         let qy: any = (supabase as any).from("precos_historicos_composicoes")
@@ -586,7 +627,7 @@ function ItemPickerDialog({
         const { data } = await qy;
         const meta = new Map<string, any>((catalogo ?? []).map((d: any) => [String(d.codigo), d]));
         setResults((data ?? []).map((d: any) => ({
-          tipo: "COMPOSICAO", codigo: d.codigo_composicao, descricao: meta.get(String(d.codigo_composicao))?.descricao, unidade: meta.get(String(d.codigo_composicao))?.unidade,
+          tipo: "COMPOSICAO", fonte: meta.get(String(d.codigo_composicao))?.fonte ?? "", codigo: d.codigo_composicao, descricao: meta.get(String(d.codigo_composicao))?.descricao, unidade: meta.get(String(d.codigo_composicao))?.unidade,
           preco_desonerado: Number(d.custo_desonerado) || 0,
           preco_nao_desonerado: Number(d.custo_nao_desonerado) || 0,
         })));
@@ -665,22 +706,17 @@ function NovaComposicaoDialog({ open, setOpen, onCreated }: { open: boolean; set
     if (!f.codigo.trim() || !f.descricao.trim()) return toast.error("Código e descrição obrigatórios");
     if (lines.length === 0) return toast.error("Adicione pelo menos 1 item à CPU (a partir do banco)");
 
-    const { error } = await (supabase as any).from("base_propria_composicoes").insert({
-      fonte: PROPRIA, codigo: f.codigo.trim(), descricao: f.descricao.trim(), unidade: f.unidade.trim() || null,
-      uf: f.uf || null, mes_ref: f.mes_ref || null,
-      custo_desonerado: totalDeson,
-      custo_nao_desonerado: totalNaoDeson,
+    const itens = lines.map(l => ({
+      codigo_item: l.codigo,
+      fonte_item: l.fonte,
+      tipo_item: l.tipo,
+      coeficiente: Number(l.coeficiente.replace(",", ".")) || 0,
+    }));
+    const { error } = await (supabase as any).rpc("criar_composicao_propria", {
+      payload: { codigo: f.codigo.trim(), descricao: f.descricao.trim(), unidade: f.unidade.trim() || null },
+      itens,
     });
     if (error) return toast.error(error.message);
-
-    const itens = lines.map(l => ({
-      fonte: PROPRIA, codigo_composicao: f.codigo.trim(),
-      codigo_item: l.codigo, descricao: l.descricao,
-      unidade: l.unidade || null, coeficiente: Number(l.coeficiente.replace(",", ".")) || 0,
-      tipo_item: l.tipo,
-    }));
-    const { error: e2 } = await (supabase as any).from("catalogo_composicao_itens").insert(itens);
-    if (e2) return toast.error(e2.message);
 
     toast.success("Composição criada");
     reset(); setOpen(false); onCreated();
@@ -716,7 +752,7 @@ function NovaComposicaoDialog({ open, setOpen, onCreated }: { open: boolean; set
           <div className="rounded border overflow-x-auto max-h-72 overflow-y-auto">
             <table className="budget-table">
               <thead><tr>
-                <th style={{width:110}}>Tipo</th><th style={{width:120}}>Código</th><th>Descrição</th>
+                <th style={{width:110}}>Fonte</th><th style={{width:110}}>Tipo</th><th style={{width:120}}>Código</th><th>Descrição</th>
                 <th style={{width:80}}>Un.</th>
                 <th className="num" style={{width:110}}>Coef.</th>
                 <th className="num" style={{width:110}}>Pr. Deson.</th>
@@ -726,7 +762,7 @@ function NovaComposicaoDialog({ open, setOpen, onCreated }: { open: boolean; set
               <tbody>
                 {lines.map((l, i) => (
                   <tr key={`${l.tipo}-${l.codigo}`}>
-                    <td>{l.tipo === "COMPOSICAO" ? "Composição" : "Insumo"}</td>
+                    <td>{l.fonte || "—"}</td><td>{l.tipo === "COMPOSICAO" ? "Composição" : "Insumo"}</td>
                     <td>{l.codigo}</td>
                     <td>{l.descricao}</td>
                     <td>{l.unidade ?? "—"}</td>
@@ -737,7 +773,7 @@ function NovaComposicaoDialog({ open, setOpen, onCreated }: { open: boolean; set
                   </tr>
                 ))}
                 {lines.length === 0 && (
-                  <tr><td colSpan={8} className="text-center text-muted-foreground py-4 text-xs italic">
+                  <tr><td colSpan={9} className="text-center text-muted-foreground py-4 text-xs italic">
                     Nenhum item adicionado. Use "Adicionar item do banco" para incluir insumos ou composições já cadastrados.
                   </td></tr>
                 )}

@@ -1190,27 +1190,29 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
       const result: any[] = [];
       const mes = parseRef(orc.ref_precos).mes;
       for (const item of composicoes) {
-        const { data } = await (supabase as any).from("catalogo_composicao_itens").select("tipo_item,codigo_item,coeficiente").eq("fonte", item.fonte).eq("codigo_composicao", item.codigo);
+        const { data } = await (supabase as any).from("catalogo_composicao_itens").select("tipo_item,codigo_item,coeficiente,fonte_item").eq("fonte", item.fonte).eq("codigo_composicao", item.codigo);
         const rows = data ?? [], codes = rows.map((r: any) => String(r.codigo_item));
+        const fontesItens = Array.from(new Set(rows.map((r: any) => String(r.fonte_item || item.fonte))));
         const [{ data: insumoMeta }, { data: composicaoMeta }] = await Promise.all([
-          (supabase as any).from("catalogo_insumos").select("codigo,descricao,unidade").eq("fonte", item.fonte).in("codigo", codes),
-          (supabase as any).from("catalogo_composicoes").select("codigo,descricao,unidade").eq("fonte", item.fonte).in("codigo", codes),
+          (supabase as any).from("catalogo_insumos").select("codigo,descricao,unidade,fonte").in("fonte", fontesItens).in("codigo", codes),
+          (supabase as any).from("catalogo_composicoes").select("codigo,descricao,unidade,fonte").in("fonte", fontesItens).in("codigo", codes),
         ]);
-        const meta = new Map<string, { descricao?: string; unidade?: string }>([...(insumoMeta ?? []), ...(composicaoMeta ?? [])].map((m: any) => [String(m.codigo), m] as const));
+        const meta = new Map<string, { descricao?: string; unidade?: string }>([...(insumoMeta ?? []), ...(composicaoMeta ?? [])].map((m: any) => [`${m.fonte}:${m.codigo}`, m] as const));
         const col = orc.regime === "desonerado" ? "preco_desonerado" : "preco_nao_desonerado";
-        const { data: priceRows } = await (supabase as any).from("precos_historicos_insumos").select(`codigo_insumo,uf,${col}`).eq("fonte", item.fonte).in("codigo_insumo", codes).in("uf", [orc.uf || "BR", "BR"]).eq("mes_ref", mes || "");
+        const { data: priceRows } = await (supabase as any).from("precos_historicos_insumos").select(`codigo_insumo,fonte,uf,${col}`).in("fonte", fontesItens).in("codigo_insumo", codes).in("uf", [orc.uf || "BR", "BR"]).eq("mes_ref", mes || "");
         const prices = new Map<string, number>();
         for (const priceRow of priceRows ?? []) {
-          const code = String(priceRow.codigo_insumo);
+          const code = `${priceRow.fonte}:${priceRow.codigo_insumo}`;
           const isPreferredUf = String(priceRow.uf).toUpperCase() === String(orc.uf || "BR").toUpperCase();
           if (!prices.has(code) || isPreferredUf) prices.set(code, Number(priceRow[col] ?? 0));
         }
         result.push({ composicao: item.codigo, fonte: item.fonte, codigo_item: "", tipo_item: "ITEM DO ORÇAMENTO", coeficiente: "", descricao: item.descricao ?? "", unidade: item.unidade ?? "", preco_unitario: "", subtotal: Number(item.preco_unitario ?? 0), isParent: true });
         for (const row of rows) {
-          const m = meta.get(String(row.codigo_item)) ?? {};
-          let price = prices.get(String(row.codigo_item)) ?? 0;
+          const fonteItem = String(row.fonte_item || item.fonte);
+          const m = meta.get(`${fonteItem}:${row.codigo_item}`) ?? {};
+          let price = prices.get(`${fonteItem}:${row.codigo_item}`) ?? 0;
           if (String(row.tipo_item).toUpperCase() === "COMPOSICAO") {
-            const { data: childPrice } = await supabase.rpc("calcular_custo_composicao", { p_fonte: String(item.fonte), p_codigo: String(row.codigo_item), p_uf: orc.uf || "BR", p_mes_ref: mes || "", p_regime: orc.regime === "desonerado" ? "desonerado" : "nao_desonerado" });
+            const { data: childPrice } = await supabase.rpc("calcular_custo_composicao", { p_fonte: fonteItem, p_codigo: String(row.codigo_item), p_uf: orc.uf || "BR", p_mes_ref: mes || "", p_regime: orc.regime === "desonerado" ? "desonerado" : "nao_desonerado" });
             price = Number(childPrice ?? 0);
           }
           result.push({ composicao: item.codigo, fonte: item.fonte, ...row, descricao: m.descricao ?? "", unidade: m.unidade ?? "", preco_unitario: price, subtotal: Number(row.coeficiente ?? 0) * price, isParent: false });
