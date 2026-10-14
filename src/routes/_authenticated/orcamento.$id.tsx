@@ -458,9 +458,21 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf, refPrecos }: { 
     const { etapa, affected } = confirmEtapa;
     if (affected.length > 0) {
       const ids = affected.map(i => i.id);
-      const { error } = await supabase.from("orcamento_itens").delete().in("id", ids);
-      if (error) return toast.error(error.message);
+      const { error: itemError } = await supabase.from("orcamento_itens").delete().in("id", ids);
+      if (itemError) return toast.error(itemError.message);
     }
+    const { error: etapaItensError } = await supabase
+      .from("orcamento_itens")
+      .delete()
+      .eq("orcamento_id", orcId)
+      .eq("etapa", etapa);
+    if (etapaItensError) return toast.error(etapaItensError.message);
+    const { error: cronogramaError } = await supabase
+      .from("orcamento_cronograma")
+      .delete()
+      .eq("orcamento_id", orcId)
+      .eq("etapa", etapa);
+    if (cronogramaError) return toast.error(cronogramaError.message);
     setEtapasExtra(prev => prev.filter(e => e !== etapa));
     setConfirmEtapa(null);
     toast.success("Etapa excluída");
