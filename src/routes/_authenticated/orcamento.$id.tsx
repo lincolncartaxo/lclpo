@@ -235,11 +235,17 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
     });
   }, [f.uf]);
   const save = async () => {
-    const { error } = await supabase.from("orcamentos").update({
+    const updatePayload = {
       nome: f.nome, objeto: f.objeto, contrato: f.contrato, orgao: f.orgao,
       municipio: f.localizacao ?? f.municipio, localizacao: f.localizacao ?? f.municipio, uf: f.uf, engenheiro: f.engenheiro, crea: f.crea, ref_precos: f.ref_precos,
       regime: f.regime ?? "nao_desonerado",
-    } as any).eq("id", orc.id);
+    } as any;
+    let { error } = await supabase.from("orcamentos").update(updatePayload).eq("id", orc.id);
+    if (error && (error.code === "42703" || error.code === "PGRST204" || error.message?.toLowerCase().includes("localizacao"))) {
+      const fallback = { ...updatePayload };
+      delete fallback.localizacao;
+      ({ error } = await supabase.from("orcamentos").update(fallback).eq("id", orc.id));
+    }
     if (error) return toast.error(error.message);
     await recalculateBudgetPrices(orc.id, f.regime ?? "nao_desonerado", f.uf ?? null, parseRef(f.ref_precos).mes);
     toast.success("Dados Gerais salvos"); onSaved();
