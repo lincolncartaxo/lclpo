@@ -28,7 +28,23 @@ BEGIN
     FROM public.catalogo_composicao_itens
     WHERE fonte = p_fonte AND codigo_composicao = p_codigo
   LOOP
-    v_item_fonte := COALESCE(NULLIF(btrim(v_item.fonte_item), ''), p_fonte);
+    v_item_fonte := NULLIF(btrim(v_item.fonte_item), '');
+    IF v_item_fonte IS NULL AND p_fonte = 'PRÓPRIA' THEN
+      IF upper(v_item.tipo_item) = 'INSUMO' THEN
+        SELECT p.fonte INTO v_item_fonte
+        FROM public.precos_historicos_insumos p
+        WHERE p.codigo_insumo = btrim(v_item.codigo_item)
+          AND (p.uf = v_uf_search OR p.uf = 'BR')
+          AND (v_mes_search IS NULL OR p.mes_ref = v_mes_search)
+        ORDER BY (p.uf = v_uf_search) DESC, p.mes_ref DESC LIMIT 1;
+      ELSE
+        SELECT c.fonte INTO v_item_fonte
+        FROM public.catalogo_composicoes c
+        WHERE c.codigo = btrim(v_item.codigo_item) AND c.fonte <> 'PRÓPRIA'
+        ORDER BY c.fonte LIMIT 1;
+      END IF;
+    END IF;
+    v_item_fonte := COALESCE(v_item_fonte, p_fonte);
     IF upper(v_item.tipo_item) = 'INSUMO' THEN
       IF v_mes_search IS NULL THEN
         EXECUTE format('SELECT %I FROM public.precos_historicos_insumos WHERE codigo_insumo=$1 AND fonte=$2 AND (uf=$3 OR uf=''BR'') ORDER BY (uf=$3) DESC, mes_ref DESC LIMIT 1', v_col_preco)

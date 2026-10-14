@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { fmtBRL } from "@/lib/format";
-import { Search, ChevronLeft, ChevronRight, Layers, Plus, Trash2, Copy } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Layers, Plus, Trash2, Copy, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/bases")({
@@ -248,6 +248,7 @@ function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: st
   const [cpuRow, setCpuRow] = useState<any | null>(null);
   const [openNew, setOpenNew] = useState(false);
   const [confirmDel, setConfirmDel] = useState<any | null>(null);
+  const [editRow, setEditRow] = useState<any | null>(null);
   const [computed, setComputed] = useState<Record<string, { deson: number; nao_deson: number }>>({});
   const [latestMes, setLatestMes] = useState<Record<string, string>>({});
   const effUf = uf === "__all" ? "PB" : uf;
@@ -335,6 +336,7 @@ function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: st
                   {r.fonte === PROPRIA && (
                     <div className="flex justify-end gap-2">
                       <button onClick={()=>duplicate(r)} className="text-primary hover:opacity-70" title="Duplicar como modelo"><Copy className="size-4"/></button>
+                      <button onClick={()=>setEditRow(r)} className="text-primary hover:opacity-70" title="Editar composição"><Pencil className="size-4"/></button>
                       <button onClick={()=>setConfirmDel(r)} className="text-destructive hover:opacity-70" title="Excluir"><Trash2 className="size-4"/></button>
                     </div>
                   )}
@@ -349,6 +351,7 @@ function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: st
 
       <CpuSheet row={cpuRow} uf={uf} mes={mes} onClose={()=>setCpuRow(null)} />
       <NovaComposicaoDialog open={openNew} setOpen={setOpenNew} onCreated={onReload} />
+      <EditarComposicaoDialog row={editRow} onClose={()=>setEditRow(null)} onSaved={()=>{ setEditRow(null); onReload(); }} />
       <ConfirmDeleteDialog
         open={!!confirmDel}
         title="Excluir composição"
@@ -681,6 +684,46 @@ function ItemPickerDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function EditarComposicaoDialog({ row, onClose, onSaved }: { row: any | null; onClose: () => void; onSaved: () => void }) {
+  const [descricao, setDescricao] = useState("");
+  const [unidade, setUnidade] = useState("");
+  const [lines, setLines] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!row) return;
+    setDescricao(row.descricao ?? ""); setUnidade(row.unidade ?? ""); setLoading(true);
+    (async () => {
+      const { data } = await (supabase as any).from("catalogo_composicao_itens")
+        .select("codigo_item,tipo_item,coeficiente,fonte_item")
+        .eq("fonte", PROPRIA).eq("codigo_composicao", row.codigo);
+      setLines((data ?? []).map((x: any) => ({ ...x, coeficiente: String(x.coeficiente ?? 0) })));
+      setLoading(false);
+    })();
+  }, [row]);
+  const save = async () => {
+    if (!row || !descricao.trim()) return toast.error("Descrição obrigatória");
+    const { error } = await (supabase as any).from("catalogo_composicoes").update({ descricao: descricao.trim(), unidade: unidade.trim() || null }).eq("fonte", PROPRIA).eq("codigo", row.codigo);
+    if (error) return toast.error(error.message);
+    const { error: delError } = await (supabase as any).from("catalogo_composicao_itens").delete().eq("fonte", PROPRIA).eq("codigo_composicao", row.codigo);
+    if (delError) return toast.error(delError.message);
+    const { error: insertError } = await (supabase as any).from("catalogo_composicao_itens").insert(lines.map(l => ({
+      fonte: PROPRIA, codigo_composicao: row.codigo, fonte_item: l.fonte_item || null,
+      tipo_item: l.tipo_item, codigo_item: l.codigo_item, coeficiente: Number(String(l.coeficiente).replace(",", ".")) || 0,
+    })));
+    if (insertError) return toast.error(insertError.message);
+    toast.success("Composição atualizada"); onSaved();
+  };
+  return <Dialog open={!!row} onOpenChange={(open)=>{ if (!open) onClose(); }}>
+    <DialogContent className="max-w-4xl">
+      <DialogHeader><DialogTitle>Editar composição própria</DialogTitle></DialogHeader>
+      {row && <p className="text-sm text-muted-foreground">{row.codigo} · {row.fonte}</p>}
+      <div className="grid grid-cols-3 gap-3"><div className="col-span-2"><Label>Descrição</Label><Input value={descricao} onChange={e=>setDescricao(e.target.value)} /></div><div><Label>Unidade</Label><Input value={unidade} onChange={e=>setUnidade(e.target.value)} /></div></div>
+      <div className="rounded border max-h-72 overflow-auto"><table className="budget-table"><thead><tr><th>Fonte</th><th>Tipo</th><th>Código</th><th>Coeficiente</th></tr></thead><tbody>{lines.map((l,i)=><tr key={`${l.codigo_item}-${i}`}><td>{l.fonte_item || "—"}</td><td>{l.tipo_item}</td><td>{l.codigo_item}</td><td><Input className="h-8 text-right" value={l.coeficiente} onChange={e=>setLines(prev=>prev.map((x,j)=>j===i?{...x,coeficiente:e.target.value}:x))}/></td></tr>)}{!loading && !lines.length && <tr><td colSpan={4} className="p-4 text-center text-sm text-muted-foreground">Nenhum subitem encontrado.</td></tr>}</tbody></table></div>
+      <DialogFooter><Button onClick={save} disabled={loading}>Salvar alterações</Button></DialogFooter>
+    </DialogContent>
+  </Dialog>;
 }
 
 /* ---------- NOVA COMPOSIÇÃO (somente itens do banco, totais automáticos) ---------- */
