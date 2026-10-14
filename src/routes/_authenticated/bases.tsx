@@ -501,10 +501,9 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
     })();
   }, [row, uf, mes]);
 
-  // A função SQL soma com precisão total e arredonda somente na exibição.
-  // Truncar cada linha antes da soma gerava diferenças de centavos.
-  const totalDeson = trunc2(rows.reduce((acc, r) => acc + Number(r.coeficiente) * (r.preco_desonerado || 0), 0));
-  const totalNaoDeson = trunc2(rows.reduce((acc, r) => acc + Number(r.coeficiente) * (r.preco_nao_desonerado || 0), 0));
+  // Trunca cada subtotal como na CPU do orçamento e soma os valores exibidos.
+  const totalDeson = trunc2(rows.reduce((acc, r) => acc + trunc2(Number(r.coeficiente) * (r.preco_desonerado || 0)), 0));
+  const totalNaoDeson = trunc2(rows.reduce((acc, r) => acc + trunc2(Number(r.coeficiente) * (r.preco_nao_desonerado || 0)), 0));
 
   return (
     <Sheet open={!!row} onOpenChange={(o)=>{ if (!o) onClose(); }}>
