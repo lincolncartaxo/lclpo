@@ -610,8 +610,9 @@ function ExplosaoSheet({ row, onClose, regime, uf, mesRef }: { row: Item | null;
           if (uf) query = query.in("uf", [uf, "BR"]);
           if (mesRef) query = query.eq("mes_ref", mesRef);
           else query = query.order("mes_ref", { ascending: false });
-          const { data: prices } = await query.limit(1);
-          return [String(r.codigo_item), Number(prices?.[0]?.[col] ?? 0)] as const;
+          const { data: prices } = await query;
+          const price = (prices ?? []).find((p: any) => Number(p[col]) > 0) ?? prices?.[0];
+          return [String(r.codigo_item), Number(price?.[col] ?? 0)] as const;
         }
         const { data } = await supabase.rpc("calcular_custo_composicao", {
           p_fonte: fonteItem, p_codigo: String(r.codigo_item), p_uf: uf?.trim() || "PB", p_mes_ref: mesRef ?? "", p_regime: regime,
