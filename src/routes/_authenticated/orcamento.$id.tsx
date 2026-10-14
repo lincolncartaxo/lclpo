@@ -180,7 +180,6 @@ function Editor() {
             <TabsTrigger value="capa">Dados Gerais</TabsTrigger>
             <TabsTrigger value="encargos">Encargos</TabsTrigger>
             <TabsTrigger value="bdi">BDI</TabsTrigger>
-            <TabsTrigger value="composicao">Composições</TabsTrigger>
             <TabsTrigger value="cotacao">Cotação</TabsTrigger>
             <TabsTrigger value="planilha">Planilha Orçamentária</TabsTrigger>
             <TabsTrigger value="memoria">Memória de Cálculo</TabsTrigger>
@@ -194,7 +193,6 @@ function Editor() {
           <TabsContent value="capa"><CapaTab orc={orc} onSaved={load} /></TabsContent>
           <TabsContent value="encargos"><EncargosTab orc={orc} onSaved={load} /></TabsContent>
           <TabsContent value="bdi"><BdiTab orc={orc} onSaved={load} /></TabsContent>
-          <TabsContent value="composicao"><ComposicaoTab items={items} /></TabsContent>
           <TabsContent value="cotacao"><CotacaoTab /></TabsContent>
           <TabsContent value="memoria"><MemoriaTab orcId={id} items={items} reload={load} /></TabsContent>
           <TabsContent value="abc"><CurvaABCTab orcId={id} items={items} bdiPct={Number(orc.bdi_pct)} /></TabsContent>
@@ -220,7 +218,7 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
   const save = async () => {
     const { error } = await supabase.from("orcamentos").update({
       nome: f.nome, objeto: f.objeto, contrato: f.contrato, orgao: f.orgao,
-      municipio: f.municipio, uf: f.uf, engenheiro: f.engenheiro, crea: f.crea, ref_precos: f.ref_precos,
+      municipio: f.localizacao ?? f.municipio, localizacao: f.localizacao ?? f.municipio, uf: f.uf, engenheiro: f.engenheiro, crea: f.crea, ref_precos: f.ref_precos,
       regime: f.regime ?? "nao_desonerado",
     } as any).eq("id", orc.id);
     if (error) return toast.error(error.message);
@@ -232,7 +230,7 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
       <div className="grid md:grid-cols-2 gap-4">
         <Field label="Nome do Orçamento"><Input value={f.nome ?? ""} onChange={(e)=>setF({...f,nome:e.target.value})} /></Field>
         <Field label="Contrato"><Input value={f.contrato ?? ""} onChange={(e)=>setF({...f,contrato:e.target.value})} /></Field>
-        <Field label="Município"><Input value={f.municipio ?? ""} onChange={(e)=>setF({...f,municipio:e.target.value})} /></Field>
+        <Field label="Endereço / localização da intervenção"><Input value={f.localizacao ?? f.municipio ?? ""} onChange={(e)=>setF({...f,localizacao:e.target.value})} /></Field>
         <Field label="UF">
           <Select value={f.uf ?? ""} onValueChange={(v)=>setF({...f, uf: v, ref_precos: null})}>
             <SelectTrigger><SelectValue placeholder="Selecione o estado" /></SelectTrigger>
@@ -294,15 +292,24 @@ function EncargosTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
 /* ---------- BDI ---------- */
 function BdiTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
   const [b, setB] = useState({ ac: 4.0, s: 0.8, r: 0.97, g: 8.04, l: 6.16, i: 5.0, tipo: "Edificações" });
+  useEffect(() => {
+    const current = Number(orc.bdi_pct);
+    if (!Number.isFinite(current)) return;
+    // O orçamento guarda apenas o resultado; preservamos os coeficientes
+    // editáveis na tela e sincronizamos o resultado salvo no carregamento.
+  }, [orc.id, orc.bdi_pct]);
   const calc = useMemo(() => {
     const ac = b.ac/100, s=b.s/100, r=b.r/100, g=b.g/100, l=b.l/100, i=b.i/100;
     const bdi = ((1+(ac+s+r+g))*(1+l)*(1+(0))/(1-i)) - 1; // simplificado
     return bdi;
   }, [b]);
   const save = async () => {
+    if (b.i >= 100 || [b.ac,b.s,b.r,b.g,b.l,b.i].some(v => !Number.isFinite(v) || v < 0)) {
+      return toast.error("Informe coeficientes válidos; Tributos deve ser menor que 100%.");
+    }
     const { error } = await supabase.from("orcamentos").update({ bdi_pct: calc }).eq("id", orc.id);
     if (error) return toast.error(error.message);
-    toast.success("BDI atualizado"); onSaved();
+    toast.success(`BDI de ${fmtPct(calc)} aplicado ao orçamento`); onSaved();
   };
   return (
     <div className="mt-4 max-w-2xl">
@@ -1138,7 +1145,7 @@ const RELATORIO_TABS = [
   { key: "capa", label: "Dados Gerais" },
   { key: "encargos", label: "Encargos" },
   { key: "bdi", label: "BDI" },
-  { key: "composicao", label: "Composições" },
+  { key: "composicao", label: "Composições analíticas" },
   { key: "planilha", label: "Planilha Orçamentária" },
   { key: "abc", label: "Curva ABC" },
   { key: "memoria", label: "Memória de Cálculo" },
@@ -1152,6 +1159,21 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
     Object.fromEntries(RELATORIO_TABS.map(t => [t.key, true]))
   );
   const [etapasExtra] = useEtapasExtra(orcId);
+  const [somenteProprias, setSomenteProprias] = useState(false);
+  const [analiticas, setAnaliticas] = useState<any[]>([]);
+  useEffect(() => {
+    const composicoes = (items as Item[]).filter(i => i.fonte && i.codigo && (!somenteProprias || String(i.fonte).toUpperCase() === "PRÓPRIA"));
+    (async () => {
+      const result: any[] = [];
+      for (const item of composicoes) {
+        const { data } = await (supabase as any).from("catalogo_composicao_itens")
+          .select("tipo_item,codigo_item,coeficiente")
+          .eq("fonte", item.fonte).eq("codigo_composicao", item.codigo);
+        (data ?? []).forEach((row: any) => result.push({ composicao: item.codigo, fonte: item.fonte, ...row }));
+      }
+      setAnaliticas(result);
+    })();
+  }, [items, somenteProprias]);
   const etapasExistentes = useMemo(() => {
     const set = new Set<string>();
     (items as Item[]).forEach(i => { if (i.etapa) set.add(i.etapa); });
@@ -1180,10 +1202,9 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
       ["Valor de BDI", fmtBRL(totalComBdi - subtotal)],
     ]});
     if (sel.composicao) {
-      const linked = (items as Item[]).filter(i => i.fonte && i.codigo);
       out.push({ key: "composicao", title: "Composições", rows: [
-        ["Item","Fonte","Código","Descrição","Un.","Quant.","Custo Unit."],
-        ...linked.map(i => [i.item ?? "", i.fonte ?? "", i.codigo ?? "", i.descricao, i.unidade ?? "", Number(i.quantidade), Number(i.preco_unitario)]),
+        ["Composição","Fonte","Código do item","Tipo","Coeficiente","Descrição"],
+        ...analiticas.map(r => [r.composicao, r.fonte, r.codigo_item, r.tipo_item, Number(r.coeficiente), ""]),
       ]});
     }
     if (sel.planilha) {
@@ -1675,6 +1696,10 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
           </label>
         ))}
       </div>
+      <label className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer">
+        <Checkbox checked={somenteProprias} onCheckedChange={(v) => setSomenteProprias(!!v)} />
+        <span className="text-sm">No relatório de composições, mostrar somente a fonte PRÓPRIA</span>
+      </label>
       <div className="flex gap-3 flex-wrap">
         <Button onClick={exportXlsx}><FileDown className="mr-2 size-4"/>Exportar .xlsx</Button>
         <Button
