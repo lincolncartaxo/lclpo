@@ -114,7 +114,7 @@ function usePaged<T = any>(
       // seu custo é calculado pelos itens analíticos do catálogo.
       if (!isInsumo && fonte === PROPRIA) {
         let ownQuery: any = (supabase as any).from('catalogo_composicoes')
-          .select('id,codigo,descricao,unidade,fonte,organization_id', { count: 'estimated' })
+          .select('codigo,descricao,unidade,fonte,organization_id', { count: 'estimated' })
           .eq('fonte', PROPRIA).range(from, to);
         if (q.trim()) ownQuery = ownQuery.or(`codigo.ilike.%${q.trim()}%,descricao.ilike.%${q.trim()}%`);
         const { data: ownRows, count: ownCount, error: ownError } = await ownQuery;
@@ -123,7 +123,7 @@ function usePaged<T = any>(
           setRows([]); setCount(0); return;
         }
         setRows((ownRows ?? []).map((r: any) => ({
-          id: r.id,
+          id: `${r.fonte}:${r.codigo}`,
           codigo: r.codigo,
           fonte: r.fonte,
           uf: null,
@@ -295,7 +295,7 @@ function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: st
     const codigo = window.prompt("Código da nova composição", `${r.codigo}-COPIA`);
     if (!codigo?.trim()) return;
     const { error } = await (supabase as any).rpc("duplicar_composicao_propria", {
-      p_composicao_id: r.id, p_codigo: codigo.trim(), p_descricao: `${r.descricao} - Cópia`,
+      p_fonte_origem: r.fonte, p_codigo_origem: r.codigo, p_codigo: codigo.trim(), p_descricao: `${r.descricao} - Cópia`,
     });
     if (error) return toast.error(error.message);
     toast.success("Composição duplicada como modelo"); onReload();
