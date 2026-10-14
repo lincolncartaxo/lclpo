@@ -656,6 +656,7 @@ function EditarComposicaoDialog({ row, onClose, onSaved }: { row: any | null; on
   const [lines, setLines] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerIndex, setPickerIndex] = useState<number | null>(null);
   useEffect(() => {
     if (!row) return;
     setDescricao(row.descricao ?? ""); setUnidade(row.unidade ?? ""); setLoading(true);
@@ -663,7 +664,13 @@ function EditarComposicaoDialog({ row, onClose, onSaved }: { row: any | null; on
       const { data } = await (supabase as any).from("catalogo_composicao_itens")
         .select("codigo_item,tipo_item,coeficiente,fonte_item")
         .eq("fonte", PROPRIA).eq("codigo_composicao", row.codigo);
-      setLines((data ?? []).map((x: any) => ({ ...x, coeficiente: String(x.coeficiente ?? 0) })));
+      const enriched = await Promise.all((data ?? []).map(async (x: any) => {
+        const fonte = x.fonte_item || PROPRIA;
+        const table = x.tipo_item === "COMPOSICAO" ? "catalogo_composicoes" : "catalogo_insumos";
+        const { data: meta } = await (supabase as any).from(table).select("descricao,unidade").eq("fonte", fonte).eq("codigo", x.codigo_item).maybeSingle();
+        return { ...x, fonte_item: fonte, descricao: meta?.descricao ?? "", unidade: meta?.unidade ?? "", coeficiente: String(x.coeficiente ?? 0) };
+      }));
+      setLines(enriched);
       setLoading(false);
     })();
   }, [row]);
@@ -683,20 +690,26 @@ function EditarComposicaoDialog({ row, onClose, onSaved }: { row: any | null; on
     toast.success("Composição atualizada"); onSaved();
   };
   const addBlank = () => setLines(prev => [...prev, { fonte_item: "SINAPI", tipo_item: "INSUMO", codigo_item: "", coeficiente: "1" }]);
-  const addPicked = (item: PickedItem) => setLines(prev => [...prev, { fonte_item: item.fonte, tipo_item: item.tipo, codigo_item: item.codigo, coeficiente: "1" }]);
+  const addPicked = (item: PickedItem) => {
+    const next = { fonte_item: item.fonte, tipo_item: item.tipo, codigo_item: item.codigo, descricao: item.descricao ?? "", unidade: item.unidade ?? "", coeficiente: "1" };
+    setLines(prev => pickerIndex === null ? [...prev, next] : prev.map((line, index) => index === pickerIndex ? { ...line, ...next } : line));
+    setPickerIndex(null);
+  };
   return <Dialog open={!!row} onOpenChange={(open)=>{ if (!open) onClose(); }}>
     <DialogContent className="max-w-4xl">
       <DialogHeader><DialogTitle>Editar composição própria</DialogTitle></DialogHeader>
       {row && <p className="text-sm text-muted-foreground">{row.codigo} · {row.fonte}</p>}
       <div className="grid grid-cols-3 gap-3"><div className="col-span-2"><Label>Descrição</Label><Input value={descricao} onChange={e=>setDescricao(e.target.value)} /></div><div><Label>Unidade</Label><Input value={unidade} onChange={e=>setUnidade(e.target.value)} /></div></div>
-      <div className="flex gap-2 justify-end"><Button type="button" size="sm" variant="secondary" onClick={()=>setPickerOpen(true)}><Plus className="size-3 mr-1"/>Adicionar do banco</Button><Button type="button" size="sm" variant="outline" onClick={addBlank}><Plus className="size-3 mr-1"/>Adicionar linha</Button></div>
-      <div className="rounded border max-h-72 overflow-auto"><table className="budget-table"><thead><tr><th>Fonte</th><th>Tipo</th><th>Código</th><th>Coeficiente</th><th></th></tr></thead><tbody>{lines.map((l,i)=><tr key={`${l.codigo_item}-${i}`}>
+      <div className="flex gap-2 justify-end"><Button type="button" size="sm" variant="secondary" onClick={()=>{setPickerIndex(null);setPickerOpen(true);}}><Plus className="size-3 mr-1"/>Adicionar do banco</Button><Button type="button" size="sm" variant="outline" onClick={addBlank}><Plus className="size-3 mr-1"/>Adicionar linha</Button></div>
+      <div className="rounded border max-h-72 overflow-auto"><table className="budget-table"><thead><tr><th>Fonte</th><th>Tipo</th><th>Código</th><th>Descrição</th><th>Un.</th><th>Coeficiente</th><th></th></tr></thead><tbody>{lines.map((l,i)=><tr key={`${l.codigo_item}-${i}`}>
         <td><Input className="h-8 w-28" value={l.fonte_item ?? ""} onChange={e=>setLines(prev=>prev.map((x,j)=>j===i?{...x,fonte_item:e.target.value}:x))}/></td>
         <td><Select value={String(l.tipo_item).toUpperCase()} onValueChange={v=>setLines(prev=>prev.map((x,j)=>j===i?{...x,tipo_item:v}:x))}><SelectTrigger className="h-8 w-32"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="INSUMO">INSUMO</SelectItem><SelectItem value="COMPOSICAO">COMPOSIÇÃO</SelectItem></SelectContent></Select></td>
-        <td><Input className="h-8 w-32" value={l.codigo_item ?? ""} onChange={e=>setLines(prev=>prev.map((x,j)=>j===i?{...x,codigo_item:e.target.value}:x))}/></td>
+        <td><div className="flex gap-1"><Input className="h-8 w-32" value={l.codigo_item ?? ""} onChange={e=>setLines(prev=>prev.map((x,j)=>j===i?{...x,codigo_item:e.target.value,descricao:"",unidade:""}:x))}/><Button type="button" variant="outline" size="icon" className="size-8" title="Pesquisar código no banco" onClick={()=>{setPickerIndex(i);setPickerOpen(true);}}><Search className="size-3"/></Button></div></td>
+        <td className="min-w-64 text-xs">{l.descricao || <span className="text-muted-foreground">Descrição não encontrada</span>}</td>
+        <td>{l.unidade || "—"}</td>
         <td><Input className="h-8 w-28 text-right" value={l.coeficiente} onChange={e=>setLines(prev=>prev.map((x,j)=>j===i?{...x,coeficiente:e.target.value}:x))}/></td>
         <td><button type="button" className="text-destructive" title="Excluir subitem" onClick={()=>setLines(prev=>prev.filter((_,j)=>j!==i))}><Trash2 className="size-4"/></button></td>
-      </tr>)}{!loading && !lines.length && <tr><td colSpan={5} className="p-4 text-center text-sm text-muted-foreground">Nenhum subitem encontrado.</td></tr>}</tbody></table></div>
+      </tr>)}{!loading && !lines.length && <tr><td colSpan={7} className="p-4 text-center text-sm text-muted-foreground">Nenhum subitem encontrado.</td></tr>}</tbody></table></div>
       <DialogFooter><Button onClick={save} disabled={loading}>Salvar alterações</Button></DialogFooter>
       <ItemPickerDialog open={pickerOpen} setOpen={setPickerOpen} uf="" mes_ref="" onPick={addPicked} />
     </DialogContent>
