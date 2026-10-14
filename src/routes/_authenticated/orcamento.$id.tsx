@@ -670,7 +670,7 @@ function ExplosaoSheet({ row, onClose, regime, uf, mesRef }: { row: Item | null;
 }
 
 function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, refPrecos }: any) {
-  const FONTES_ALL = ["SINAPI","DER","SICRO3","SBC","ORSE","Outras"];
+  const FONTES_ALL = ["SINAPI","DER","SICRO3","SBC","ORSE","PRÓPRIA","Outras"];
   const [tab, setTab] = useState("base");
   const ref = parseRef(refPrecos);
   const mesUse: string | null = ref.mes;
