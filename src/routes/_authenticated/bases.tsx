@@ -233,8 +233,8 @@ function Pager({ page, setPage, count }: { page: number; setPage: (n: number) =>
 // Trunca em 2 casas (padrão SINAPI); arredonda antes para evitar erro de ponto flutuante.
 const trunc2 = (n: number) => Math.trunc(Math.round(n * 1e6) / 1e4) / 100;
 
-async function computeCompTotals(comp: { codigo: string; fonte: string }, uf: string, mes: string) {
-  const args = { p_fonte: comp.fonte, p_codigo: comp.codigo, p_uf: uf === "__all" ? "PB" : uf, p_mes_ref: toMesRef(mes) || "" };
+async function computeCompTotals(comp: { codigo: string; fonte: string; uf?: string | null; mes_ref?: string | null }, uf: string, mes: string) {
+  const args = { p_fonte: comp.fonte, p_codigo: comp.codigo, p_uf: uf === "__all" ? (comp.uf || "PB") : uf, p_mes_ref: toMesRef(mes || comp.mes_ref || "") || "" };
   const [{ data: deson }, { data: naoDeson }] = await Promise.all([
     supabase.rpc("calcular_custo_composicao", { ...args, p_regime: "desonerado" }),
     supabase.rpc("calcular_custo_composicao", { ...args, p_regime: "nao_desonerado" }),
@@ -275,7 +275,12 @@ function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: st
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const entries = await Promise.all(rows.map(async (r: any) => [r.id, await computeCompTotals(r, uf, mes)] as const));
+      const entries = await Promise.all(rows.map(async (r: any) => {
+        if (r.fonte !== PROPRIA) {
+          return [r.id, { deson: Number(r.custo_desonerado) || 0, nao_deson: Number(r.custo_nao_desonerado) || 0 }] as const;
+        }
+        return [r.id, await computeCompTotals(r, uf, mes)] as const;
+      }));
       if (cancelled) return;
       const map: Record<string, { deson: number; nao_deson: number }> = {};
       entries.forEach(([id, v]) => { map[id] = v; });
@@ -444,6 +449,7 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
       }
 
       const effUf = uf === "__all" ? (row.uf || "PB") : uf;
+      const effMes = toMesRef(mes || row.mes_ref || "");
       const rowsWithPrices = await Promise.all(itens.map(async (i: any) => {
         let fonteItem = String(i.fonte_item || "");
         if (!fonteItem && row.fonte === PROPRIA) {
@@ -459,13 +465,13 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
         let deson = 0;
         let naoDeson = 0;
         if (i.tipo_item === "COMPOSICAO") {
-          const desonResult = await supabase.rpc("calcular_custo_composicao", { p_fonte: fonteItem, p_codigo: String(i.codigo_item), p_uf: effUf, p_mes_ref: toMesRef(mes) || "", p_regime: "desonerado" });
-          const naoResult = await supabase.rpc("calcular_custo_composicao", { p_fonte: fonteItem, p_codigo: String(i.codigo_item), p_uf: effUf, p_mes_ref: toMesRef(mes) || "", p_regime: "nao_desonerado" });
+          const desonResult = await supabase.rpc("calcular_custo_composicao", { p_fonte: fonteItem, p_codigo: String(i.codigo_item), p_uf: effUf, p_mes_ref: effMes, p_regime: "desonerado" });
+          const naoResult = await supabase.rpc("calcular_custo_composicao", { p_fonte: fonteItem, p_codigo: String(i.codigo_item), p_uf: effUf, p_mes_ref: effMes, p_regime: "nao_desonerado" });
           deson = Number(desonResult.data ?? 0); naoDeson = Number(naoResult.data ?? 0);
         } else {
           const { data: prices } = await (supabase as any).from("precos_historicos_insumos")
             .select("preco_desonerado,preco_nao_desonerado").in("codigo_insumo", [String(i.codigo_item), String(i.codigo_item).padStart(8, "0")]).eq("fonte", fonteItem)
-            .in("uf", [effUf, "BR"]).eq("mes_ref", toMesRef(mes) || "").order("uf", { ascending: false }).limit(1);
+            .in("uf", [effUf, "BR"]).eq("mes_ref", effMes).order("uf", { ascending: false }).limit(1);
           const price = prices?.[0];
           deson = Number(price?.preco_desonerado ?? 0); naoDeson = Number(price?.preco_nao_desonerado ?? 0);
         }
