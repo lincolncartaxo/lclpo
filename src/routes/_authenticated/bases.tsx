@@ -452,15 +452,27 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
       const effMes = toMesRef(mes || row.mes_ref || "");
       const rowsWithPrices = await Promise.all(itens.map(async (i: any) => {
         let fonteItem = String(i.fonte_item || "");
+        const codeVariants = Array.from(new Set([String(i.codigo_item), String(i.codigo_item).padStart(8, "0")]));
+        let prices: any[] = [];
         if (!fonteItem && row.fonte === PROPRIA) {
-          const sourceTable = i.tipo_item === "COMPOSICAO" ? "catalogo_composicoes" : "catalogo_insumos";
-          const codeVariants = [String(i.codigo_item), String(i.codigo_item).padStart(8, "0")];
-          const { data: sources } = await (supabase as any).from(sourceTable).select("fonte").in("codigo", codeVariants).neq("fonte", PROPRIA).limit(1);
-          fonteItem = sources?.[0]?.fonte ?? "";
+          if (i.tipo_item === "INSUMO") {
+            let priceQuery: any = (supabase as any).from("precos_historicos_insumos")
+              .select("fonte,preco_desonerado,preco_nao_desonerado,uf,mes_ref")
+              .in("codigo_insumo", codeVariants).in("uf", [effUf, "BR"]);
+            if (effMes) priceQuery = priceQuery.eq("mes_ref", effMes);
+            else priceQuery = priceQuery.order("mes_ref", { ascending: false });
+            const { data } = await priceQuery.order("uf", { ascending: false }).limit(1);
+            prices = data ?? [];
+            fonteItem = prices[0]?.fonte ?? "";
+          }
+          if (!fonteItem) {
+            const sourceTable = i.tipo_item === "COMPOSICAO" ? "catalogo_composicoes" : "catalogo_insumos";
+            const { data: sources } = await (supabase as any).from(sourceTable).select("fonte").in("codigo", codeVariants).neq("fonte", PROPRIA).limit(1);
+            fonteItem = sources?.[0]?.fonte ?? "";
+          }
         }
         fonteItem = fonteItem || String(row.fonte);
         const metaTable = i.tipo_item === "COMPOSICAO" ? "catalogo_composicoes" : "catalogo_insumos";
-        const codeVariants = [String(i.codigo_item), String(i.codigo_item).padStart(8, "0")];
         const meta = (await (supabase as any).from(metaTable).select("codigo,descricao,unidade").eq("fonte", fonteItem).in("codigo", codeVariants).limit(1)).data?.[0];
         let deson = 0;
         let naoDeson = 0;
@@ -469,9 +481,15 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
           const naoResult = await supabase.rpc("calcular_custo_composicao", { p_fonte: fonteItem, p_codigo: String(i.codigo_item), p_uf: effUf, p_mes_ref: effMes, p_regime: "nao_desonerado" });
           deson = Number(desonResult.data ?? 0); naoDeson = Number(naoResult.data ?? 0);
         } else {
-          const { data: prices } = await (supabase as any).from("precos_historicos_insumos")
-            .select("preco_desonerado,preco_nao_desonerado").in("codigo_insumo", [String(i.codigo_item), String(i.codigo_item).padStart(8, "0")]).eq("fonte", fonteItem)
-            .in("uf", [effUf, "BR"]).eq("mes_ref", effMes).order("uf", { ascending: false }).limit(1);
+          if (!prices.length || prices[0]?.fonte !== fonteItem) {
+            let priceQuery: any = (supabase as any).from("precos_historicos_insumos")
+              .select("fonte,preco_desonerado,preco_nao_desonerado,uf,mes_ref")
+              .in("codigo_insumo", codeVariants).eq("fonte", fonteItem).in("uf", [effUf, "BR"]);
+            if (effMes) priceQuery = priceQuery.eq("mes_ref", effMes);
+            else priceQuery = priceQuery.order("mes_ref", { ascending: false });
+            const { data } = await priceQuery.order("uf", { ascending: false }).limit(1);
+            prices = data ?? [];
+          }
           const price = prices?.[0];
           deson = Number(price?.preco_desonerado ?? 0); naoDeson = Number(price?.preco_nao_desonerado ?? 0);
         }
@@ -673,9 +691,21 @@ function EditarComposicaoDialog({ row, onClose, onSaved }: { row: any | null; on
         .select("codigo_item,tipo_item,coeficiente,fonte_item")
         .eq("fonte", PROPRIA).eq("codigo_composicao", row.codigo);
       const enriched = await Promise.all((data ?? []).map(async (x: any) => {
-        const fonte = x.fonte_item || PROPRIA;
         const table = x.tipo_item === "COMPOSICAO" ? "catalogo_composicoes" : "catalogo_insumos";
-        const { data: meta } = await (supabase as any).from(table).select("descricao,unidade").eq("fonte", fonte).eq("codigo", x.codigo_item).maybeSingle();
+        const codeVariants = Array.from(new Set([String(x.codigo_item), String(x.codigo_item).padStart(8, "0")]));
+        let fonte = String(x.fonte_item || "");
+        if (!fonte && x.tipo_item === "INSUMO") {
+          const { data: prices } = await (supabase as any).from("precos_historicos_insumos")
+            .select("fonte").in("codigo_insumo", codeVariants).order("mes_ref", { ascending: false }).limit(1);
+          fonte = prices?.[0]?.fonte ?? "";
+        }
+        if (!fonte) {
+          const { data: sources } = await (supabase as any).from(table).select("fonte")
+            .in("codigo", codeVariants).neq("fonte", PROPRIA).limit(1);
+          fonte = sources?.[0]?.fonte ?? PROPRIA;
+        }
+        const { data: meta } = await (supabase as any).from(table).select("descricao,unidade")
+          .eq("fonte", fonte).in("codigo", codeVariants).limit(1).maybeSingle();
         return { ...x, fonte_item: fonte, descricao: meta?.descricao ?? "", unidade: meta?.unidade ?? "", coeficiente: String(x.coeficiente ?? 0) };
       }));
       setLines(enriched);
@@ -684,17 +714,16 @@ function EditarComposicaoDialog({ row, onClose, onSaved }: { row: any | null; on
   }, [row]);
   const save = async () => {
     if (!row || !descricao.trim()) return toast.error("Descrição obrigatória");
-    const { error } = await (supabase as any).from("catalogo_composicoes").update({ descricao: descricao.trim(), unidade: unidade.trim() || null }).eq("fonte", PROPRIA).eq("codigo", row.codigo);
-    if (error) return toast.error(error.message);
-    const { error: delError } = await (supabase as any).from("catalogo_composicao_itens").delete().eq("fonte", PROPRIA).eq("codigo_composicao", row.codigo);
-    if (delError) return toast.error(delError.message);
     const invalid = lines.some(l => !String(l.codigo_item ?? "").trim() || !String(l.fonte_item ?? "").trim() || !["INSUMO", "COMPOSICAO"].includes(String(l.tipo_item).toUpperCase()));
     if (invalid) return toast.error("Preencha fonte, tipo e código de todos os subitens");
-    const { error: insertError } = await (supabase as any).from("catalogo_composicao_itens").insert(lines.map(l => ({
-      fonte: PROPRIA, codigo_composicao: row.codigo, fonte_item: l.fonte_item || null,
-      tipo_item: l.tipo_item, codigo_item: l.codigo_item, coeficiente: Number(String(l.coeficiente).replace(",", ".")) || 0,
-    })));
-    if (insertError) return toast.error(insertError.message);
+    const { error } = await (supabase as any).rpc("salvar_composicao_propria", {
+      payload: { codigo: row.codigo, descricao: descricao.trim(), unidade: unidade.trim() || null },
+      itens: lines.map(l => ({
+        fonte_item: l.fonte_item, tipo_item: String(l.tipo_item).toUpperCase(),
+        codigo_item: String(l.codigo_item).trim(), coeficiente: Number(String(l.coeficiente).replace(",", ".")) || 0,
+      })),
+    });
+    if (error) return toast.error(`Erro ao salvar composição: ${error.message}`);
     toast.success("Composição atualizada"); onSaved();
   };
   const addBlank = () => setLines(prev => [...prev, { fonte_item: "SINAPI", tipo_item: "INSUMO", codigo_item: "", coeficiente: "1" }]);
@@ -747,28 +776,14 @@ function NovaComposicaoDialog({ open, setOpen, onCreated }: { open: boolean; set
     if (!f.codigo.trim() || !f.descricao.trim()) return toast.error("Código e descrição obrigatórios");
     if (lines.length === 0) return toast.error("Adicione pelo menos 1 item à CPU (a partir do banco)");
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return toast.error("Sessão expirada");
-    const { data: prof } = await supabase.from('profiles').select('id_empresa').eq('id', session.user.id).single();
-    if (!prof?.id_empresa) return toast.error("Você precisa estar vinculado a uma Empresa (Workspace) para criar composições próprias.");
-
-    const { error: e1 } = await (supabase as any).from("base_propria_composicoes").insert({
-      id_empresa: prof.id_empresa,
-      codigo: f.codigo.trim(), descricao: f.descricao.trim(), unidade: f.unidade.trim() || null,
-      custo_desonerado: 0, custo_nao_desonerado: 0
+    const { error } = await (supabase as any).rpc("salvar_composicao_propria", {
+      payload: { codigo: f.codigo.trim(), descricao: f.descricao.trim(), unidade: f.unidade.trim() || null },
+      itens: lines.map(l => ({
+        fonte_item: l.fonte, tipo_item: l.tipo, codigo_item: l.codigo,
+        coeficiente: Number(l.coeficiente.replace(",", ".")) || 0,
+      })),
     });
-    if (e1) return toast.error("Erro ao criar composição pai: " + e1.message);
-
-    const itens = lines.map(l => ({
-      fonte: "PRÓPRIA",
-      codigo_composicao: f.codigo.trim(),
-      tipo_item: l.tipo,
-      codigo_item: l.codigo,
-      coeficiente: Number(l.coeficiente.replace(",", ".")) || 0,
-    }));
-    
-    const { error: e2 } = await (supabase as any).from("catalogo_composicao_itens").insert(itens);
-    if (e2) return toast.error("Erro ao vincular itens: " + e2.message);
+    if (error) return toast.error(`Erro ao criar composição: ${error.message}`);
 
     toast.success("Composição criada na base própria");
     reset(); setOpen(false); onCreated();
