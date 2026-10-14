@@ -1191,13 +1191,30 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
       const mes = parseRef(orc.ref_precos).mes;
       for (const item of composicoes) {
         const { data } = await (supabase as any).from("catalogo_composicao_itens").select("tipo_item,codigo_item,coeficiente").eq("fonte", item.fonte).eq("codigo_composicao", item.codigo);
-        const rows = data ?? [], codes = rows.map((r: any) => r.codigo_item);
-        const { data: metaRows } = await (supabase as any).from("catalogo_insumos").select("codigo,descricao,unidade").eq("fonte", item.fonte).in("codigo", codes);
-        const meta = new Map<string, { descricao?: string; unidade?: string }>((metaRows ?? []).map((m: any) => [String(m.codigo), m] as const));
+        const rows = data ?? [], codes = rows.map((r: any) => String(r.codigo_item));
+        const [{ data: insumoMeta }, { data: composicaoMeta }] = await Promise.all([
+          (supabase as any).from("catalogo_insumos").select("codigo,descricao,unidade").eq("fonte", item.fonte).in("codigo", codes),
+          (supabase as any).from("catalogo_composicoes").select("codigo,descricao,unidade").eq("fonte", item.fonte).in("codigo", codes),
+        ]);
+        const meta = new Map<string, { descricao?: string; unidade?: string }>([...(insumoMeta ?? []), ...(composicaoMeta ?? [])].map((m: any) => [String(m.codigo), m] as const));
         const col = orc.regime === "desonerado" ? "preco_desonerado" : "preco_nao_desonerado";
-        const { data: priceRows } = await (supabase as any).from("precos_historicos_insumos").select(`codigo_insumo,${col}`).eq("fonte", item.fonte).in("codigo_insumo", codes).in("uf", [orc.uf || "BR", "BR"]).eq("mes_ref", mes || "");
-        const prices = new Map<string, number>((priceRows ?? []).map((r: any) => [String(r.codigo_insumo), Number(r[col] ?? 0)]));
-        rows.forEach((row: any) => { const m = meta.get(row.codigo_item) ?? {}; const price = prices.get(row.codigo_item) ?? 0; result.push({ composicao: item.codigo, fonte: item.fonte, ...row, descricao: m.descricao ?? "", unidade: m.unidade ?? "", preco_unitario: price, subtotal: Number(row.coeficiente ?? 0) * price }); });
+        const { data: priceRows } = await (supabase as any).from("precos_historicos_insumos").select(`codigo_insumo,uf,${col}`).eq("fonte", item.fonte).in("codigo_insumo", codes).in("uf", [orc.uf || "BR", "BR"]).eq("mes_ref", mes || "");
+        const prices = new Map<string, number>();
+        for (const priceRow of priceRows ?? []) {
+          const code = String(priceRow.codigo_insumo);
+          const isPreferredUf = String(priceRow.uf).toUpperCase() === String(orc.uf || "BR").toUpperCase();
+          if (!prices.has(code) || isPreferredUf) prices.set(code, Number(priceRow[col] ?? 0));
+        }
+        result.push({ composicao: item.codigo, fonte: item.fonte, codigo_item: "", tipo_item: "ITEM DO ORÇAMENTO", coeficiente: Number(item.quantidade ?? 0), descricao: item.descricao ?? "", unidade: item.unidade ?? "", preco_unitario: Number(item.preco_unitario ?? 0), subtotal: Number(item.quantidade ?? 0) * Number(item.preco_unitario ?? 0), isParent: true });
+        for (const row of rows) {
+          const m = meta.get(String(row.codigo_item)) ?? {};
+          let price = prices.get(String(row.codigo_item)) ?? 0;
+          if (String(row.tipo_item).toUpperCase() === "COMPOSICAO") {
+            const { data: childPrice } = await supabase.rpc("calcular_custo_composicao", { p_fonte: String(item.fonte), p_codigo: String(row.codigo_item), p_uf: orc.uf || "BR", p_mes_ref: mes || "", p_regime: orc.regime === "desonerado" ? "desonerado" : "nao_desonerado" });
+            price = Number(childPrice ?? 0);
+          }
+          result.push({ composicao: item.codigo, fonte: item.fonte, ...row, descricao: m.descricao ?? "", unidade: m.unidade ?? "", preco_unitario: price, subtotal: Number(item.quantidade ?? 0) * Number(row.coeficiente ?? 0) * price, isParent: false });
+        }
       }
       if (!cancelled) setAnaliticas(result);
     })();
@@ -1232,7 +1249,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
     ]});
     if (sel.composicao) {
       out.push({ key: "composicao", title: "Composições", rows: [
-        ["Composição","Fonte","Código do item","Tipo","Coeficiente","Descrição","Un.","Preço unitário","Subtotal"],
+        ["Composição","Fonte","Código do item","Tipo","Coeficiente / Quantidade","Descrição","Un.",`Preço unitário (${orc.regime === "desonerado" ? "Desonerado" : "Não desonerado"})`,"Total"],
         ...analiticas.map(r => [r.composicao, r.fonte, r.codigo_item, r.tipo_item, Number(r.coeficiente), r.descricao ?? "", r.unidade ?? "", Number(r.preco_unitario ?? 0), Number(r.subtotal ?? 0)]),
       ]});
     }
@@ -1421,14 +1438,16 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
         const third = String(row[2] ?? "").trim();
         const isStage = first !== "" && second === "" && third === "";
         const isTotal = first === "SUBTOTAL" || first.includes("BDI (") || first === "TOTAL GERAL";
+        const previousFirst = i > 0 ? String((s.rows[i - 1] as any[])?.[0] ?? "").trim() : "";
+        const isCompositionItem = s.key === "composicao" && first !== "" && first !== previousFirst;
         const prefix = first.match(/^([0-9]+(?:\.[0-9]+)*)/);
         const fill = isTotal ? totalFill : (!prefix || !prefix[1].includes(".")) ? rootFill : subFill;
         for (let c = 0; c <= lastCol; c++) {
           const value = row[c];
           const header = hasHead ? String((s.rows[0] as any[])[c] ?? "").toUpperCase() : "";
           const style: any = { border: allBorders, alignment: { vertical: "center", wrapText: true } };
-          if (isStage || isTotal) style.fill = { fgColor: { rgb: fill } };
-          if (isStage || isTotal || (first !== "" && second !== "")) style.font = { bold: true, color: { rgb: blue } };
+          if (isStage || isTotal || isCompositionItem) style.fill = { fgColor: { rgb: isCompositionItem ? rootFill : fill } };
+          if (isStage || isTotal || isCompositionItem) style.font = { bold: true, color: { rgb: blue } };
           if (typeof value === "number") {
             style.numFmt = /%/.test(header) ? "0.00" : /(PREÇO|CUSTO|TOTAL|INVESTIMENTO|REPASSE|CONTRAPARTIDA|BDI)/.test(header) ? 'R$ #,##0.00' : "#,##0.0000";
             style.alignment = { ...style.alignment, horizontal: "right" };
@@ -1530,18 +1549,20 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
             const firstCol = String(data.row.raw[0] || '').trim();
             const secondCol = String(data.row.raw[1] || '').trim();
             const thirdCol = String(data.row.raw[2] || '').trim();
+            const previousRaw = data.row.index > 0 ? String((hasHead ? s.rows[data.row.index] : s.rows[data.row.index - 1])?.[0] ?? '').trim() : '';
+            const isCompositionItem = s.key === 'composicao' && firstCol !== '' && firstCol !== previousRaw;
             const isSubitemMemoria = firstCol === '' && secondCol !== '' && thirdCol !== '';
             const isEtapa = firstCol !== '' && secondCol === '' && thirdCol === '';
             const isTotais = firstCol === "SUBTOTAL" || firstCol.includes("BDI (") || firstCol === "TOTAL GERAL";
 
-            if (isEtapa || firstCol === "Sem etapa" || isTotais) {
+            if (isEtapa || firstCol === "Sem etapa" || isTotais || isCompositionItem) {
               const prefixMatch = firstCol.match(/^([0-9]+(?:\.[0-9]+)*)/);
               const isRootEtapa = !prefixMatch || !prefixMatch[1].includes('.');
               // Hachura visual da linha inteira, sem desenho manual: o
               // autoTable mantém este fundo também nas quebras de página.
               data.cell.styles.fillColor = isTotais
                 ? [220, 230, 241]
-                : isRootEtapa ? [214, 224, 236] : [239, 243, 247];
+                : isCompositionItem || isRootEtapa ? [214, 224, 236] : [239, 243, 247];
               data.cell.styles.fontStyle = 'bold';
               data.cell.styles.textColor = [31, 56, 100];
             }
