@@ -18,6 +18,9 @@ import { fmtBRL, fmtPct, fmtNum } from "@/lib/format";
 import { ImportExcelDialog } from "@/components/ImportExcelDialog";
 
 /* ---------- HELPERS COMPARTILHADOS ---------- */
+// Regra SINAPI: truncar cada subtotal para centavos antes de somar as linhas.
+const trunc2 = (n: number) => Math.trunc(Math.round(n * 1e6) / 1e4) / 100;
+
 const prefixOf = (s: string) => {
   const m = (s || "").trim().match(/^([0-9]+(?:\.[0-9]+)*)/);
   return m ? m[1] : "";
@@ -638,7 +641,8 @@ function ExplosaoSheet({ row, onClose, regime, uf, mesRef }: { row: Item | null;
     })();
   }, [row, regime, uf, mesRef]);
   const priceOf = (r: any) => Number(precos[r.codigo_item ?? ""] ?? 0);
-  const total = rows.reduce((s, r) => s + Number(r.coeficiente) * priceOf(r), 0);
+  const subtotalOf = (r: any) => trunc2(Number(r.coeficiente) * priceOf(r));
+  const total = rows.reduce((s, r) => s + subtotalOf(r), 0);
   return (
     <Sheet open={!!row} onOpenChange={(o)=>{ if (!o) onClose(); }}>
       <SheetContent side="right" className="sm:max-w-2xl w-full overflow-y-auto">
@@ -663,7 +667,7 @@ function ExplosaoSheet({ row, onClose, regime, uf, mesRef }: { row: Item | null;
                   <td>{r.unidade ?? "—"}</td>
                   <td className="num">{Number(r.coeficiente).toLocaleString("pt-BR",{minimumFractionDigits:4,maximumFractionDigits:6})}</td>
                   <td className="num">{fmtBRL(priceOf(r))}</td>
-                  <td className="num">{fmtBRL(Number(r.coeficiente) * priceOf(r))}</td>
+                  <td className="num">{fmtBRL(subtotalOf(r))}</td>
                 </tr>
               ))}
               {!loading && rows.length === 0 && (
@@ -1249,7 +1253,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
             const { data: childPrice } = await supabase.rpc("calcular_custo_composicao", { p_fonte: fonteItem, p_codigo: String(row.codigo_item), p_uf: orc.uf || "BR", p_mes_ref: mes || "", p_regime: orc.regime === "desonerado" ? "desonerado" : "nao_desonerado" });
             price = Number(childPrice ?? 0);
           }
-          result.push({ composicao: item.codigo, fonte: item.fonte, ...row, descricao: m.descricao ?? "", unidade: m.unidade ?? "", preco_unitario: price, subtotal: Number(row.coeficiente ?? 0) * price, isParent: false });
+          result.push({ composicao: item.codigo, fonte: item.fonte, ...row, descricao: m.descricao ?? "", unidade: m.unidade ?? "", preco_unitario: price, subtotal: trunc2(Number(row.coeficiente ?? 0) * price), isParent: false });
         }
       }
       if (!cancelled) setAnaliticas(result);
