@@ -747,19 +747,30 @@ function NovaComposicaoDialog({ open, setOpen, onCreated }: { open: boolean; set
     if (!f.codigo.trim() || !f.descricao.trim()) return toast.error("Código e descrição obrigatórios");
     if (lines.length === 0) return toast.error("Adicione pelo menos 1 item à CPU (a partir do banco)");
 
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return toast.error("Sessão expirada");
+    const { data: prof } = await supabase.from('profiles').select('id_empresa').eq('id', session.user.id).single();
+    if (!prof?.id_empresa) return toast.error("Você precisa estar vinculado a uma Empresa (Workspace) para criar composições próprias.");
+
+    const { error: e1 } = await (supabase as any).from("base_propria_composicoes").insert({
+      id_empresa: prof.id_empresa,
+      codigo: f.codigo.trim(), descricao: f.descricao.trim(), unidade: f.unidade.trim() || null,
+      custo_desonerado: 0, custo_nao_desonerado: 0
+    });
+    if (e1) return toast.error("Erro ao criar composição pai: " + e1.message);
+
     const itens = lines.map(l => ({
-      codigo_item: l.codigo,
-      fonte_item: l.fonte,
+      fonte: "PRÓPRIA",
+      codigo_composicao: f.codigo.trim(),
       tipo_item: l.tipo,
+      codigo_item: l.codigo,
       coeficiente: Number(l.coeficiente.replace(",", ".")) || 0,
     }));
-    const { error } = await (supabase as any).rpc("criar_composicao_propria", {
-      payload: { codigo: f.codigo.trim(), descricao: f.descricao.trim(), unidade: f.unidade.trim() || null },
-      itens,
-    });
-    if (error) return toast.error(error.message);
+    
+    const { error: e2 } = await (supabase as any).from("catalogo_composicao_itens").insert(itens);
+    if (e2) return toast.error("Erro ao vincular itens: " + e2.message);
 
-    toast.success("Composição criada");
+    toast.success("Composição criada na base própria");
     reset(); setOpen(false); onCreated();
   };
 
