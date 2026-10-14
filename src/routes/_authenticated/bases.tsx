@@ -448,13 +448,15 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
         let fonteItem = String(i.fonte_item || "");
         if (!fonteItem && row.fonte === PROPRIA) {
           const sourceTable = i.tipo_item === "COMPOSICAO" ? "catalogo_composicoes" : "catalogo_insumos";
-          const { data: source } = await (supabase as any).from(sourceTable).select("fonte").eq("codigo", i.codigo_item).neq("fonte", PROPRIA).limit(1).maybeSingle();
+          const codeVariants = [String(i.codigo_item), String(i.codigo_item).padStart(8, "0")];
+          const { data: source } = await (supabase as any).from(sourceTable).select("fonte").in("codigo", codeVariants).neq("fonte", PROPRIA).limit(1).maybeSingle();
           fonteItem = source?.fonte ?? "";
         }
         fonteItem = fonteItem || String(row.fonte);
         const metaTable = i.tipo_item === "COMPOSICAO" ? "catalogo_composicoes" : "catalogo_insumos";
+        const codeVariants = [String(i.codigo_item), String(i.codigo_item).padStart(8, "0")];
         const { data: meta } = await (supabase as any).from(metaTable)
-          .select("codigo,descricao,unidade").eq("fonte", fonteItem).eq("codigo", i.codigo_item).maybeSingle();
+          .select("codigo,descricao,unidade").eq("fonte", fonteItem).in("codigo", codeVariants).limit(1).maybeSingle();
         let deson = 0;
         let naoDeson = 0;
         if (i.tipo_item === "COMPOSICAO") {
@@ -463,7 +465,7 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
           deson = Number(desonResult.data ?? 0); naoDeson = Number(naoResult.data ?? 0);
         } else {
           const { data: price } = await (supabase as any).from("precos_historicos_insumos")
-            .select("preco_desonerado,preco_nao_desonerado").eq("codigo_insumo", i.codigo_item).eq("fonte", fonteItem)
+            .select("preco_desonerado,preco_nao_desonerado").in("codigo_insumo", [String(i.codigo_item), String(i.codigo_item).padStart(8, "0")]).eq("fonte", fonteItem)
             .in("uf", [effUf, "BR"]).eq("mes_ref", toMesRef(mes) || "").order("uf", { ascending: false }).limit(1).maybeSingle();
           deson = Number(price?.preco_desonerado ?? 0); naoDeson = Number(price?.preco_nao_desonerado ?? 0);
         }

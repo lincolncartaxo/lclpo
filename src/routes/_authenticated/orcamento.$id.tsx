@@ -590,12 +590,14 @@ function ExplosaoSheet({ row, onClose, regime, uf, mesRef }: { row: Item | null;
         let fonteItem = String(r.fonte_item || "");
         if (!fonteItem && row.fonte === "PRÓPRIA") {
           const sourceTable = r.tipo_item === "COMPOSICAO" ? "catalogo_composicoes" : "catalogo_insumos";
-          const { data: source } = await (supabase as any).from(sourceTable).select("fonte").eq("codigo", r.codigo_item).neq("fonte", "PRÓPRIA").limit(1).maybeSingle();
+          const codeVariants = [String(r.codigo_item), String(r.codigo_item).padStart(8, "0")];
+          const { data: source } = await (supabase as any).from(sourceTable).select("fonte").in("codigo", codeVariants).neq("fonte", "PRÓPRIA").limit(1).maybeSingle();
           fonteItem = source?.fonte ?? "";
         }
         fonteItem = fonteItem || String(row.fonte!);
         const table = r.tipo_item === "COMPOSICAO" ? "catalogo_composicoes" : "catalogo_insumos";
-        const { data: metadata } = await (supabase as any).from(table).select("codigo,descricao,unidade").eq("fonte", fonteItem).eq("codigo", r.codigo_item).maybeSingle();
+        const codeVariants = [String(r.codigo_item), String(r.codigo_item).padStart(8, "0")];
+        const { data: metadata } = await (supabase as any).from(table).select("codigo,descricao,unidade").eq("fonte", fonteItem).in("codigo", codeVariants).limit(1).maybeSingle();
         return { ...r, fonte_item: fonteItem, descricao: metadata?.descricao ?? "", unidade: metadata?.unidade ?? "" };
       }));
       setRows(itemsWithMeta);
@@ -603,7 +605,7 @@ function ExplosaoSheet({ row, onClose, regime, uf, mesRef }: { row: Item | null;
         const fonteItem = String(r.fonte_item || row.fonte!);
         if (r.tipo_item !== "COMPOSICAO") {
           const col = regime === "desonerado" ? "preco_desonerado" : "preco_nao_desonerado";
-          let query: any = (supabase as any).from("precos_historicos_insumos").select(`uf,${col}`).eq("fonte", fonteItem).eq("codigo_insumo", r.codigo_item);
+          let query: any = (supabase as any).from("precos_historicos_insumos").select(`uf,${col}`).eq("fonte", fonteItem).in("codigo_insumo", [String(r.codigo_item), String(r.codigo_item).padStart(8, "0")]);
           if (uf) query = query.in("uf", [uf, "BR"]);
           if (mesRef) query = query.eq("mes_ref", mesRef);
           else query = query.order("mes_ref", { ascending: false });
