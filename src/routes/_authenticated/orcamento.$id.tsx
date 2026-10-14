@@ -586,46 +586,36 @@ function ExplosaoSheet({ row, onClose, regime, uf, mesRef }: { row: Item | null;
         return;
       }
       const items = data ?? [];
-      const insumoCodes = items.filter((r: any) => r.tipo_item !== "COMPOSICAO").map((r: any) => r.codigo_item).filter(Boolean);
-      const compCodesForMeta = items.filter((r: any) => r.tipo_item === "COMPOSICAO").map((r: any) => r.codigo_item).filter(Boolean);
-      const [{ data: insumoMeta }, { data: compMeta }] = await Promise.all([
-        insumoCodes.length
-          ? (supabase as any).from("catalogo_insumos").select("codigo,descricao,unidade").eq("fonte", row.fonte!).in("codigo", insumoCodes)
-          : Promise.resolve({ data: [] }),
-        compCodesForMeta.length
-          ? (supabase as any).from("catalogo_composicoes").select("codigo,descricao,unidade").eq("fonte", row.fonte!).in("codigo", compCodesForMeta)
-          : Promise.resolve({ data: [] }),
-      ]);
-      const meta = new Map<string, any>([...(insumoMeta ?? []), ...(compMeta ?? [])].map((r: any) => [String(r.codigo), r]));
-      const itemsWithMeta = items.map((r: any) => ({ ...r, descricao: meta.get(String(r.codigo_item))?.descricao ?? "", unidade: meta.get(String(r.codigo_item))?.unidade ?? "" }));
+      const itemsWithMeta = await Promise.all(items.map(async (r: any) => {
+        let fonteItem = String(r.fonte_item || "");
+        if (!fonteItem && row.fonte === "PRÓPRIA") {
+          const sourceTable = r.tipo_item === "COMPOSICAO" ? "catalogo_composicoes" : "catalogo_insumos";
+          const { data: source } = await (supabase as any).from(sourceTable).select("fonte").eq("codigo", r.codigo_item).neq("fonte", "PRÓPRIA").limit(1).maybeSingle();
+          fonteItem = source?.fonte ?? "";
+        }
+        fonteItem = fonteItem || String(row.fonte!);
+        const table = r.tipo_item === "COMPOSICAO" ? "catalogo_composicoes" : "catalogo_insumos";
+        const { data: metadata } = await (supabase as any).from(table).select("codigo,descricao,unidade").eq("fonte", fonteItem).eq("codigo", r.codigo_item).maybeSingle();
+        return { ...r, fonte_item: fonteItem, descricao: metadata?.descricao ?? "", unidade: metadata?.unidade ?? "" };
+      }));
       setRows(itemsWithMeta);
-
-      // Busca preços dos insumos automaticamente (regime + uf do orçamento)
-       const codigos = Array.from(new Set(itemsWithMeta.filter((r: any) => r.tipo_item !== "COMPOSICAO").map((r: any) => r.codigo_item).filter(Boolean)));
-       const compCodes = Array.from(new Set(itemsWithMeta.filter((r: any) => r.tipo_item === "COMPOSICAO").map((r: any) => r.codigo_item).filter(Boolean)));
-      const map: Record<string, number> = {};
-      if (codigos.length) {
-        const priceCol = regime === "desonerado" ? "preco_desonerado" : "preco_nao_desonerado";
-         let q: any = (supabase as any).from("precos_historicos_insumos").select(`codigo_insumo,fonte,uf,${priceCol}`).eq("fonte", row.fonte!).in("codigo_insumo", codigos as string[]);
-        if (uf) q = q.in("uf", [uf, 'BR']);
-        if (mesRef) q = q.eq("mes_ref", mesRef); else q = q.order("mes_ref", { ascending: false });
-        const { data: ins } = await q;
-        (ins ?? []).forEach((r: any) => {
-          // Previnir que uma versao sem mes de outra UF sobrescreva a correta (gambiarra leve pro sort)
-          if (r.codigo_insumo && map[r.codigo_insumo] == null) map[r.codigo_insumo] = Number(r[priceCol] ?? 0);
+      const entries = await Promise.all(itemsWithMeta.map(async (r: any) => {
+        const fonteItem = String(r.fonte_item || row.fonte!);
+        if (r.tipo_item !== "COMPOSICAO") {
+          const col = regime === "desonerado" ? "preco_desonerado" : "preco_nao_desonerado";
+          let query: any = (supabase as any).from("precos_historicos_insumos").select(`uf,${col}`).eq("fonte", fonteItem).eq("codigo_insumo", r.codigo_item);
+          if (uf) query = query.in("uf", [uf, "BR"]);
+          if (mesRef) query = query.eq("mes_ref", mesRef);
+          else query = query.order("mes_ref", { ascending: false });
+          const { data } = await query.limit(1).maybeSingle();
+          return [String(r.codigo_item), Number(data?.[col] ?? 0)] as const;
+        }
+        const { data } = await supabase.rpc("calcular_custo_composicao", {
+          p_fonte: fonteItem, p_codigo: String(r.codigo_item), p_uf: uf?.trim() || "PB", p_mes_ref: mesRef ?? "", p_regime: regime,
         });
-      }
-       if (compCodes.length) {
-         const entries = await Promise.all(compCodes.map(async (codigo) => {
-           const { data } = await supabase.rpc("calcular_custo_composicao", {
-             p_fonte: row.fonte!, p_codigo: String(codigo), p_uf: uf?.trim() || "PB",
-             p_mes_ref: mesRef ?? "", p_regime: regime,
-           });
-           return [String(codigo), Number(data) || 0] as const;
-         }));
-         entries.forEach(([codigo, price]) => { map[codigo] = price; });
-       }
-      setPrecos(map);
+        return [String(r.codigo_item), Number(data) || 0] as const;
+      }));
+      setPrecos(Object.fromEntries(entries));
       setLoading(false);
     })();
   }, [row, regime, uf, mesRef]);

@@ -443,68 +443,32 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
         return;
       }
 
-      const insumoCodigos = itens.filter((i: any) => i.tipo_item !== 'COMPOSICAO').map((i: any) => i.codigo_item).filter(Boolean);
-      const compCodigos = itens.filter((i: any) => i.tipo_item === 'COMPOSICAO').map((i: any) => i.codigo_item).filter(Boolean);
-      const [{ data: insumoMeta }, { data: compMeta }] = await Promise.all([
-        insumoCodigos.length
-          ? (supabase as any).from("catalogo_insumos").select("codigo,descricao,unidade").eq("fonte", row.fonte).in("codigo", insumoCodigos)
-          : Promise.resolve({ data: [] }),
-        compCodigos.length
-          ? (supabase as any).from("catalogo_composicoes").select("codigo,descricao,unidade").eq("fonte", row.fonte).in("codigo", compCodigos)
-          : Promise.resolve({ data: [] }),
-      ]);
-      const metadata = new Map<string, any>([...(insumoMeta ?? []), ...(compMeta ?? [])].map((m: any) => [String(m.codigo), m]));
-
-      const insumosPriceMap: Record<string, any> = {};
-      let compPriceMap: Record<string, any> = {};
-
-      if (insumoCodigos.length > 0) {
-        // A CPU deve respeitar a UF escolhida no filtro. Quando o filtro está
-        // em "Todos", usamos a UF do próprio registro, sem misturar BR.
-        const effUf = uf === "__all" ? (row.uf || "PB") : uf;
-        let effMes = toMesRef(mes);
-        if (!effMes) {
-          const { data: m } = await (supabase as any).from("precos_historicos_insumos")
-            .select("mes_ref,uf")
-            .eq("fonte", row.fonte)
-            .eq("uf", effUf)
-            .order("mes_ref", { ascending: false })
-            .limit(1);
-          effMes = (m?.[0] as any)?.mes_ref ?? "";
+      const effUf = uf === "__all" ? (row.uf || "PB") : uf;
+      const rowsWithPrices = await Promise.all(itens.map(async (i: any) => {
+        let fonteItem = String(i.fonte_item || "");
+        if (!fonteItem && row.fonte === PROPRIA) {
+          const sourceTable = i.tipo_item === "COMPOSICAO" ? "catalogo_composicoes" : "catalogo_insumos";
+          const { data: source } = await (supabase as any).from(sourceTable).select("fonte").eq("codigo", i.codigo_item).neq("fonte", PROPRIA).limit(1).maybeSingle();
+          fonteItem = source?.fonte ?? "";
         }
-        const { data: insData } = await (supabase as any).from("precos_historicos_insumos")
-          .select("codigo_insumo,uf,mes_ref,preco_desonerado,preco_nao_desonerado")
-          .eq("fonte", row.fonte)
-          .eq("uf", effUf)
-          .eq("mes_ref", effMes)
-          .in("codigo_insumo", insumoCodigos);
-        const orderedInsData = [...(insData ?? [])].sort((a: any, b: any) => {
-          const aExact = a.uf === effUf ? 1 : 0;
-          const bExact = b.uf === effUf ? 1 : 0;
-          return bExact - aExact;
-        });
-        orderedInsData.forEach((d: any) => { if (insumosPriceMap[d.codigo_insumo] == null) insumosPriceMap[d.codigo_insumo] = d; });
-      }
-
-      if (compCodigos.length > 0) {
-        const entries = await Promise.all(compCodigos.map(async (codigo: string) => {
-          const totals = await computeCompTotals({ codigo, fonte: row.fonte }, uf, mes);
-          return [codigo, { preco_desonerado: totals.deson, preco_nao_desonerado: totals.nao_deson }] as const;
-        }));
-        compPriceMap = Object.fromEntries(entries);
-      }
-
-      const rowsWithPrices = itens.map((i: any) => {
-        const p = i.tipo_item === 'COMPOSICAO' ? compPriceMap[i.codigo_item] : insumosPriceMap[i.codigo_item];
-        const m = metadata.get(String(i.codigo_item));
-        return {
-          ...i,
-          descricao: m?.descricao ?? "",
-          unidade: m?.unidade ?? "",
-          preco_desonerado: p?.preco_desonerado || 0,
-          preco_nao_desonerado: p?.preco_nao_desonerado || 0,
-        };
-      });
+        fonteItem = fonteItem || String(row.fonte);
+        const metaTable = i.tipo_item === "COMPOSICAO" ? "catalogo_composicoes" : "catalogo_insumos";
+        const { data: meta } = await (supabase as any).from(metaTable)
+          .select("codigo,descricao,unidade").eq("fonte", fonteItem).eq("codigo", i.codigo_item).maybeSingle();
+        let deson = 0;
+        let naoDeson = 0;
+        if (i.tipo_item === "COMPOSICAO") {
+          const desonResult = await supabase.rpc("calcular_custo_composicao", { p_fonte: fonteItem, p_codigo: String(i.codigo_item), p_uf: effUf, p_mes_ref: toMesRef(mes) || "", p_regime: "desonerado" });
+          const naoResult = await supabase.rpc("calcular_custo_composicao", { p_fonte: fonteItem, p_codigo: String(i.codigo_item), p_uf: effUf, p_mes_ref: toMesRef(mes) || "", p_regime: "nao_desonerado" });
+          deson = Number(desonResult.data ?? 0); naoDeson = Number(naoResult.data ?? 0);
+        } else {
+          const { data: price } = await (supabase as any).from("precos_historicos_insumos")
+            .select("preco_desonerado,preco_nao_desonerado").eq("codigo_insumo", i.codigo_item).eq("fonte", fonteItem)
+            .in("uf", [effUf, "BR"]).eq("mes_ref", toMesRef(mes) || "").order("uf", { ascending: false }).limit(1).maybeSingle();
+          deson = Number(price?.preco_desonerado ?? 0); naoDeson = Number(price?.preco_nao_desonerado ?? 0);
+        }
+        return { ...i, fonte_item: fonteItem, descricao: meta?.descricao ?? "", unidade: meta?.unidade ?? "", preco_desonerado: deson, preco_nao_desonerado: naoDeson };
+      }));
 
       setRows(rowsWithPrices);
       setLoading(false);
