@@ -281,8 +281,8 @@ function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: st
           </tr></thead>
           <tbody>{rows.map((r,i)=> {
             const c = computed[r.id];
-            const d = c?.deson ?? Number(r.custo_desonerado) ?? 0;
-            const n = c?.nao_deson ?? Number(r.custo_nao_desonerado) ?? 0;
+            const d = (c?.deson ?? Number(r.custo_desonerado)) || 0;
+            const n = (c?.nao_deson ?? Number(r.custo_nao_desonerado)) || 0;
             return (
               <tr key={i} className="hover:bg-muted/30">
                 <td>{r.fonte}</td><td>{r.uf ?? effUf}</td><td>{fmtMes(r.mes_ref ?? (mes ? toMesRef(mes) : latestMes[r.fonte]))}</td>
@@ -412,7 +412,7 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
       ]);
       const metadata = new Map<string, any>([...(insumoMeta ?? []), ...(compMeta ?? [])].map((m: any) => [String(m.codigo), m]));
 
-      let insumosPriceMap: Record<string, any> = {};
+      const insumosPriceMap: Record<string, any> = {};
       let compPriceMap: Record<string, any> = {};
 
       if (insumoCodigos.length > 0) {

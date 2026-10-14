@@ -231,7 +231,7 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
     if (!f.uf) { setBases([]); return; }
     supabase.rpc("listar_bases_precos" as any, { p_uf: f.uf }).then(({ data }) => {
       const next = (data as any) ?? []; setBases(next);
-      setF(prev => ({ ...prev, ref_precos: prev.ref_precos && next.some((b: any) => `${b.fonte}|${b.mes_ref}` === prev.ref_precos) ? prev.ref_precos : (next[0] ? `${next[0].fonte}|${next[0].mes_ref}` : "") }));
+      setF((prev: Orc) => ({ ...prev, ref_precos: prev.ref_precos && next.some((b: any) => `${b.fonte}|${b.mes_ref}` === prev.ref_precos) ? prev.ref_precos : (next[0] ? `${next[0].fonte}|${next[0].mes_ref}` : "") }));
     });
   }, [f.uf]);
   const save = async () => {
@@ -1187,10 +1187,10 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
         const { data } = await (supabase as any).from("catalogo_composicao_itens").select("tipo_item,codigo_item,coeficiente").eq("fonte", item.fonte).eq("codigo_composicao", item.codigo);
         const rows = data ?? [], codes = rows.map((r: any) => r.codigo_item);
         const { data: metaRows } = await (supabase as any).from("catalogo_insumos").select("codigo,descricao,unidade").eq("fonte", item.fonte).in("codigo", codes);
-        const meta = new Map((metaRows ?? []).map((m: any) => [m.codigo, m]));
+        const meta = new Map<string, { descricao?: string; unidade?: string }>((metaRows ?? []).map((m: any) => [String(m.codigo), m] as const));
         const col = orc.regime === "desonerado" ? "preco_desonerado" : "preco_nao_desonerado";
         const { data: priceRows } = await (supabase as any).from("precos_historicos_insumos").select(`codigo_insumo,${col}`).eq("fonte", item.fonte).in("codigo_insumo", codes).in("uf", [orc.uf || "BR", "BR"]).eq("mes_ref", mes || "");
-        const prices = new Map((priceRows ?? []).map((r: any) => [r.codigo_insumo, Number(r[col] ?? 0)]));
+        const prices = new Map<string, number>((priceRows ?? []).map((r: any) => [String(r.codigo_insumo), Number(r[col] ?? 0)]));
         rows.forEach((row: any) => { const m = meta.get(row.codigo_item) ?? {}; const price = prices.get(row.codigo_item) ?? 0; result.push({ composicao: item.codigo, fonte: item.fonte, ...row, descricao: m.descricao ?? "", unidade: m.unidade ?? "", preco_unitario: price, subtotal: Number(row.coeficiente ?? 0) * price }); });
       }
       if (!cancelled) setAnaliticas(result);
@@ -1445,7 +1445,8 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
         { s: { r: titleRowIndex, c: 0 }, e: { r: titleRowIndex, c: lastCol } }
       ];
       
-      XLSX.utils.book_append_sheet(wb, ws, s.title.substring(0, 31).replace(/[\[\]\*\?\/\:]/g, ''));
+      const safeSheetName = s.title.substring(0, 31).split('').filter((char) => !'[]*?/\\:'.includes(char)).join('');
+      XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
     });
     
     XLSX.writeFile(wb, `${orc.nome || "orcamento"}.xlsx`, { cellStyles: true });

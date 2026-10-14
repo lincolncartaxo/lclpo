@@ -70,7 +70,7 @@ const num = (value: Cell) => {
 const unique = (values: string[]) =>
   Array.from(new Set(values.filter(Boolean))).sort((a, b) => a.localeCompare(b));
 // Supabase ainda não possui as tabelas comerciais no tipo gerado.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 const db = supabase as any;
 
 export function ImportExcelDialog({
@@ -260,7 +260,9 @@ export function ImportExcelDialog({
         const fonte = text(get(row, "fonte")).toUpperCase();
         if (!item && !codigo && !descricao) continue;
         const etapa = quantidade === 0 && (!codigo || !fonte);
-        const etapaNome = etapa ? [item, descricao].filter(Boolean).join(" - ") : currentStage;
+        const etapaNome: string | null = etapa
+          ? [item, descricao].filter(Boolean).join(" - ")
+          : currentStage;
         if (etapa) currentStage = etapaNome || null;
         parsed.push({
           linha: line,
