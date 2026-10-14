@@ -9,6 +9,6 @@ AS $$
   SELECT DISTINCT p.fonte, p.mes_ref
   FROM public.precos_historicos_insumos p
   WHERE upper(p.uf) IN (upper(p_uf), 'BR')
-  ORDER BY p.fonte, p.mes_ref DESC;
+  ORDER BY p.mes_ref DESC, p.fonte;
 $$;
 GRANT EXECUTE ON FUNCTION public.listar_bases_precos(text) TO authenticated;

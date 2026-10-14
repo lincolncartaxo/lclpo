@@ -267,10 +267,9 @@ function UploadBasesModal() {
       const bytes = await file.arrayBuffer();
       // SINAPI e várias bases brasileiras são distribuídas em Windows-1252.
       // A leitura automática evita transformar acentos em � antes da importação.
-      const utf8 = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
-      const text = utf8.includes("�")
-        ? new TextDecoder("windows-1252").decode(bytes)
-        : utf8;
+      let text: string;
+      try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
+      catch { text = new TextDecoder("windows-1252").decode(bytes); }
       const r = await importFn({ 
         data: { 
           fonte: form.fonte, 

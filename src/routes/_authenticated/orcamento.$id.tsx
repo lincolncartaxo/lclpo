@@ -229,7 +229,10 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
   const [bases, setBases] = useState<{ fonte: string; mes_ref: string }[]>([]);
   useEffect(() => {
     if (!f.uf) { setBases([]); return; }
-    supabase.rpc("listar_bases_precos" as any, { p_uf: f.uf }).then(({ data }) => setBases((data as any) ?? []));
+    supabase.rpc("listar_bases_precos" as any, { p_uf: f.uf }).then(({ data }) => {
+      const next = (data as any) ?? []; setBases(next);
+      setF(prev => ({ ...prev, ref_precos: prev.ref_precos && next.some((b: any) => `${b.fonte}|${b.mes_ref}` === prev.ref_precos) ? prev.ref_precos : (next[0] ? `${next[0].fonte}|${next[0].mes_ref}` : "") }));
+    });
   }, [f.uf]);
   const save = async () => {
     const { error } = await supabase.from("orcamentos").update({
@@ -307,13 +310,10 @@ function EncargosTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
 
 /* ---------- BDI ---------- */
 function BdiTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
-  const [b, setB] = useState({ ac: 4.0, s: 0.8, r: 0.97, g: 8.04, l: 6.16, i: 5.0, tipo: "Edificações" });
+  const [b, setB] = useState({ ac: Number(orc.bdi_ac ?? 4.0), s: Number(orc.bdi_s ?? 0.8), r: Number(orc.bdi_r ?? 0.97), g: Number(orc.bdi_g ?? 8.04), l: Number(orc.bdi_l ?? 6.16), i: Number(orc.bdi_i ?? 5.0), tipo: "Edificações" });
   useEffect(() => {
-    const current = Number(orc.bdi_pct);
-    if (!Number.isFinite(current)) return;
-    // O orçamento guarda apenas o resultado; preservamos os coeficientes
-    // editáveis na tela e sincronizamos o resultado salvo no carregamento.
-  }, [orc.id, orc.bdi_pct]);
+    setB({ ac: Number(orc.bdi_ac ?? 4.0), s: Number(orc.bdi_s ?? 0.8), r: Number(orc.bdi_r ?? 0.97), g: Number(orc.bdi_g ?? 8.04), l: Number(orc.bdi_l ?? 6.16), i: Number(orc.bdi_i ?? 5.0), tipo: "Edificações" });
+  }, [orc.id, orc.bdi_ac, orc.bdi_s, orc.bdi_r, orc.bdi_g, orc.bdi_l, orc.bdi_i]);
   const calc = useMemo(() => {
     const ac = b.ac/100, s=b.s/100, r=b.r/100, g=b.g/100, l=b.l/100, i=b.i/100;
     const bdi = ((1+(ac+s+r+g))*(1+l)*(1+(0))/(1-i)) - 1; // simplificado
@@ -323,9 +323,9 @@ function BdiTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
     if (b.i >= 100 || [b.ac,b.s,b.r,b.g,b.l,b.i].some(v => !Number.isFinite(v) || v < 0)) {
       return toast.error("Informe coeficientes válidos; Tributos deve ser menor que 100%.");
     }
-    const { error } = await supabase.from("orcamentos").update({ bdi_pct: calc }).eq("id", orc.id);
+    const { error } = await (supabase.from("orcamentos") as any).update({ bdi_pct: Number(calc.toFixed(8)), bdi_ac: b.ac, bdi_s: b.s, bdi_r: b.r, bdi_g: b.g, bdi_l: b.l, bdi_i: b.i }).eq("id", orc.id);
     if (error) return toast.error(error.message);
-    toast.success(`BDI de ${fmtPct(calc)} aplicado ao orçamento`); onSaved();
+    toast.success(`BDI de ${fmtPct(calc)} aplicado ao orçamento`); await onSaved();
   };
   return (
     <div className="mt-4 max-w-2xl">
@@ -1178,18 +1178,25 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
   const [somenteProprias, setSomenteProprias] = useState(false);
   const [analiticas, setAnaliticas] = useState<any[]>([]);
   useEffect(() => {
-    const composicoes = (items as Item[]).filter(i => i.fonte && i.codigo && (!somenteProprias || String(i.fonte).toUpperCase() === "PRÓPRIA"));
+    let cancelled = false;
+    const composicoes = (items as Item[]).filter(i => i.fonte && i.codigo && (!somenteProprias || ["PRÓPRIA", "PROPRIA"].includes(String(i.fonte).toUpperCase())));
     (async () => {
       const result: any[] = [];
+      const mes = parseRef(orc.ref_precos).mes;
       for (const item of composicoes) {
-        const { data } = await (supabase as any).from("catalogo_composicao_itens")
-          .select("tipo_item,codigo_item,coeficiente")
-          .eq("fonte", item.fonte).eq("codigo_composicao", item.codigo);
-        (data ?? []).forEach((row: any) => result.push({ composicao: item.codigo, fonte: item.fonte, ...row }));
+        const { data } = await (supabase as any).from("catalogo_composicao_itens").select("tipo_item,codigo_item,coeficiente").eq("fonte", item.fonte).eq("codigo_composicao", item.codigo);
+        const rows = data ?? [], codes = rows.map((r: any) => r.codigo_item);
+        const { data: metaRows } = await (supabase as any).from("catalogo_insumos").select("codigo,descricao,unidade").eq("fonte", item.fonte).in("codigo", codes);
+        const meta = new Map((metaRows ?? []).map((m: any) => [m.codigo, m]));
+        const col = orc.regime === "desonerado" ? "preco_desonerado" : "preco_nao_desonerado";
+        const { data: priceRows } = await (supabase as any).from("precos_historicos_insumos").select(`codigo_insumo,${col}`).eq("fonte", item.fonte).in("codigo_insumo", codes).in("uf", [orc.uf || "BR", "BR"]).eq("mes_ref", mes || "");
+        const prices = new Map((priceRows ?? []).map((r: any) => [r.codigo_insumo, Number(r[col] ?? 0)]));
+        rows.forEach((row: any) => { const m = meta.get(row.codigo_item) ?? {}; const price = prices.get(row.codigo_item) ?? 0; result.push({ composicao: item.codigo, fonte: item.fonte, ...row, descricao: m.descricao ?? "", unidade: m.unidade ?? "", preco_unitario: price, subtotal: Number(row.coeficiente ?? 0) * price }); });
       }
-      setAnaliticas(result);
+      if (!cancelled) setAnaliticas(result);
     })();
-  }, [items, somenteProprias]);
+    return () => { cancelled = true; };
+  }, [items, somenteProprias, orc.ref_precos, orc.uf, orc.regime]);
   const etapasExistentes = useMemo(() => {
     const set = new Set<string>();
     (items as Item[]).forEach(i => { if (i.etapa) set.add(i.etapa); });
@@ -1205,8 +1212,8 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
     const out: { key: string; title: string; rows: (string|number)[][] }[] = [];
     const bdiPct = Number(orc.bdi_pct);
     if (sel.capa) out.push({ key: "capa", title: "Dados Gerais", rows: [
-      ["Nome", orc.nome ?? ""], ["Contrato", orc.contrato ?? ""], ["Município/UF", `${orc.municipio ?? ""} / ${orc.uf ?? ""}`],
-      ["Órgão", orc.orgao ?? ""], ["Referência de Preços", fmtRef(orc.ref_precos)], ["Engenheiro", orc.engenheiro ?? ""],
+      ["Nome", orc.nome ?? ""], ["Contrato", orc.contrato ?? ""], ["Endereço / localização", orc.localizacao ?? orc.municipio ?? ""], ["UF da base de preços", orc.uf ?? ""],
+      ["Órgão", orc.orgao ?? ""], ["Referência de Preços", fmtRef(orc.ref_precos)], ["Regime tributário", orc.regime === "desonerado" ? "Desonerado" : "Não desonerado"], ["Engenheiro", orc.engenheiro ?? ""],
       ["CREA", orc.crea ?? ""], ["Objeto", orc.objeto ?? ""],
     ]});
     if (sel.encargos) out.push({ key: "encargos", title: "Encargos", rows: [
@@ -1219,8 +1226,8 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
     ]});
     if (sel.composicao) {
       out.push({ key: "composicao", title: "Composições", rows: [
-        ["Composição","Fonte","Código do item","Tipo","Coeficiente","Descrição"],
-        ...analiticas.map(r => [r.composicao, r.fonte, r.codigo_item, r.tipo_item, Number(r.coeficiente), ""]),
+        ["Composição","Fonte","Código do item","Tipo","Coeficiente","Descrição","Un.","Preço unitário","Subtotal"],
+        ...analiticas.map(r => [r.composicao, r.fonte, r.codigo_item, r.tipo_item, Number(r.coeficiente), r.descricao ?? "", r.unidade ?? "", Number(r.preco_unitario ?? 0), Number(r.subtotal ?? 0)]),
       ]});
     }
     if (sel.planilha) {
@@ -1338,7 +1345,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
     secs.forEach(s => {
       const headerInfo: any[][] = [];
       if (orc.orgao) headerInfo.push(['CONCEDENTE / ÓRGÃO:', orc.orgao]);
-      if (orc.municipio) headerInfo.push(['MUNICÍPIO / UF:', `${orc.municipio} - ${orc.uf || ''}`]);
+      if (orc.localizacao || orc.municipio) headerInfo.push(['LOCALIZAÇÃO / UF DA BASE:', `${orc.localizacao || orc.municipio || ''} - ${orc.uf || ''}`]);
       if (orc.contrato) headerInfo.push(['CONTRATO:', orc.contrato]);
       if (orc.nome) headerInfo.push(['OBRA:', orc.nome.toUpperCase()]);
       if (orc.ref_precos) headerInfo.push(['DATA BASE:', orc.ref_precos.split('|')[1] || orc.ref_precos]);

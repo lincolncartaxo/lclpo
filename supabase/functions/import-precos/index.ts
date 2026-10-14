@@ -28,7 +28,10 @@ serve(async (req) => {
 
     if (!file || !fonte || !uf || !mes_ref || !tipo) throw new Error('Missing required fields')
 
-    const text = await file.text()
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    let text: string
+    try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes) }
+    catch { text = new TextDecoder('windows-1252').decode(bytes) }
     
     // O formato de subida EXIGIDO será sempre um CSV padronizado
     const parsed = Papa.parse(text, { header: true, skipEmptyLines: true })
