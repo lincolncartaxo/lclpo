@@ -48,15 +48,10 @@ function useEtapasExtra(orcId: string) {
   // Hydrate from Database (Cronograma) to prevent stages from disappearing across devices/logins
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from("orcamento_cronograma").select("etapa").eq("orcamento_id", orcId);
-      if (data && data.length > 0) {
-        const dbEtapas = data.map(r => r.etapa);
-        setEtapasExtra(prev => {
-          const merged = Array.from(new Set([...prev, ...dbEtapas]));
-          if (merged.length !== prev.length) return merged;
-          return prev;
-        });
-      }
+      const { data, error } = await supabase.from("orcamento_cronograma").select("etapa").eq("orcamento_id", orcId);
+      // O banco é a fonte oficial. Não fazer merge com o localStorage: isso
+      // fazia uma etapa excluída em outra conta reaparecer indefinidamente.
+      if (!error) setEtapasExtra(Array.from(new Set((data ?? []).map(r => r.etapa).filter(Boolean))));
     })();
   }, [orcId]);
 
@@ -64,6 +59,14 @@ function useEtapasExtra(orcId: string) {
     if (typeof window !== "undefined") window.localStorage.setItem(key, JSON.stringify(etapasExtra));
   }, [etapasExtra, key]);
   return [etapasExtra, setEtapasExtra] as const;
+}
+
+async function persistEtapaMarkers(orcamentoId: string, etapas: string[]) {
+  const values = Array.from(new Set(etapas.map(e => e.trim()).filter(Boolean)))
+    .map(etapa => ({ orcamento_id: orcamentoId, etapa, mes: 1, percentual: 0 }));
+  if (!values.length) return null;
+  const { error } = await supabase.from("orcamento_cronograma").upsert(values, { onConflict: "orcamento_id,etapa,mes" });
+  return error;
 }
 
 /** Agrupa itens nas etapas casando o prefixo do código do item com o prefixo da etapa.
@@ -411,10 +414,12 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf, refPrecos }: { 
     reload();
   };
 
-  const addEtapa = (nome: string) => {
+  const addEtapa = async (nome: string) => {
     const e = nome.trim();
     if (!e) return toast.error("Informe o nome da etapa");
     if (etapasExistentes.includes(e)) return toast.error("Etapa já existe");
+    const error = await persistEtapaMarkers(orcId, [e]);
+    if (error) return toast.error(`Não foi possível criar a etapa: ${error.message}`);
     setEtapasExtra(prev => [...prev, e]);
     toast.success("Etapa criada");
   };
@@ -442,6 +447,8 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf, refPrecos }: { 
       const next = exists ? prev.map(e => e === oldName ? nn : e) : [...prev, nn];
       return Array.from(new Set(next));
     });
+    const { error } = await supabase.from("orcamento_cronograma").update({ etapa: nn }).eq("orcamento_id", orcId).eq("etapa", oldName);
+    if (error) return toast.error(`Não foi possível renomear a etapa: ${error.message}`);
     toast.success("Etapa renomeada");
   };
 
@@ -477,7 +484,12 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf, refPrecos }: { 
         <div className="flex gap-2 items-center">
           <AddEtapaDialog open={openEtapa} setOpen={setOpenEtapa} onAdd={addEtapa} />
           <ImportExcelDialog orcId={orcId} regime={regime} uf={uf} mesRef={parseRef(refPrecos).mes} nextOrdem={items.length+1} onImported={reload}
-            onEtapas={(ns) => setEtapasExtra(prev => Array.from(new Set([...prev, ...ns.filter(n => !etapasExistentes.includes(n))])))} />
+            onEtapas={async (ns) => {
+              const novas = ns.filter(n => !etapasExistentes.includes(n));
+              const error = await persistEtapaMarkers(orcId, novas);
+              if (error) return toast.error(`Não foi possível persistir as etapas importadas: ${error.message}`);
+              setEtapasExtra(prev => Array.from(new Set([...prev, ...novas])));
+            }} />
           <AddItemDialog orcId={orcId} open={open} setOpen={setOpen} onAdded={reload} nextOrdem={items.length+1} regime={regime} uf={uf} refPrecos={refPrecos} />
 
 
