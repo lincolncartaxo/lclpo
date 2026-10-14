@@ -449,14 +449,13 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
         if (!fonteItem && row.fonte === PROPRIA) {
           const sourceTable = i.tipo_item === "COMPOSICAO" ? "catalogo_composicoes" : "catalogo_insumos";
           const codeVariants = [String(i.codigo_item), String(i.codigo_item).padStart(8, "0")];
-          const { data: source } = await (supabase as any).from(sourceTable).select("fonte").in("codigo", codeVariants).neq("fonte", PROPRIA).limit(1).maybeSingle();
-          fonteItem = source?.fonte ?? "";
+          const { data: sources } = await (supabase as any).from(sourceTable).select("fonte").in("codigo", codeVariants).neq("fonte", PROPRIA).limit(1);
+          fonteItem = sources?.[0]?.fonte ?? "";
         }
         fonteItem = fonteItem || String(row.fonte);
         const metaTable = i.tipo_item === "COMPOSICAO" ? "catalogo_composicoes" : "catalogo_insumos";
         const codeVariants = [String(i.codigo_item), String(i.codigo_item).padStart(8, "0")];
-        const { data: meta } = await (supabase as any).from(metaTable)
-          .select("codigo,descricao,unidade").eq("fonte", fonteItem).in("codigo", codeVariants).limit(1).maybeSingle();
+        const meta = (await (supabase as any).from(metaTable).select("codigo,descricao,unidade").eq("fonte", fonteItem).in("codigo", codeVariants).limit(1)).data?.[0];
         let deson = 0;
         let naoDeson = 0;
         if (i.tipo_item === "COMPOSICAO") {
@@ -464,9 +463,10 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
           const naoResult = await supabase.rpc("calcular_custo_composicao", { p_fonte: fonteItem, p_codigo: String(i.codigo_item), p_uf: effUf, p_mes_ref: toMesRef(mes) || "", p_regime: "nao_desonerado" });
           deson = Number(desonResult.data ?? 0); naoDeson = Number(naoResult.data ?? 0);
         } else {
-          const { data: price } = await (supabase as any).from("precos_historicos_insumos")
+          const { data: prices } = await (supabase as any).from("precos_historicos_insumos")
             .select("preco_desonerado,preco_nao_desonerado").in("codigo_insumo", [String(i.codigo_item), String(i.codigo_item).padStart(8, "0")]).eq("fonte", fonteItem)
-            .in("uf", [effUf, "BR"]).eq("mes_ref", toMesRef(mes) || "").order("uf", { ascending: false }).limit(1).maybeSingle();
+            .in("uf", [effUf, "BR"]).eq("mes_ref", toMesRef(mes) || "").order("uf", { ascending: false }).limit(1);
+          const price = prices?.[0];
           deson = Number(price?.preco_desonerado ?? 0); naoDeson = Number(price?.preco_nao_desonerado ?? 0);
         }
         return { ...i, fonte_item: fonteItem, descricao: meta?.descricao ?? "", unidade: meta?.unidade ?? "", preco_desonerado: deson, preco_nao_desonerado: naoDeson };

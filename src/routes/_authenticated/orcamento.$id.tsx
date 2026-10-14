@@ -591,13 +591,14 @@ function ExplosaoSheet({ row, onClose, regime, uf, mesRef }: { row: Item | null;
         if (!fonteItem && row.fonte === "PRÓPRIA") {
           const sourceTable = r.tipo_item === "COMPOSICAO" ? "catalogo_composicoes" : "catalogo_insumos";
           const codeVariants = [String(r.codigo_item), String(r.codigo_item).padStart(8, "0")];
-          const { data: source } = await (supabase as any).from(sourceTable).select("fonte").in("codigo", codeVariants).neq("fonte", "PRÓPRIA").limit(1).maybeSingle();
-          fonteItem = source?.fonte ?? "";
+          const { data: sources } = await (supabase as any).from(sourceTable).select("fonte").in("codigo", codeVariants).neq("fonte", "PRÓPRIA").limit(1);
+          fonteItem = sources?.[0]?.fonte ?? "";
         }
         fonteItem = fonteItem || String(row.fonte!);
         const table = r.tipo_item === "COMPOSICAO" ? "catalogo_composicoes" : "catalogo_insumos";
         const codeVariants = [String(r.codigo_item), String(r.codigo_item).padStart(8, "0")];
-        const { data: metadata } = await (supabase as any).from(table).select("codigo,descricao,unidade").eq("fonte", fonteItem).in("codigo", codeVariants).limit(1).maybeSingle();
+        const { data: metadataRows } = await (supabase as any).from(table).select("codigo,descricao,unidade").eq("fonte", fonteItem).in("codigo", codeVariants).limit(1);
+        const metadata = metadataRows?.[0];
         return { ...r, fonte_item: fonteItem, descricao: metadata?.descricao ?? "", unidade: metadata?.unidade ?? "" };
       }));
       setRows(itemsWithMeta);
@@ -609,8 +610,8 @@ function ExplosaoSheet({ row, onClose, regime, uf, mesRef }: { row: Item | null;
           if (uf) query = query.in("uf", [uf, "BR"]);
           if (mesRef) query = query.eq("mes_ref", mesRef);
           else query = query.order("mes_ref", { ascending: false });
-          const { data } = await query.limit(1).maybeSingle();
-          return [String(r.codigo_item), Number(data?.[col] ?? 0)] as const;
+          const { data: prices } = await query.limit(1);
+          return [String(r.codigo_item), Number(prices?.[0]?.[col] ?? 0)] as const;
         }
         const { data } = await supabase.rpc("calcular_custo_composicao", {
           p_fonte: fonteItem, p_codigo: String(r.codigo_item), p_uf: uf?.trim() || "PB", p_mes_ref: mesRef ?? "", p_regime: regime,
