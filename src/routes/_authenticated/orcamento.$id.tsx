@@ -1205,7 +1205,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
           const isPreferredUf = String(priceRow.uf).toUpperCase() === String(orc.uf || "BR").toUpperCase();
           if (!prices.has(code) || isPreferredUf) prices.set(code, Number(priceRow[col] ?? 0));
         }
-        result.push({ composicao: item.codigo, fonte: item.fonte, codigo_item: "", tipo_item: "ITEM DO ORÇAMENTO", coeficiente: Number(item.quantidade ?? 0), descricao: item.descricao ?? "", unidade: item.unidade ?? "", preco_unitario: Number(item.preco_unitario ?? 0), subtotal: Number(item.quantidade ?? 0) * Number(item.preco_unitario ?? 0), isParent: true });
+        result.push({ composicao: item.codigo, fonte: item.fonte, codigo_item: "", tipo_item: "ITEM DO ORÇAMENTO", coeficiente: "", descricao: item.descricao ?? "", unidade: item.unidade ?? "", preco_unitario: "", subtotal: Number(item.preco_unitario ?? 0), isParent: true });
         for (const row of rows) {
           const m = meta.get(String(row.codigo_item)) ?? {};
           let price = prices.get(String(row.codigo_item)) ?? 0;
@@ -1213,7 +1213,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
             const { data: childPrice } = await supabase.rpc("calcular_custo_composicao", { p_fonte: String(item.fonte), p_codigo: String(row.codigo_item), p_uf: orc.uf || "BR", p_mes_ref: mes || "", p_regime: orc.regime === "desonerado" ? "desonerado" : "nao_desonerado" });
             price = Number(childPrice ?? 0);
           }
-          result.push({ composicao: item.codigo, fonte: item.fonte, ...row, descricao: m.descricao ?? "", unidade: m.unidade ?? "", preco_unitario: price, subtotal: Number(item.quantidade ?? 0) * Number(row.coeficiente ?? 0) * price, isParent: false });
+          result.push({ composicao: item.codigo, fonte: item.fonte, ...row, descricao: m.descricao ?? "", unidade: m.unidade ?? "", preco_unitario: price, subtotal: Number(row.coeficiente ?? 0) * price, isParent: false });
         }
       }
       if (!cancelled) setAnaliticas(result);
@@ -1255,8 +1255,8 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
           r.isParent ? r.composicao : r.codigo_item,
           r.descricao ?? "",
           r.unidade ?? "",
-          Number(r.coeficiente),
-          Number(r.preco_unitario ?? 0),
+          r.isParent ? "" : Number(r.coeficiente),
+          r.isParent ? "" : Number(r.preco_unitario ?? 0),
           Number(r.subtotal ?? 0),
         ]),
       ]});
