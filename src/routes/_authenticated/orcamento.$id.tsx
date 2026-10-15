@@ -1946,7 +1946,7 @@ function MemoriaTab({ orcId, items, reload }: any) {
             <th rowSpan={2} className="p-2 border-r text-left align-middle font-medium w-16">ITEM</th>
             <th rowSpan={2} className="p-2 border-r text-left align-middle font-medium min-w-[200px]">SERVIÇO</th>
             <th rowSpan={2} className="p-2 border-r text-left align-middle font-medium min-w-[150px]">DESCRIÇÃO</th>
-            <th rowSpan={2} className="p-2 border-r text-center align-middle font-medium w-12">VEZ</th>
+            <th rowSpan={2} className="p-2 border-r text-center align-middle font-medium w-20">VEZ</th>
             <th colSpan={6} className="p-1 border-b border-r text-center font-medium">DADOS</th>
             <th colSpan={3} className="p-1 border-b border-r text-center font-medium">RESULTADO</th>
             <th rowSpan={2} className="p-2 border-r text-center align-middle font-medium w-12">UNID</th>
@@ -2050,8 +2050,8 @@ function MemoriaItemRow({ item, reload }: { item: Item; reload: () => void }) {
       {memsCalc.map((m) => (
         <tr key={m.id} className="border-b bg-muted/5">
           <td className="border-r"></td>
-          <td colSpan={2} className="p-1 border-r pl-6"><Input className="h-7 text-xs rounded-sm border-transparent hover:border-input focus:border-input w-full" value={m.descricao} onChange={e=>updateMem(m.id, 'descricao', e.target.value)} onBlur={commitMem} placeholder="Descrição do subitem..." /></td>
-          <td className="p-1 border-r"><Input type="number" className="h-8 text-sm text-center px-1" value={m.vez} onChange={e=>updateMem(m.id, 'vez', Number(e.target.value))} onBlur={commitMem} /></td>
+          <td colSpan={2} className="p-1 border-r pl-6"><Input className="h-7 text-xs rounded-sm border-transparent hover:border-input focus:border-input w-full" style={{ width: "calc(100% - 2rem)" }} value={m.descricao} onChange={e=>updateMem(m.id, 'descricao', e.target.value)} onBlur={commitMem} placeholder="Descrição do subitem..." /></td>
+          <td className="p-1 border-r w-20"><Input type="number" className="h-8 w-full text-sm text-center px-1" value={m.vez} onChange={e=>updateMem(m.id, 'vez', Number(e.target.value))} onBlur={commitMem} /></td>
           <td className="p-1 border-r"><Input type="number" className="h-8 text-sm text-center px-1" value={m.x1} onChange={e=>updateMem(m.id, 'x1', Number(e.target.value))} onBlur={commitMem} /></td>
           <td className="p-1 border-r"><Input type="number" className="h-8 text-sm text-center px-1" value={m.x2} onChange={e=>updateMem(m.id, 'x2', Number(e.target.value))} onBlur={commitMem} /></td>
           <td className="p-1 border-r"><Input type="number" className="h-8 text-sm text-center px-1" value={m.y1} onChange={e=>updateMem(m.id, 'y1', Number(e.target.value))} onBlur={commitMem} /></td>
