@@ -1736,24 +1736,29 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
             custoUnitarioReferencia: cu,
             custoUnitario: cu,
             // O JSON PLE usa fator decimal (0,24), não percentual (24).
-            bdi: r2(bdi),
+            // O formato de referência do BM usa percentual (25.0), enquanto
+            // o PLE usa fator decimal (0.24). A adaptação é específica do modo.
+            bdi: modo === "BM" ? r2(bdi * 100) : r2(bdi),
             precoUnitario: pu,
             precoTotal: r2(pu * q),
             quantidadeTotal: q,
             observacao: "",
           };
+          const allocations = pleAllocations.filter(a => a.item_id === i.id);
+          const sharedFronts = allocations.length
+            ? allocations.map(a => {
+                const front = pleFronts.find(f => f.id === a.frente_id);
+                return { numero: front?.numero ?? 0, nomeFrenteObra: front?.nome ?? "", quantidadeItens: Number(a.quantidade), ...(a.mes_conclusao ? { numeroMesConclusao: a.mes_conclusao } : {}) };
+              })
+            : [{ numero: pleFronts[0]?.numero ?? 1, nomeFrenteObra: pleFronts[0]?.nome ?? frente, quantidadeItens: q }];
           if (modo === "PLE") {
             const persistedEvent = pleEvents.find(e => e.id === i.evento_id);
-            const allocations = pleAllocations.filter(a => a.item_id === i.id);
             const eventNumber = persistedEvent?.numero ?? evNum;
             const eventTitle = persistedEvent?.titulo ?? evTitulo;
             if (!persistedEvent) erros.push(`${ref}: associe o item a um evento PLE na aba Eventos e Frentes.`);
             base.evento = { numeroEvento: eventNumber, titulo: eventTitle };
             if (allocations.length) {
-              base.frentesDeObra = allocations.map(a => {
-                const front = pleFronts.find(f => f.id === a.frente_id);
-                return { numero: front?.numero ?? 0, nomeFrenteObra: front?.nome ?? "", quantidadeItens: Number(a.quantidade), numeroMesConclusao: a.mes_conclusao ?? 1 };
-              });
+              base.frentesDeObra = sharedFronts.map(f => ({ ...f, numeroMesConclusao: f.numeroMesConclusao ?? 1 }));
               const distributed = allocations.reduce((sum, a) => sum + Number(a.quantidade || 0), 0);
               if (Math.abs(distributed - q) > 0.0001) erros.push(`${ref}: a soma das frentes (${distributed}) não corresponde à quantidade total (${q}).`);
             } else {
@@ -1761,7 +1766,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
               base.frentesDeObra = [{ numero: 1, nomeFrenteObra: frente, quantidadeItens: q, numeroMesConclusao: 1 }];
             }
           } else {
-            base.frentesDeObra = [{ numero: 1, nomeFrenteObra: frente, quantidadeItens: q }];
+            base.frentesDeObra = sharedFronts;
           }
           return base;
         });
