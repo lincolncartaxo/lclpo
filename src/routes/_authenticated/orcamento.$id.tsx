@@ -2134,14 +2134,16 @@ function CurvaABCTab({ orcId, items, bdiPct }: any) {
       <div className="rounded-lg border bg-card p-4">
         <h3 className="font-semibold mb-4 text-lg text-slate-800">Gráfico Pareto (Itens mais representativos)</h3>
         <div className="h-64 flex items-end gap-2 pb-6 relative pt-10 border-b border-l px-2 mx-16">
-          {/* Grid lines */}
-          <div className="absolute top-0 left-0 w-full border-t border-dashed border-slate-200"></div>
-          <div className="absolute top-1/4 left-0 w-full border-t border-dashed border-slate-200"></div>
-          <div className="absolute top-1/2 left-0 w-full border-t border-dashed border-slate-200"></div>
-          <div className="absolute top-3/4 left-0 w-full border-t border-dashed border-slate-200"></div>
+          {/* Linhas de grade no mesmo espaço vertical usado pelas barras */}
+          <div className="absolute left-2 right-2 top-10 bottom-6 pointer-events-none">
+            <div className="absolute top-0 left-0 w-full border-t border-dashed border-slate-200"></div>
+            <div className="absolute top-1/4 left-0 w-full border-t border-dashed border-slate-200"></div>
+            <div className="absolute top-1/2 left-0 w-full border-t border-dashed border-slate-200"></div>
+            <div className="absolute top-3/4 left-0 w-full border-t border-dashed border-slate-200"></div>
+          </div>
           
           {/* Eixo Y esquerdo (Valores) */}
-          <div className="absolute -left-20 bottom-0 top-0 flex flex-col justify-between text-[10px] text-muted-foreground pb-6">
+          <div className="absolute -left-20 top-10 bottom-6 flex flex-col justify-between text-[10px] text-muted-foreground">
             <span>{fmtBRL(maxVal)}</span>
             <span>{fmtBRL(maxVal * 0.75)}</span>
             <span>{fmtBRL(maxVal * 0.5)}</span>
@@ -2150,7 +2152,7 @@ function CurvaABCTab({ orcId, items, bdiPct }: any) {
           </div>
 
           {/* Eixo Y direito (%) */}
-          <div className="absolute -right-10 bottom-0 top-0 flex flex-col justify-between text-[10px] text-blue-600 font-medium pb-6 text-right">
+          <div className="absolute -right-10 top-10 bottom-6 flex flex-col justify-between text-[10px] text-blue-600 font-medium text-right">
             <span>100%</span>
             <span>75%</span>
             <span>50%</span>
