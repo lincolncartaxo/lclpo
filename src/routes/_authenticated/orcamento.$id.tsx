@@ -16,6 +16,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { consultarPropostaTG, enviarPOTransferegov } from "@/lib/transferegov.functions";
 import { fmtBRL, fmtPct, fmtNum } from "@/lib/format";
 import { ImportExcelDialog } from "@/components/ImportExcelDialog";
+import { PleStructureTab } from "@/components/PleStructureTab";
 
 /* ---------- HELPERS COMPARTILHADOS ---------- */
 // Regra SINAPI: truncar cada subtotal para centavos antes de somar as linhas.
@@ -112,6 +113,7 @@ type Item = {
   etapa: string | null; item: string | null; fonte: string | null;
   codigo: string | null; descricao: string; unidade: string | null;
   quantidade: number; preco_unitario: number;
+  evento_id?: string | null;
   memoria?: any[];
 };
 
@@ -207,6 +209,7 @@ function Editor() {
             <TabsTrigger value="memoria">Memória de Cálculo</TabsTrigger>
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="cronograma">Cronograma F/F</TabsTrigger>
+            <TabsTrigger value="ple">PLE — Eventos e Frentes</TabsTrigger>
             <TabsTrigger value="abc">Curva ABC</TabsTrigger>
             <TabsTrigger value="qci">QCI</TabsTrigger>
             <TabsTrigger value="relatorio">Relatório</TabsTrigger>
@@ -221,6 +224,7 @@ function Editor() {
           <TabsContent value="planilha"><PlanilhaTab orcId={id} items={items} reload={load} bdiPct={Number(orc.bdi_pct)} regime={orc.regime ?? "nao_desonerado"} uf={orc.uf ?? null} refPrecos={orc.ref_precos ?? null} /></TabsContent>
           <TabsContent value="resumo"><ResumoTab orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
           <TabsContent value="cronograma"><CronogramaTab orcId={id} items={items} totalComBdi={totalComBdi} /></TabsContent>
+          <TabsContent value="ple"><PleStructureTab orcId={id} items={items} /></TabsContent>
           <TabsContent value="qci"><QciTab orcId={id} items={items} subtotal={subtotal} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
           <TabsContent value="relatorio"><RelatorioTab orc={orc} orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} /></TabsContent>
         </Tabs>
@@ -466,8 +470,22 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf, refPrecos }: { 
   const doDeleteEtapa = async () => {
     if (!confirmEtapa) return;
     const { etapa, affected } = confirmEtapa;
-    const { error } = await (supabase as any).rpc("excluir_etapa_orcamento", { p_orcamento_id: orcId, p_etapa: etapa });
-    if (error) return toast.error(error.message);
+    const rpcResult = await (supabase as any).rpc("excluir_etapa_orcamento", { p_orcamento_id: orcId, p_etapa: etapa });
+    if (rpcResult.error) {
+      const missingRpc = /function .*excluir_etapa_orcamento.*(does not exist|not found)|could not find the function/i.test(rpcResult.error.message ?? "");
+      if (!missingRpc) return toast.error(rpcResult.error.message);
+      const prefix = prefixOf(etapa);
+      const itemIds = affected.map(i => i.id);
+      if (itemIds.length) {
+        const { error } = await supabase.from("orcamento_itens").delete().in("id", itemIds);
+        if (error) return toast.error(error.message);
+      }
+      const itemFilter = prefix ? `etapa.eq.${etapa},item.eq.${prefix},item.like.${prefix}.%` : `etapa.eq.${etapa}`;
+      const { error: itemsError } = await supabase.from("orcamento_itens").delete().eq("orcamento_id", orcId).or(itemFilter);
+      if (itemsError) return toast.error(itemsError.message);
+      const { error: cronogramaError } = await supabase.from("orcamento_cronograma").delete().eq("orcamento_id", orcId).eq("etapa", etapa);
+      if (cronogramaError) return toast.error(cronogramaError.message);
+    }
     const normalized = etapa.trim();
     setEtapasExtra(prev => prev.filter(e => e.trim() !== normalized));
     setEtapaDrafts(prev => {
@@ -1221,6 +1239,21 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
   const [etapasExtra] = useEtapasExtra(orcId);
   const [somenteProprias, setSomenteProprias] = useState(false);
   const [analiticas, setAnaliticas] = useState<any[]>([]);
+  const [pleEvents, setPleEvents] = useState<any[]>([]);
+  const [pleFronts, setPleFronts] = useState<any[]>([]);
+  const [pleAllocations, setPleAllocations] = useState<any[]>([]);
+  useEffect(() => {
+    (async () => {
+      const [events, fronts, allocations] = await Promise.all([
+        (supabase as any).from("orcamento_eventos").select("id,numero,titulo").eq("orcamento_id", orcId).order("numero"),
+        (supabase as any).from("orcamento_frentes").select("id,numero,nome").eq("orcamento_id", orcId).order("numero"),
+        (supabase as any).from("orcamento_item_frentes").select("item_id,frente_id,quantidade,mes_conclusao").eq("orcamento_id", orcId),
+      ]);
+      setPleEvents(events.data ?? []);
+      setPleFronts(fronts.data ?? []);
+      setPleAllocations(allocations.data ?? []);
+    })();
+  }, [orcId]);
   useEffect(() => {
     let cancelled = false;
     const composicoes = (items as Item[]).filter(i => i.fonte && i.codigo && (!somenteProprias || ["PRÓPRIA", "PROPRIA"].includes(String(i.fonte).toUpperCase())));
@@ -1702,15 +1735,31 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
             unidade: (i.unidade || "").toUpperCase(),
             custoUnitarioReferencia: cu,
             custoUnitario: cu,
-            bdi: r2(bdi * 100),
+            // O JSON PLE usa fator decimal (0,24), não percentual (24).
+            bdi: r2(bdi),
             precoUnitario: pu,
             precoTotal: r2(pu * q),
             quantidadeTotal: q,
             observacao: "",
           };
           if (modo === "PLE") {
-            base.evento = { numeroEvento: evNum, titulo: evTitulo };
-            base.frentesDeObra = [{ numero: 1, nomeFrenteObra: frente, quantidadeItens: q, numeroMesConclusao: 1 }];
+            const persistedEvent = pleEvents.find(e => e.id === i.evento_id);
+            const allocations = pleAllocations.filter(a => a.item_id === i.id);
+            const eventNumber = persistedEvent?.numero ?? evNum;
+            const eventTitle = persistedEvent?.titulo ?? evTitulo;
+            if (!persistedEvent) erros.push(`${ref}: associe o item a um evento PLE na aba Eventos e Frentes.`);
+            base.evento = { numeroEvento: eventNumber, titulo: eventTitle };
+            if (allocations.length) {
+              base.frentesDeObra = allocations.map(a => {
+                const front = pleFronts.find(f => f.id === a.frente_id);
+                return { numero: front?.numero ?? 0, nomeFrenteObra: front?.nome ?? "", quantidadeItens: Number(a.quantidade), numeroMesConclusao: a.mes_conclusao ?? 1 };
+              });
+              const distributed = allocations.reduce((sum, a) => sum + Number(a.quantidade || 0), 0);
+              if (Math.abs(distributed - q) > 0.0001) erros.push(`${ref}: a soma das frentes (${distributed}) não corresponde à quantidade total (${q}).`);
+            } else {
+              erros.push(`${ref}: distribua a quantidade entre as frentes de obra.`);
+              base.frentesDeObra = [{ numero: 1, nomeFrenteObra: frente, quantidadeItens: q, numeroMesConclusao: 1 }];
+            }
           } else {
             base.frentesDeObra = [{ numero: 1, nomeFrenteObra: frente, quantidadeItens: q }];
           }
