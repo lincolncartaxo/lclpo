@@ -69,9 +69,11 @@ export function PleStructureTab({ orcId, items }: { orcId: string; items: Item[]
   const addAllocation = async () => {
     if (!selected || !selectedFront) return toast.error("Selecione o item e a frente");
     const q = Number(quantity.replace(",", "."));
+    const monthNumber = Number(month);
     if (!(q > 0)) return toast.error("Informe uma quantidade maior que zero");
+    if (!Number.isInteger(monthNumber) || monthNumber < 1) return toast.error("Informe um mês de conclusão válido");
     if (allocatedTotal + q > Number(selected.quantidade) + 0.0001) return toast.error("A soma das frentes não pode exceder a quantidade total do item");
-    const { error } = await db.from("orcamento_item_frentes").upsert({ orcamento_id: orcId, item_id: selectedItem, frente_id: selectedFront, quantidade: q, mes_conclusao: month ? Number(month) : null }, { onConflict: "item_id,frente_id" });
+    const { error } = await db.from("orcamento_item_frentes").upsert({ orcamento_id: orcId, item_id: selectedItem, frente_id: selectedFront, quantidade: q, mes_conclusao: monthNumber }, { onConflict: "item_id,frente_id,mes_conclusao" });
     if (error) return toast.error(error.message);
     setQuantity(""); setMonth(""); await load(); toast.success("Distribuição salva");
   };

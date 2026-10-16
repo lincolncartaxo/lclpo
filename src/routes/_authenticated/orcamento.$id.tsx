@@ -1746,11 +1746,19 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
             observacao: "",
           };
           const allocations = pleAllocations.filter(a => a.item_id === i.id);
-          const sharedFronts = allocations.length
-            ? allocations.map(a => {
-                const front = pleFronts.find(f => f.id === a.frente_id);
-                return { numero: front?.numero ?? 0, nomeFrenteObra: front?.nome ?? "", quantidadeItens: Number(a.quantidade), ...(a.mes_conclusao ? { numeroMesConclusao: a.mes_conclusao } : {}) };
-              })
+          const rawFronts = allocations.map(a => {
+            const front = pleFronts.find(f => f.id === a.frente_id);
+            return { numero: front?.numero ?? 0, nomeFrenteObra: front?.nome ?? "", quantidadeItens: Number(a.quantidade), ...(a.mes_conclusao ? { numeroMesConclusao: a.mes_conclusao } : {}) };
+          });
+          const sharedFronts = allocations.length && modo === "BM"
+            ? Array.from(rawFronts.reduce((map, front) => {
+                const key = `${front.numero}|${front.nomeFrenteObra}`;
+                const previous = map.get(key);
+                map.set(key, { ...front, quantidadeItens: (previous?.quantidadeItens ?? 0) + front.quantidadeItens });
+                return map;
+              }, new Map<string, (typeof rawFronts)[number]>()).values())
+            : allocations.length
+            ? rawFronts
             : [{ numero: pleFronts[0]?.numero ?? 1, nomeFrenteObra: pleFronts[0]?.nome ?? frente, quantidadeItens: q }];
           if (modo === "PLE") {
             const persistedEvent = pleEvents.find(e => e.id === i.evento_id);
