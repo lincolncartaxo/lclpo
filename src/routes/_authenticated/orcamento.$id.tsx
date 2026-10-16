@@ -1672,6 +1672,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
   const [tgModo, setTgModo] = useState<"" | "PLE" | "BM">("");
   const [tgFrente, setTgFrente] = useState("");
   const [tgErros, setTgErros] = useState<string[] | null>(null);
+  const [tgValidado, setTgValidado] = useState(false);
   const [crono, setCrono] = useState<Record<string, Record<number, number>>>({});
   const [cronoMeses, setCronoMeses] = useState(6);
   useEffect(() => {
@@ -1791,7 +1792,8 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
   const exportTransferegov = () => {
     if (!tgModo) return toast.error("Escolha a modalidade de acompanhamento");
     const { erros, data } = buildTransferegov(tgModo);
-    if (erros.length) { setTgErros(erros); return; }
+    if (erros.length) { setTgErros(erros); setTgValidado(false); return; }
+    setTgErros(null); setTgValidado(true);
     const blob = new Blob([JSON.stringify(data, null, 4)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -1802,7 +1804,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
     toast.success(`JSON ${tgModo} gerado`);
   };
 
-  const [tgProp, setTgProp] = useState({ nrproposta: "", anoproposta: "", nrmeta: "", nrsubmeta: "" });
+  const [tgProp, setTgProp] = useState({ nrproposta: "", anoproposta: String(new Date().getFullYear()), nrmeta: "", nrsubmeta: "" });
   const [tgInfo, setTgInfo] = useState<any>(null);
   const [tgBusy, setTgBusy] = useState(false);
   const consultarFn = useServerFn(consultarPropostaTG);
@@ -1821,7 +1823,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
     if (!tgModo) return toast.error("Escolha a modalidade de acompanhamento");
     if (Object.values(tgProp).some(v => !v)) return toast.error("Preencha proposta, ano, meta e submeta");
     const { erros, data } = buildTransferegov(tgModo);
-    if (erros.length) { setTgErros(erros); return; }
+    if (erros.length) { setTgErros(erros); setTgValidado(false); return; }
     if (!window.confirm(`Enviar a planilha para a proposta ${tgProp.nrproposta}/${tgProp.anoproposta}, meta ${tgProp.nrmeta}, submeta ${tgProp.nrsubmeta}?`)) return;
     setTgBusy(true);
     try {
@@ -1830,6 +1832,13 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
       else setTgErros([`Transferegov recusou o envio (${r.status}): ${r.mensagem}`]);
     } catch (e: any) { toast.error(e?.message ?? "Erro ao enviar"); }
     finally { setTgBusy(false); }
+  };
+  const validarTransferegov = () => {
+    if (!tgModo) return toast.error("Escolha a modalidade de acompanhamento");
+    const { erros } = buildTransferegov(tgModo);
+    setTgErros(erros.length ? erros : null);
+    setTgValidado(!erros.length);
+    if (!erros.length) toast.success("Estrutura válida para geração do arquivo");
   };
 
   return (
@@ -1860,15 +1869,15 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
         >
           <FileDown className="mr-2 size-4"/>Exportar .pdf
         </Button>
-        <Button variant="outline" onClick={()=>{ setTgErros(null); setTgOpen(true); }}><FileDown className="mr-2 size-4"/>JSON Transferegov</Button>
+        <Button variant="outline" onClick={()=>{ setTgErros(null); setTgValidado(false); setTgOpen(true); }}><FileDown className="mr-2 size-4"/>JSON Transferegov</Button>
       </div>
       <Dialog open={tgOpen} onOpenChange={setTgOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl">
           <DialogHeader><DialogTitle>Gerar JSON para o Transferegov</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1">
               <Label>Modalidade de acompanhamento</Label>
-              <Select value={tgModo} onValueChange={(v)=>{ setTgModo(v as any); setTgErros(null); }}>
+              <Select value={tgModo} onValueChange={(v)=>{ setTgModo(v as any); setTgErros(null); setTgValidado(false); }}>
                 <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="PLE">PLE – Por Eventos</SelectItem>
@@ -1876,15 +1885,38 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                {tgModo === "BM" ? "Usa o Cronograma F/F: cada etapa com itens precisa ter percentuais mensais somando 100%."
-                  : tgModo === "PLE" ? "Cada serviço é vinculado ao evento da etapa principal."
+                {tgModo === "BM" ? "Usa as frentes cadastradas e o Cronograma F/F; cada etapa com itens precisa ter parcelas mensais somando 100%."
+                  : tgModo === "PLE" ? "Usa os eventos, as frentes e a distribuição de quantidades cadastrados no orçamento."
                   : "Escolha a modalidade antes de gerar o arquivo."}
               </p>
             </div>
-            <div className="space-y-1">
-              <Label>Nome da frente de obra</Label>
-              <Input value={tgFrente} placeholder="FRENTE 1" onChange={e=>setTgFrente(e.target.value)} />
-            </div>
+            {tgModo && <div className="rounded-md border bg-muted/20 p-3 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Estrutura compartilhada</p>
+                  <p className="text-xs text-muted-foreground">As mesmas frentes podem ser usadas nos arquivos PLE e BM.</p>
+                </div>
+                {tgValidado && <span className="text-xs font-medium text-emerald-700">Estrutura válida</span>}
+              </div>
+              <div className="grid gap-2 sm:grid-cols-3 text-sm">
+                <div className="rounded border bg-background px-3 py-2"><span className="text-muted-foreground">Eventos</span><br /><b>{pleEvents.length}</b>{tgModo === "PLE" && <span className="text-muted-foreground"> cadastrados</span>}</div>
+                <div className="rounded border bg-background px-3 py-2"><span className="text-muted-foreground">Frentes de obra</span><br /><b>{pleFronts.length}</b></div>
+                <div className="rounded border bg-background px-3 py-2"><span className="text-muted-foreground">Distribuições</span><br /><b>{pleAllocations.length}</b></div>
+              </div>
+              <div className="space-y-1">
+                <Label>Frentes cadastradas utilizadas no arquivo</Label>
+                {pleFronts.length ? <div className="flex flex-wrap gap-2">{pleFronts.map((f: any) => <span key={f.id} className="rounded-full border bg-background px-2.5 py-1 text-xs">{f.numero}. {f.nome}</span>)}</div> : <p className="text-xs text-muted-foreground">Nenhuma frente cadastrada. O arquivo usará a frente padrão abaixo.</p>}
+              </div>
+              <div className="space-y-1">
+                <Label>Nome da frente padrão</Label>
+                <Input value={tgFrente} placeholder={pleFronts[0]?.nome || "FRENTE 1"} onChange={e=>{ setTgFrente(e.target.value); setTgValidado(false); }} />
+                <p className="text-xs text-muted-foreground">Usada somente quando o item ainda não possui distribuição entre frentes.</p>
+              </div>
+            </div>}
+            {tgModo === "BM" && <div className="rounded-md border p-3 text-sm">
+              <p className="font-medium">Cronograma físico-financeiro</p>
+              <p className="text-xs text-muted-foreground">{cronoMeses} meses configurados. As parcelas de cada macroserviço serão extraídas do Cronograma F/F e validadas para totalizar 100%.</p>
+            </div>}
             <div className="rounded-md border p-3 space-y-2">
               <p className="text-sm font-medium">Envio direto ao Transferegov</p>
               <div className="grid grid-cols-2 gap-2">
@@ -1948,10 +1980,13 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
               </div>
             )}
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-wrap sm:justify-between">
             <Button variant="ghost" onClick={()=>setTgOpen(false)}>Cancelar</Button>
-            <Button variant="outline" onClick={exportTransferegov} disabled={!tgModo || tgBusy}>Baixar JSON</Button>
-            <Button onClick={enviarTransferegov} disabled={!tgModo || tgBusy}>{tgBusy ? "Enviando..." : "Enviar ao Transferegov"}</Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={validarTransferegov} disabled={!tgModo || tgBusy}>Validar estrutura</Button>
+              <Button variant="outline" onClick={exportTransferegov} disabled={!tgModo || tgBusy}>Baixar JSON</Button>
+              <Button onClick={enviarTransferegov} disabled={!tgModo || tgBusy}>{tgBusy ? "Enviando..." : "Enviar ao Transferegov"}</Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
