@@ -2205,9 +2205,10 @@ function CurvaABCTab({ orcId, items, bdiPct }: any) {
               </tr>
             </thead>
             <tbody>
-              {abcItems.map((i: any) => {
-                // Destacar faixas (A: 0-80%, B: 80-95%, C: 95-100%)
-                const isA = i.acumulado <= 80;
+              {abcItems.map((i: any, index: number) => {
+                // A inclui o item que ultrapassa 80%; B segue até 95%; o restante é C.
+                const acumuladoAnterior = index === 0 ? 0 : abcItems[index - 1].acumulado;
+                const isA = acumuladoAnterior < 80;
                 const isB = !isA && i.acumulado <= 95;
                 const rowClass = isA ? "" : isB ? "text-slate-600" : "text-slate-400";
                 
