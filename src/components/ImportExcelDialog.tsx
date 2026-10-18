@@ -69,6 +69,7 @@ const num = (value: Cell) => {
 };
 const unique = (values: string[]) =>
   Array.from(new Set(values.filter(Boolean))).sort((a, b) => a.localeCompare(b));
+const isHierarchicalLabel = (value: string) => /^\d+(?:\.\d+)*$/.test(value.trim());
 // Supabase ainda não possui as tabelas comerciais no tipo gerado.
 
 const db = supabase as any;
@@ -259,7 +260,16 @@ export function ImportExcelDialog({
         const quantidade = num(get(row, "quantidade"));
         const fonte = text(get(row, "fonte")).toUpperCase();
         if (!item && !codigo && !descricao) continue;
-        const etapa = quantidade === 0 && (!codigo || !fonte);
+        // Etapas normalmente não possuem Fonte. Algumas planilhas, porém,
+        // trazem código hierárquico e/ou um valor calculado na coluna de
+        // quantidade para a etapa. A Fonte só é obrigatória em linhas que
+        // realmente representam itens precificados.
+        const etapa = !fonte && (
+          !codigo ||
+          quantidade === 0 ||
+          isHierarchicalLabel(item) ||
+          isHierarchicalLabel(codigo)
+        );
         const etapaNome: string | null = etapa
           ? [item, descricao].filter(Boolean).join(" - ")
           : currentStage;
@@ -281,8 +291,12 @@ export function ImportExcelDialog({
         });
       }
       if (!parsed.length) return toast.error("Nenhuma linha encontrada no intervalo");
-      if (parsed.some((row) => !row.etapa && !row.fonte))
-        return toast.error("Informe a Fonte em todas as linhas de itens");
+      const missingSource = parsed.filter((row) => !row.etapa && !row.fonte);
+      if (missingSource.length) {
+        const lines = missingSource.slice(0, 8).map((row) => row.linha).join(", ");
+        const suffix = missingSource.length > 8 ? ` e mais ${missingSource.length - 8}` : "";
+        return toast.error(`Informe a Fonte nas linhas de itens ${lines}${suffix}`);
+      }
       if (!comPrecos) await resolvePrices(parsed);
       setRows(parsed);
       setStep(3);
