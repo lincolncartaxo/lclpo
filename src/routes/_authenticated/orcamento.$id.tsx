@@ -27,6 +27,12 @@ const prefixOf = (s: string) => {
   return m ? m[1] : "";
 };
 
+const splitEtapaLabel = (label: string) => {
+  const value = label.trim();
+  const match = value.match(/^([0-9]+(?:\.[0-9]+)*)(?:\s*[-–—:]\s*|\s+)?(.*)$/);
+  return match ? { item: match[1], descricao: match[2].trim() } : { item: "", descricao: value };
+};
+
 /** Compara códigos hierárquicos numericamente: "1" < "1.2" < "1.10" < "2". */
 export const cmpCode = (a: string, b: string) => {
   const pa = (a || "").split(".").map(n => parseInt(n, 10));
@@ -1421,7 +1427,8 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
       const rows: (string|number)[][] = [["Item","Fonte","Código","Descrição","Un.","Quant.","Preço Unit.","Preço Unit. c/ BDI","Total"]];
       Object.values(groups).forEach(g => {
         const totalG = g.list.reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario)*(1+bdiPct),0);
-        rows.push(["", "", "", g.label, "", "", "", "", totalG.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })]);
+        const etapa = splitEtapaLabel(g.label);
+        rows.push([etapa.item, "", "", etapa.descricao, "", "", "", "", totalG.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })]);
         g.list.forEach(i => {
           const pu = Number(i.preco_unitario); const puBdi = pu*(1+bdiPct);
           rows.push([i.item ?? "", i.fonte ?? "", i.codigo ?? "", i.descricao, i.unidade ?? "", Number(i.quantidade), pu, puBdi, Number(i.quantidade)*puBdi]);
@@ -1435,7 +1442,8 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
       const rows: (string|number)[][] = [["Item","Serviço / Descrição","Vez","X1","X2","Y1","Y2","Z1","Z2","Parcial","Total","Geral","Un."]];
       Object.values(groups).forEach(g => {
                 const totalG = g.list.reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario)*(1+bdiPct),0);
-        rows.push(["", g.label, "", "", "", "", "", "", "", "", "", totalG.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), ""]);
+        const etapa = splitEtapaLabel(g.label);
+        rows.push([etapa.item, etapa.descricao, "", "", "", "", "", "", "", "", "", totalG.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), ""]);
         g.list.forEach(i => {
           // Linha Pai
           rows.push([i.item ?? "", i.descricao, "", "", "", "", "", "", "", "", "", Number(i.quantidade), i.unidade ?? ""]);
@@ -1602,13 +1610,15 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
         const third = String(row[2] ?? "").trim();
         const fourth = String(row[3] ?? "").trim();
         const isStage = s.key === "planilha"
-          ? first === "" && second === "" && third === "" && fourth !== ""
+          ? typeof row[8] === "string" && String(row[8]).trim() !== ""
           : s.key === "memoria"
-            ? first === "" && second !== "" && third === "" && fourth === ""
+            ? typeof row[11] === "string" && String(row[11]).trim() !== ""
             : first !== "" && second === "" && third === "";
         const isTotal = first === "SUBTOTAL" || first.includes("BDI (") || first === "TOTAL GERAL";
         const isCompositionItem = s.key === "composicao" && first.startsWith("COMPOSIÇÃO (");
-        const stageLabel = isStage ? (s.key === "planilha" ? fourth : s.key === "memoria" ? second : first) : first;
+        const stageLabel = isStage
+          ? [first, s.key === "planilha" ? fourth : s.key === "memoria" ? second : ""].filter(Boolean).join(" ")
+          : first;
         const prefix = stageLabel.match(/^([0-9]+(?:\.[0-9]+)*)/);
         const fill = isTotal ? totalFill : (!prefix || !prefix[1].includes(".")) ? rootFill : subFill;
         for (let c = 0; c <= lastCol; c++) {
@@ -1692,6 +1702,13 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
       const body = (hasHead ? s.rows.slice(1) : s.rows).map(r => 
         r.map(c => typeof c === "number" ? c.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(c))
       );
+      const stageBodyRows = new Set<number>();
+      if (hasHead && (s.key === "planilha" || s.key === "memoria")) {
+        s.rows.slice(1).forEach((row, index) => {
+          const totalColumn = s.key === "planilha" ? 8 : 11;
+          if (typeof row[totalColumn] === "string" && String(row[totalColumn]).trim() !== "") stageBodyRows.add(index);
+        });
+      }
 
       autoTable(doc, { 
         startY: headerY + 8, 
@@ -1722,12 +1739,12 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
             const fourthCol = String(data.row.raw[3] || '').trim();
             const isCompositionItem = s.key === 'composicao' && firstCol.startsWith('COMPOSIÇÃO (');
             const isSubitemMemoria = firstCol === '' && secondCol !== '' && thirdCol !== '';
-            const isEtapa = s.key === 'planilha'
-              ? firstCol === '' && secondCol === '' && thirdCol === '' && fourthCol !== ''
-              : s.key === 'memoria'
-                ? firstCol === '' && secondCol !== '' && thirdCol === '' && fourthCol === ''
-                : firstCol !== '' && secondCol === '' && thirdCol === '';
-            const stageLabel = s.key === 'planilha' ? fourthCol : s.key === 'memoria' ? secondCol : firstCol;
+            const isEtapa = s.key === 'planilha' || s.key === 'memoria'
+              ? stageBodyRows.has(data.row.index)
+              : firstCol !== '' && secondCol === '' && thirdCol === '';
+            const stageLabel = isEtapa
+              ? [firstCol, s.key === 'planilha' ? fourthCol : s.key === 'memoria' ? secondCol : ''].filter(Boolean).join(' ')
+              : firstCol;
             const isTotais = firstCol === "SUBTOTAL" || firstCol.includes("BDI (") || firstCol === "TOTAL GERAL";
 
             if (isEtapa || firstCol === "Sem etapa" || stageLabel === "Sem etapa" || isTotais || isCompositionItem) {
