@@ -1412,7 +1412,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
           r.descricao ?? "",
           r.unidade ?? "",
           r.isParent ? "" : Number(r.coeficiente),
-          Number(r.preco_unitario ?? 0),
+          r.isParent ? "" : Number(r.preco_unitario ?? 0),
           Number(r.subtotal ?? 0),
         ]) : [["—", "—", "Nenhuma composição analítica encontrada para os itens do orçamento.", "", "", "", ""]]),
       ]});
