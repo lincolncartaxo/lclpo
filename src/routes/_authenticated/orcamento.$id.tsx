@@ -1251,6 +1251,10 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
   const [etapasExtra] = useEtapasExtra(orcId);
   const [somenteProprias, setSomenteProprias] = useState(false);
   const [analiticas, setAnaliticas] = useState<any[]>([]);
+  const [analiticasLoading, setAnaliticasLoading] = useState(true);
+  const [analiticasError, setAnaliticasError] = useState<string | null>(null);
+  const [analiticasConflicts, setAnaliticasConflicts] = useState<any[]>([]);
+  const [analiticasRetry, setAnaliticasRetry] = useState(0);
   const [pleEvents, setPleEvents] = useState<any[]>([]);
   const [pleFronts, setPleFronts] = useState<any[]>([]);
   const [pleAllocations, setPleAllocations] = useState<any[]>([]);
@@ -1268,43 +1272,109 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
   }, [orcId]);
   useEffect(() => {
     let cancelled = false;
-    const composicoes = (items as Item[]).filter(i => i.fonte && i.codigo && (!somenteProprias || ["PRÓPRIA", "PROPRIA"].includes(String(i.fonte).toUpperCase())));
-    (async () => {
-      const result: any[] = [];
-      const mes = parseRef(orc.ref_precos).mes;
-      for (const item of composicoes) {
-        const { data } = await (supabase as any).from("catalogo_composicao_itens").select("tipo_item,codigo_item,coeficiente,fonte_item").eq("fonte", item.fonte).eq("codigo_composicao", item.codigo);
-        const rows = data ?? [], codes = rows.map((r: any) => String(r.codigo_item));
-        const fontesItens = Array.from(new Set(rows.map((r: any) => String(r.fonte_item || item.fonte))));
-        const [{ data: insumoMeta }, { data: composicaoMeta }] = await Promise.all([
-          (supabase as any).from("catalogo_insumos").select("codigo,descricao,unidade,fonte").in("fonte", fontesItens).in("codigo", codes),
-          (supabase as any).from("catalogo_composicoes").select("codigo,descricao,unidade,fonte").in("fonte", fontesItens).in("codigo", codes),
-        ]);
-        const meta = new Map<string, { descricao?: string; unidade?: string }>([...(insumoMeta ?? []), ...(composicaoMeta ?? [])].map((m: any) => [`${m.fonte}:${m.codigo}`, m] as const));
-        const col = orc.regime === "desonerado" ? "preco_desonerado" : "preco_nao_desonerado";
-        const { data: priceRows } = await (supabase as any).from("precos_historicos_insumos").select(`codigo_insumo,fonte,uf,${col}`).in("fonte", fontesItens).in("codigo_insumo", codes).in("uf", [orc.uf || "BR", "BR"]).eq("mes_ref", mes || "");
-        const prices = new Map<string, number>();
-        for (const priceRow of priceRows ?? []) {
-          const code = `${priceRow.fonte}:${priceRow.codigo_insumo}`;
-          const isPreferredUf = String(priceRow.uf).toUpperCase() === String(orc.uf || "BR").toUpperCase();
-          if (!prices.has(code) || isPreferredUf) prices.set(code, Number(priceRow[col] ?? 0));
-        }
-        result.push({ composicao: item.codigo, fonte: item.fonte, codigo_item: "", tipo_item: "ITEM DO ORÇAMENTO", coeficiente: "", descricao: item.descricao ?? "", unidade: item.unidade ?? "", preco_unitario: "", subtotal: Number(item.preco_unitario ?? 0), isParent: true });
-        for (const row of rows) {
-          const fonteItem = String(row.fonte_item || item.fonte);
-          const m = meta.get(`${fonteItem}:${row.codigo_item}`) ?? {};
-          let price = prices.get(`${fonteItem}:${row.codigo_item}`) ?? 0;
-          if (String(row.tipo_item).toUpperCase() === "COMPOSICAO") {
-            const { data: childPrice } = await supabase.rpc("calcular_custo_composicao", { p_fonte: fonteItem, p_codigo: String(row.codigo_item), p_uf: orc.uf || "BR", p_mes_ref: mes || "", p_regime: orc.regime === "desonerado" ? "desonerado" : "nao_desonerado" });
-            price = Number(childPrice ?? 0);
-          }
-          result.push({ composicao: item.codigo, fonte: item.fonte, ...row, descricao: m.descricao ?? "", unidade: m.unidade ?? "", preco_unitario: price, subtotal: trunc2(Number(row.coeficiente ?? 0) * price), isParent: false });
-        }
+    const mes = parseRef(orc.ref_precos).mes || "";
+    const regime = orc.regime === "desonerado" ? "desonerado" : "nao_desonerado";
+    const normalizeCode = (code: unknown) => String(code ?? "").trim().replace(/^0+(?=\d)/, "") || "0";
+    const agrupadas = new Map<string, { item: Item; prices: Map<string, number>; budgetItems: Set<string> }>();
+    for (const item of (items as Item[]).filter(i => i.fonte && i.codigo && (!somenteProprias || ["PRÓPRIA", "PROPRIA"].includes(String(i.fonte).toUpperCase())))) {
+      const fonte = String(item.fonte).trim().toUpperCase();
+      const codigo = String(item.codigo).trim();
+      const key = JSON.stringify([fonte, codigo, mes, regime]);
+      const price = Number(item.preco_unitario ?? 0);
+      const priceKey = Number.isFinite(price) ? price.toFixed(4) : "0.0000";
+      const current = agrupadas.get(key);
+      if (current) {
+        current.prices.set(priceKey, price);
+        current.budgetItems.add(String(item.item || item.id));
+      } else {
+        agrupadas.set(key, { item, prices: new Map([[priceKey, price]]), budgetItems: new Set([String(item.item || item.id)]) });
       }
-      if (!cancelled) setAnaliticas(result);
+    }
+    const composicoes = Array.from(agrupadas.values());
+    setAnaliticasConflicts(composicoes
+      .filter(group => group.prices.size > 1)
+      .map(group => ({ fonte: group.item.fonte, codigo: group.item.codigo, prices: Array.from(group.prices.values()), items: Array.from(group.budgetItems) })));
+    setAnaliticasLoading(true);
+    setAnaliticasError(null);
+    setAnaliticas([]);
+    const loadComposition = async (item: Item) => {
+      const db = supabase as any;
+      const { data: rows, error: rowsError } = await db.from("catalogo_composicao_itens")
+        .select("tipo_item,codigo_item,coeficiente,fonte_item")
+        .eq("fonte", item.fonte)
+        .eq("codigo_composicao", item.codigo);
+      if (rowsError) throw new Error(`Erro ao carregar ${item.fonte} ${item.codigo}: ${rowsError.message}`);
+      if (!rows?.length) return [];
+
+      const codes = Array.from(new Set(rows.map((row: any) => String(row.codigo_item))));
+      const codesLookup = Array.from(new Set(codes.flatMap(code => [code, code.padStart(8, "0")])));
+      const fontesItens = Array.from(new Set(rows.map((row: any) => String(row.fonte_item || item.fonte))));
+      const [{ data: insumoMeta, error: insumoError }, { data: composicaoMeta, error: composicaoError }] = await Promise.all([
+        db.from("catalogo_insumos").select("codigo,descricao,unidade,fonte").in("fonte", fontesItens).in("codigo", codesLookup),
+        db.from("catalogo_composicoes").select("codigo,descricao,unidade,fonte").in("fonte", fontesItens).in("codigo", codesLookup),
+      ]);
+      if (insumoError || composicaoError) throw new Error(`Erro ao carregar descrições de ${item.fonte} ${item.codigo}: ${(insumoError || composicaoError).message}`);
+      const meta = new Map<string, { descricao?: string; unidade?: string }>(
+        [...(insumoMeta ?? []), ...(composicaoMeta ?? [])].map((row: any) => [`${row.fonte}:${normalizeCode(row.codigo)}`, row] as const),
+      );
+      const col = regime === "desonerado" ? "preco_desonerado" : "preco_nao_desonerado";
+      const uf = String(orc.uf || "BR").toUpperCase();
+      const { data: priceRows, error: priceError } = await db.from("precos_historicos_insumos")
+        .select(`codigo_insumo,fonte,uf,${col}`)
+        .in("fonte", fontesItens)
+        .in("codigo_insumo", codesLookup)
+        .in("uf", [uf, "BR"])
+        .eq("mes_ref", mes);
+      if (priceError) throw new Error(`Erro ao carregar preços de ${item.fonte} ${item.codigo}: ${priceError.message}`);
+      const prices = new Map<string, number>();
+      for (const priceRow of priceRows ?? []) {
+        const key = `${priceRow.fonte}:${normalizeCode(priceRow.codigo_insumo)}`;
+        const isPreferredUf = String(priceRow.uf).toUpperCase() === uf;
+        if (!prices.has(key) || isPreferredUf) prices.set(key, Number(priceRow[col] ?? 0));
+      }
+
+      const detailRows = await Promise.all(rows.map(async (row: any) => {
+        const fonteItem = String(row.fonte_item || item.fonte);
+        const codeKey = normalizeCode(row.codigo_item);
+        const metadata = meta.get(`${fonteItem}:${codeKey}`) ?? {};
+        let price = prices.get(`${fonteItem}:${codeKey}`) ?? 0;
+        if (String(row.tipo_item).toUpperCase() === "COMPOSICAO") {
+          const { data: childPrice, error } = await db.rpc("calcular_custo_composicao", {
+            p_fonte: fonteItem, p_codigo: String(row.codigo_item), p_uf: uf, p_mes_ref: mes, p_regime: regime,
+          });
+          if (error) throw new Error(`Erro ao calcular ${fonteItem} ${row.codigo_item}: ${error.message}`);
+          price = Number(childPrice ?? 0);
+        }
+        return { composicao: item.codigo, fonte: item.fonte, ...row, descricao: metadata.descricao ?? "", unidade: metadata.unidade ?? "", preco_unitario: price, subtotal: trunc2(Number(row.coeficiente ?? 0) * price), isParent: false };
+      }));
+      return [
+        { composicao: item.codigo, fonte: item.fonte, codigo_item: "", tipo_item: "ITEM DO ORÇAMENTO", coeficiente: "", descricao: item.descricao ?? "", unidade: item.unidade ?? "", preco_unitario: "", subtotal: Number(item.preco_unitario ?? 0), isParent: true },
+        ...detailRows,
+      ];
+    };
+    (async () => {
+      try {
+        const loaded: any[][] = new Array(composicoes.length);
+        let next = 0;
+        const worker = async () => {
+          while (next < composicoes.length) {
+            const index = next++;
+            loaded[index] = await loadComposition(composicoes[index].item);
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(4, composicoes.length) }, worker));
+        if (!cancelled) setAnaliticas(loaded.flat());
+      } catch (error) {
+        if (!cancelled) {
+          setAnaliticasError(error instanceof Error ? error.message : "Erro ao carregar composições analíticas.");
+          setAnaliticas([]);
+        }
+      } finally {
+        if (!cancelled) setAnaliticasLoading(false);
+      }
     })();
     return () => { cancelled = true; };
-  }, [items, somenteProprias, orc.ref_precos, orc.uf, orc.regime]);
+  }, [items, somenteProprias, orc.ref_precos, orc.uf, orc.regime, analiticasRetry]);
   const etapasExistentes = useMemo(() => {
     const set = new Set<string>();
     (items as Item[]).forEach(i => { if (i.etapa) set.add(i.etapa); });
@@ -1335,7 +1405,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
     if (sel.composicao) {
       out.push({ key: "composicao", title: "Composições", rows: [
         ["Tipo","Código","Descrição","Un.","Coef.",`Preço Unit. (${orc.regime === "desonerado" ? "Desonerado" : "Não desonerado"})`,"Subtotal"],
-        ...analiticas.map(r => [
+        ...(analiticas.length ? analiticas.map(r => [
           r.isParent ? `COMPOSIÇÃO (${r.fonte})` : String(r.tipo_item ?? "INSUMO").toUpperCase(),
           r.isParent ? r.composicao : r.codigo_item,
           r.descricao ?? "",
@@ -1343,7 +1413,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
           r.isParent ? "" : Number(r.coeficiente),
           r.isParent ? "" : Number(r.preco_unitario ?? 0),
           Number(r.subtotal ?? 0),
-        ]),
+        ]) : [["—", "—", "Nenhuma composição analítica encontrada para os itens do orçamento.", "", "", "", ""]]),
       ]});
     }
     if (sel.planilha) {
@@ -1882,12 +1952,34 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
         <Checkbox checked={somenteProprias} onCheckedChange={(v) => setSomenteProprias(!!v)} />
         <span className="text-sm">No relatório de composições, mostrar somente a fonte PRÓPRIA</span>
       </label>
+      {sel.composicao && <p className="text-xs text-muted-foreground">Cada composição é apresentada uma vez por fonte, código, data-base e regime. Os subtotais da CPU são por unidade e não são multiplicados pelas quantidades dos itens do orçamento.</p>}
+      {sel.composicao && analiticasLoading && <p className="text-sm text-muted-foreground" role="status">Carregando composições analíticas; a exportação será habilitada ao concluir.</p>}
+      {sel.composicao && analiticasError && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm" role="alert">
+          <span>Não foi possível carregar as composições: {analiticasError}</span>
+          <Button size="sm" variant="outline" onClick={() => setAnaliticasRetry(value => value + 1)}>Tentar novamente</Button>
+        </div>
+      )}
+      {sel.composicao && analiticasConflicts.length > 0 && (
+        <div className="rounded-lg border border-amber-500/50 bg-amber-50 p-3 text-sm text-amber-950" role="alert">
+          <p className="font-semibold">Atenção: há composições repetidas com preços unitários diferentes.</p>
+          <p className="mt-1">Cada composição será apresentada uma vez. Confira os valores importados antes de usar o relatório:</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            {analiticasConflicts.map((conflict, index) => (
+              <li key={`${conflict.fonte}-${conflict.codigo}-${index}`}>
+                {conflict.fonte} · {conflict.codigo} (itens {conflict.items.join(", ")}): {conflict.prices.map((price: number) => fmtBRL(price)).join(" / ")}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="flex gap-3 flex-wrap">
-        <Button onClick={exportXlsx}><FileDown className="mr-2 size-4"/>Exportar .xlsx</Button>
+        <Button onClick={exportXlsx} disabled={sel.composicao && (analiticasLoading || !!analiticasError)}><FileDown className="mr-2 size-4"/>Exportar .xlsx</Button>
         <Button
           variant="outline"
           className="transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground"
           onClick={exportPdf}
+          disabled={sel.composicao && (analiticasLoading || !!analiticasError)}
         >
           <FileDown className="mr-2 size-4"/>Exportar .pdf
         </Button>
