@@ -1390,6 +1390,17 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
   }, [items, etapasExtra]);
   const groups = useMemo(() => groupItemsByEtapa(items, etapasExistentes), [items, etapasExistentes]);
 
+  const totalGrupoComHierarquia = (group: { label: string; list: Item[] }, bdiPct: number) => {
+    const prefix = prefixOf(group.label);
+    const groupItems = prefix
+      ? (items as Item[]).filter(item => {
+          const code = (item.item || "").trim();
+          return code === prefix || code.startsWith(`${prefix}.`);
+        })
+      : group.list;
+    return groupItems.reduce((sum, item) => sum + Number(item.quantidade) * Number(item.preco_unitario) * (1 + bdiPct), 0);
+  };
+
   const toggle = (k: string) => setSel(prev => ({ ...prev, [k]: !prev[k] }));
   const all = (v: boolean) => setSel(Object.fromEntries(RELATORIO_TABS.map(t => [t.key, v])));
 
@@ -1426,7 +1437,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
     if (sel.planilha) {
       const rows: (string|number)[][] = [["Item","Fonte","Código","Descrição","Un.","Quant.","Preço Unit.","Preço Unit. c/ BDI","Total"]];
       Object.values(groups).forEach(g => {
-        const totalG = g.list.reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario)*(1+bdiPct),0);
+        const totalG = totalGrupoComHierarquia(g, bdiPct);
         const etapa = splitEtapaLabel(g.label);
         rows.push([etapa.item, "", "", etapa.descricao, "", "", "", "", totalG.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })]);
         g.list.forEach(i => {
@@ -1441,7 +1452,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
     if (sel.memoria) {
       const rows: (string|number)[][] = [["Item","Serviço / Descrição","Vez","X1","X2","Y1","Y2","Z1","Z2","Parcial","Total","Geral","Un."]];
       Object.values(groups).forEach(g => {
-                const totalG = g.list.reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario)*(1+bdiPct),0);
+        const totalG = totalGrupoComHierarquia(g, bdiPct);
         const etapa = splitEtapaLabel(g.label);
         rows.push([etapa.item, etapa.descricao, "", "", "", "", "", "", "", "", "", totalG.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), ""]);
         g.list.forEach(i => {
