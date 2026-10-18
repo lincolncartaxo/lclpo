@@ -210,7 +210,7 @@ function Editor() {
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="cronograma">Cronograma F/F</TabsTrigger>
             {orc.interesse_transferegov && <TabsTrigger value="ple">Transferegov (PLE/BM)</TabsTrigger>}
-            <TabsTrigger value="licitacao">Licitação</TabsTrigger>
+            {orc.interesse_licitacao && <TabsTrigger value="licitacao">Licitação</TabsTrigger>}
             <TabsTrigger value="abc">Curva ABC</TabsTrigger>
             <TabsTrigger value="qci">QCI</TabsTrigger>
             <TabsTrigger value="relatorio">Relatório</TabsTrigger>
@@ -226,7 +226,7 @@ function Editor() {
           <TabsContent value="resumo"><ResumoTab orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
           <TabsContent value="cronograma"><CronogramaTab orcId={id} items={items} totalComBdi={totalComBdi} /></TabsContent>
           {orc.interesse_transferegov && <TabsContent value="ple"><PleStructureTab orcId={id} items={items} /><RelatorioTab orc={orc} orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} transferegovOnly /></TabsContent>}
-          <TabsContent value="licitacao"><LicitacaoTab orc={orc} orcId={id} items={items} subtotal={subtotal} totalComBdi={totalComBdi} /></TabsContent>
+          {orc.interesse_licitacao && <TabsContent value="licitacao"><LicitacaoTab orc={orc} orcId={id} items={items} subtotal={subtotal} totalComBdi={totalComBdi} /></TabsContent>}
           <TabsContent value="qci"><QciTab orcId={id} items={items} subtotal={subtotal} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
           <TabsContent value="relatorio"><RelatorioTab orc={orc} orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} /></TabsContent>
         </Tabs>
@@ -252,6 +252,7 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
       municipio: f.localizacao ?? f.municipio, localizacao: f.localizacao ?? f.municipio, uf: f.uf, engenheiro: f.engenheiro, crea: f.crea, ref_precos: f.ref_precos,
       regime: f.regime ?? "nao_desonerado",
       interesse_transferegov: !!f.interesse_transferegov,
+      interesse_licitacao: !!f.interesse_licitacao,
     } as any;
     let { error } = await supabase.from("orcamentos").update(updatePayload).eq("id", orc.id);
     if (error && (error.code === "42703" || error.code === "PGRST204" || error.message?.toLowerCase().includes("localizacao"))) {
@@ -298,6 +299,10 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
       <label className="flex items-start gap-3 rounded-lg border p-4 cursor-pointer hover:bg-muted/30">
         <Checkbox checked={!!f.interesse_transferegov} onCheckedChange={(v) => setF({...f, interesse_transferegov: !!v})} />
         <span><span className="text-sm font-medium">Tenho interesse em enviar este orçamento ao Transferegov</span><br /><span className="text-xs text-muted-foreground">Ao ativar, a aba Transferegov (PLE/BM) ficará disponível neste orçamento.</span></span>
+      </label>
+      <label className="flex items-start gap-3 rounded-lg border p-4 cursor-pointer hover:bg-muted/30">
+        <Checkbox checked={!!f.interesse_licitacao} onCheckedChange={(v) => setF({...f, interesse_licitacao: !!v})} />
+        <span><span className="text-sm font-medium">Tenho interesse em utilizar o módulo de Licitação</span><br /><span className="text-xs text-muted-foreground">Ao ativar, a aba Licitação ficará disponível para aplicar o desconto da proposta vencedora.</span></span>
       </label>
       <Button onClick={save}><Save className="mr-2 size-4" />Salvar Dados Gerais</Button>
     </div>
@@ -1886,7 +1891,6 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
         >
           <FileDown className="mr-2 size-4"/>Exportar .pdf
         </Button>
-        {!transferegovOnly && <Button variant="outline" onClick={()=>{ setTgErros(null); setTgValidado(false); setTgOpen(true); }}><FileDown className="mr-2 size-4"/>JSON Transferegov</Button>}
       </div>
       </div>
       <Dialog open={tgOpen} onOpenChange={setTgOpen}>
@@ -2018,6 +2022,7 @@ function LicitacaoTab({ orc, orcId, items, subtotal, totalComBdi }: any) {
   const bdi = Number(orc.bdi_pct) || 0;
   const [valorFinal, setValorFinal] = useState("");
   const [modo, setModo] = useState<"linear" | "linear_2_casas">("linear");
+  const [aplicarSolver, setAplicarSolver] = useState(false);
   const [salvo, setSalvo] = useState(false);
   const [carregando, setCarregando] = useState(true);
 
@@ -2041,7 +2046,7 @@ function LicitacaoTab({ orc, orcId, items, subtotal, totalComBdi }: any) {
       const linear = original * fator;
       return { item, index, linear, preco: modo === "linear_2_casas" ? Math.round(linear * 100) / 100 : linear };
     });
-    if (modo === "linear_2_casas" && rows.length) {
+    if (modo === "linear_2_casas" && aplicarSolver && rows.length) {
       // Solver de menor impacto: recalcula apenas o preço unitário de um item
       // com quantidade positiva, preservando os demais arredondamentos.
       const candidato = [...rows].filter(r => Number(r.item.quantidade) > 0).sort((a, b) => Number(b.item.quantidade) - Number(a.item.quantidade))[0];
@@ -2051,8 +2056,8 @@ function LicitacaoTab({ orc, orcId, items, subtotal, totalComBdi }: any) {
       }
     }
     const total = rows.reduce((s, r) => s + Number(r.item.quantidade) * r.preco * (1 + bdi), 0);
-    return { rows, total, diferenca: alvo - total, ajustado: modo === "linear_2_casas" ? rows.reduce((s, r) => s + (r.preco - Math.round(r.linear * 100) / 100), 0) : 0 };
-  }, [alvo, bdi, fator, items, modo, totalComBdi]);
+    return { rows, total, diferenca: alvo - total };
+  }, [alvo, aplicarSolver, bdi, fator, items, modo, totalComBdi]);
 
   const save = async () => {
     if (!(alvo > 0)) return toast.error("Informe um valor final de licitação maior que zero");
@@ -2063,13 +2068,16 @@ function LicitacaoTab({ orc, orcId, items, subtotal, totalComBdi }: any) {
   const exportXlsx = async () => {
     if (!calculado.rows.length) return toast.error("Informe o valor final antes de exportar");
     const XLSX = await import("xlsx-js-style");
-    const rows = [["Etapa", "Item", "Fonte", "Código", "Descrição", "Un.", "Quantidade", "Preço unitário original", "Preço unitário licitado sem BDI", "Preço unitário licitado com BDI", "Total licitado"], ...calculado.rows.map(r => [r.item.etapa || "", r.item.item || "", r.item.fonte || "", r.item.codigo || "", r.item.descricao, r.item.unidade || "", Number(r.item.quantidade), Number(r.item.preco_unitario), r.preco, r.preco * (1 + bdi), Number(r.item.quantidade) * r.preco * (1 + bdi)]), ["", "", "", "", "", "", "", "", "", "TOTAL", calculado.total]];
+    const rows = [["Etapa", "Item", "Fonte", "Código", "Descrição", "Un.", "Quantidade", "Preço unitário original", "Desconto do item", "Preço unitário licitado sem BDI", "Preço unitário licitado com BDI", "Total licitado"], ...calculado.rows.map(r => [r.item.etapa || "", r.item.item || "", r.item.fonte || "", r.item.codigo || "", r.item.descricao, r.item.unidade || "", Number(r.item.quantidade), Number(r.item.preco_unitario), Number(r.item.preco_unitario) > 0 ? 1 - r.preco / Number(r.item.preco_unitario) : 0, r.preco, r.preco * (1 + bdi), Number(r.item.quantidade) * r.preco * (1 + bdi)]), ["", "", "", "", "", "", "", "", "", "", "TOTAL", calculado.total]];
     const ws = XLSX.utils.aoa_to_sheet([["PLANILHA ORÇAMENTÁRIA AJUSTADA — LICITAÇÃO"], ["Valor original c/ BDI", totalComBdi], ["Valor vencedor c/ BDI", alvo], ["Desconto", desconto / 100], [], ...rows]);
     ws["A1"].s = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F3864" } } };
     ws["A4"].z = "0.00%";
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Licitação");
     XLSX.writeFile(wb, `${orc.nome || "orcamento"}-licitacao.xlsx`);
   };
+  const itemsAjustados = calculado.rows.map(r => ({ ...r.item, preco_unitario: r.preco }));
+  const subtotalLicitado = calculado.rows.reduce((s, r) => s + Number(r.item.quantidade) * r.preco, 0);
+  const totalEncargosLicitado = subtotalLicitado * Number(orc.encargos_pct || 0);
 
   return <div className="mt-4 max-w-6xl space-y-5">
     <div><h2 className="text-lg font-semibold">Licitação</h2><p className="text-sm text-muted-foreground">Informe o valor final da proposta vencedora para recalcular os preços unitários e os relatórios do orçamento.</p></div>
@@ -2078,9 +2086,10 @@ function LicitacaoTab({ orc, orcId, items, subtotal, totalComBdi }: any) {
       <Field label="Forma de aplicação do desconto"><Select value={modo} onValueChange={v => { setModo(v as any); setSalvo(false); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="linear">Desconto linear</SelectItem><SelectItem value="linear_2_casas">Desconto linear com ajuste para 2 casas decimais</SelectItem></SelectContent></Select></Field>
       <div className="rounded-lg border bg-muted/20 p-3"><p className="text-xs text-muted-foreground">Desconto calculado</p><p className="text-2xl font-semibold">{fmtPct(desconto / 100)}</p><p className="text-xs text-muted-foreground">Original: {fmtBRL(totalComBdi)} · Vencedora: {fmtBRL(alvo || 0)}</p></div>
     </div>
-    {modo === "linear_2_casas" && <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">O solver ajusta minimamente um preço unitário para aproximar o total do valor vencedor após o arredondamento para centavos. Diferença residual: <b>{fmtBRL(calculado.diferenca)}</b>.</p>}
+    {modo === "linear_2_casas" && <label className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 cursor-pointer"><Checkbox checked={aplicarSolver} onCheckedChange={v => setAplicarSolver(!!v)} /><span><b>Aplicar solver para eliminar o resíduo?</b><br />O solver ajustará minimamente um preço unitário após o arredondamento para duas casas. Resíduo atual: <b>{fmtBRL(calculado.diferenca)}</b>.</span></label>}
     <div className="flex flex-wrap gap-2"><Button onClick={save} disabled={carregando}><Save className="mr-2 size-4" />{salvo ? "Configuração salva" : "Salvar licitação"}</Button><Button variant="outline" onClick={exportXlsx} disabled={!calculado.rows.length}><FileDown className="mr-2 size-4" />Exportar planilha ajustada</Button></div>
-    {calculado.rows.length > 0 && <div className="rounded-lg border overflow-auto"><table className="w-full text-sm"><thead><tr className="bg-muted"><th className="p-2 text-left">Item</th><th className="p-2 text-left">Código</th><th className="p-2 text-left">Descrição</th><th className="p-2 text-right">Qtd.</th><th className="p-2 text-right">PU original</th><th className="p-2 text-right">PU licitado</th><th className="p-2 text-right">Total</th></tr></thead><tbody>{calculado.rows.map(r => <tr key={r.item.id} className="border-t"><td className="p-2">{r.item.item || "—"}</td><td className="p-2">{r.item.codigo || "—"}</td><td className="p-2 min-w-80">{r.item.descricao}</td><td className="p-2 text-right">{fmtNum(Number(r.item.quantidade), 4)}</td><td className="p-2 text-right">{fmtBRL(Number(r.item.preco_unitario))}</td><td className="p-2 text-right">{r.preco.toLocaleString("pt-BR", { minimumFractionDigits: modo === "linear_2_casas" ? 2 : 6, maximumFractionDigits: modo === "linear_2_casas" ? 2 : 6 })}</td><td className="p-2 text-right">{fmtBRL(Number(r.item.quantidade) * r.preco * (1 + bdi))}</td></tr>)}</tbody><tfoot><tr className="border-t bg-muted font-semibold"><td className="p-2" colSpan={6}>TOTAL LICITADO C/ BDI</td><td className="p-2 text-right">{fmtBRL(calculado.total)}</td></tr></tfoot></table></div>}
+    {calculado.rows.length > 0 && <div className="rounded-lg border overflow-auto"><table className="w-full text-sm"><thead><tr className="bg-muted"><th className="p-2 text-left">Item</th><th className="p-2 text-left">Código</th><th className="p-2 text-left">Descrição</th><th className="p-2 text-right">Qtd.</th><th className="p-2 text-right">PU original</th><th className="p-2 text-right">Desconto</th><th className="p-2 text-right">PU licitado</th><th className="p-2 text-right">Total</th></tr></thead><tbody>{calculado.rows.map(r => <tr key={r.item.id} className="border-t"><td className="p-2">{r.item.item || "—"}</td><td className="p-2">{r.item.codigo || "—"}</td><td className="p-2 min-w-80">{r.item.descricao}</td><td className="p-2 text-right">{fmtNum(Number(r.item.quantidade), 4)}</td><td className="p-2 text-right">{fmtBRL(Number(r.item.preco_unitario))}</td><td className="p-2 text-right">{fmtPct(Number(r.item.preco_unitario) > 0 ? 1 - r.preco / Number(r.item.preco_unitario) : 0)}</td><td className="p-2 text-right">{r.preco.toLocaleString("pt-BR", { minimumFractionDigits: modo === "linear_2_casas" ? 2 : 6, maximumFractionDigits: modo === "linear_2_casas" ? 2 : 6 })}</td><td className="p-2 text-right">{fmtBRL(Number(r.item.quantidade) * r.preco * (1 + bdi))}</td></tr>)}</tbody><tfoot><tr className="border-t bg-muted font-semibold"><td className="p-2" colSpan={7}>TOTAL LICITADO C/ BDI</td><td className="p-2 text-right">{fmtBRL(calculado.total)}</td></tr></tfoot></table></div>}
+    {calculado.rows.length > 0 && <div className="rounded-lg border p-4"><h3 className="font-semibold">Relatórios da licitação</h3><p className="mb-3 text-sm text-muted-foreground">Os relatórios abaixo usam os preços unitários ajustados e os totais da proposta vencedora.</p><RelatorioTab orc={orc} orcId={orcId} items={itemsAjustados} subtotal={subtotalLicitado} totalEncargos={totalEncargosLicitado} totalComBdi={calculado.total} /></div>}
   </div>;
 }
 
