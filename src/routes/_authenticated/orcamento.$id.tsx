@@ -33,6 +33,10 @@ const splitEtapaLabel = (label: string) => {
   return match ? { item: match[1], descricao: match[2].trim() } : { item: "", descricao: value };
 };
 
+const isMemoryStageRow = (row: (string | number)[]) =>
+  (String(row[0] ?? "").trim() !== "" || String(row[1] ?? "").trim() !== "") &&
+  row.slice(2).every(value => String(value ?? "").trim() === "");
+
 /** Compara códigos hierárquicos numericamente: "1" < "1.2" < "1.10" < "2". */
 export const cmpCode = (a: string, b: string) => {
   const pa = (a || "").split(".").map(n => parseInt(n, 10));
@@ -1452,9 +1456,8 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
     if (sel.memoria) {
       const rows: (string|number)[][] = [["Item","Serviço / Descrição","Vez","X1","X2","Y1","Y2","Z1","Z2","Parcial","Total","Geral","Un."]];
       Object.values(groups).forEach(g => {
-        const totalG = totalGrupoComHierarquia(g, bdiPct);
         const etapa = splitEtapaLabel(g.label);
-        rows.push([etapa.item, etapa.descricao, "", "", "", "", "", "", "", "", "", totalG.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), ""]);
+        rows.push([etapa.item, etapa.descricao, "", "", "", "", "", "", "", "", "", "", ""]);
         g.list.forEach(i => {
           // Linha Pai
           rows.push([i.item ?? "", i.descricao, "", "", "", "", "", "", "", "", "", Number(i.quantidade), i.unidade ?? ""]);
@@ -1623,7 +1626,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
         const isStage = s.key === "planilha"
           ? typeof row[8] === "string" && String(row[8]).trim() !== ""
           : s.key === "memoria"
-            ? typeof row[11] === "string" && String(row[11]).trim() !== ""
+            ? isMemoryStageRow(row)
             : first !== "" && second === "" && third === "";
         const isTotal = first === "SUBTOTAL" || first.includes("BDI (") || first === "TOTAL GERAL";
         const isCompositionItem = s.key === "composicao" && first.startsWith("COMPOSIÇÃO (");
@@ -1716,8 +1719,10 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
       const stageBodyRows = new Set<number>();
       if (hasHead && (s.key === "planilha" || s.key === "memoria")) {
         s.rows.slice(1).forEach((row, index) => {
-          const totalColumn = s.key === "planilha" ? 8 : 11;
-          if (typeof row[totalColumn] === "string" && String(row[totalColumn]).trim() !== "") stageBodyRows.add(index);
+          const isStageRow = s.key === "planilha"
+            ? typeof row[8] === "string" && String(row[8]).trim() !== ""
+            : isMemoryStageRow(row);
+          if (isStageRow) stageBodyRows.add(index);
         });
       }
 
