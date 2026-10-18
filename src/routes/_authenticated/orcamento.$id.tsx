@@ -2031,7 +2031,7 @@ function LicitacaoTab({ orc, orcId, items, subtotal, totalComBdi }: any) {
     return () => { active = false; };
   }, [orcId]);
 
-  const alvo = Number(valorFinal.replace(/\./g, "").replace(",", "."));
+  const alvo = Number(valorFinal.includes(",") ? valorFinal.replace(/\./g, "").replace(",", ".") : valorFinal);
   const fator = totalComBdi > 0 && alvo > 0 ? alvo / totalComBdi : 0;
   const desconto = fator > 0 ? (1 - fator) * 100 : 0;
   const calculado = useMemo(() => {
