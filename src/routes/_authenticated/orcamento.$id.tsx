@@ -1347,8 +1347,9 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
         }
         return { composicao: item.codigo, fonte: item.fonte, ...row, descricao: metadata.descricao ?? "", unidade: metadata.unidade ?? "", preco_unitario: price, subtotal: trunc2(Number(row.coeficiente ?? 0) * price), isParent: false };
       }));
+      const subtotalAnaliticoUnitario = detailRows.reduce((sum, row) => sum + Number(row.subtotal ?? 0), 0);
       return [
-        { composicao: item.codigo, fonte: item.fonte, codigo_item: "", tipo_item: "ITEM DO ORÇAMENTO", coeficiente: "", descricao: item.descricao ?? "", unidade: item.unidade ?? "", preco_unitario: "", subtotal: Number(item.preco_unitario ?? 0), isParent: true },
+        { composicao: item.codigo, fonte: item.fonte, codigo_item: "", tipo_item: "ITEM DO ORÇAMENTO", coeficiente: "", descricao: item.descricao ?? "", unidade: item.unidade ?? "", preco_unitario: Number(item.preco_unitario ?? 0), subtotal: subtotalAnaliticoUnitario, isParent: true },
         ...detailRows,
       ];
     };
@@ -1411,7 +1412,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
           r.descricao ?? "",
           r.unidade ?? "",
           r.isParent ? "" : Number(r.coeficiente),
-          r.isParent ? "" : Number(r.preco_unitario ?? 0),
+          Number(r.preco_unitario ?? 0),
           Number(r.subtotal ?? 0),
         ]) : [["—", "—", "Nenhuma composição analítica encontrada para os itens do orçamento.", "", "", "", ""]]),
       ]});
