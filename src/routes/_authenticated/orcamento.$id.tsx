@@ -1421,7 +1421,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
       const rows: (string|number)[][] = [["Item","Fonte","Código","Descrição","Un.","Quant.","Preço Unit.","Preço Unit. c/ BDI","Total"]];
       Object.values(groups).forEach(g => {
         const totalG = g.list.reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario)*(1+bdiPct),0);
-        rows.push([g.label, "", "", "", "", "", "", "", totalG.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })]);
+        rows.push(["", "", "", g.label, "", "", "", "", totalG.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })]);
         g.list.forEach(i => {
           const pu = Number(i.preco_unitario); const puBdi = pu*(1+bdiPct);
           rows.push([i.item ?? "", i.fonte ?? "", i.codigo ?? "", i.descricao, i.unidade ?? "", Number(i.quantidade), pu, puBdi, Number(i.quantidade)*puBdi]);
@@ -1435,7 +1435,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
       const rows: (string|number)[][] = [["Item","Serviço / Descrição","Vez","X1","X2","Y1","Y2","Z1","Z2","Parcial","Total","Geral","Un."]];
       Object.values(groups).forEach(g => {
                 const totalG = g.list.reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario)*(1+bdiPct),0);
-        rows.push([g.label, "", "", "", "", "", "", "", "", "", "", totalG.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), ""]);
+        rows.push(["", g.label, "", "", "", "", "", "", "", "", "", totalG.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), ""]);
         g.list.forEach(i => {
           // Linha Pai
           rows.push([i.item ?? "", i.descricao, "", "", "", "", "", "", "", "", "", Number(i.quantidade), i.unidade ?? ""]);
@@ -1600,10 +1600,16 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
         const first = String(row[0] ?? "").trim();
         const second = String(row[1] ?? "").trim();
         const third = String(row[2] ?? "").trim();
-        const isStage = first !== "" && second === "" && third === "";
+        const fourth = String(row[3] ?? "").trim();
+        const isStage = s.key === "planilha"
+          ? first === "" && second === "" && third === "" && fourth !== ""
+          : s.key === "memoria"
+            ? first === "" && second !== "" && third === "" && fourth === ""
+            : first !== "" && second === "" && third === "";
         const isTotal = first === "SUBTOTAL" || first.includes("BDI (") || first === "TOTAL GERAL";
         const isCompositionItem = s.key === "composicao" && first.startsWith("COMPOSIÇÃO (");
-        const prefix = first.match(/^([0-9]+(?:\.[0-9]+)*)/);
+        const stageLabel = isStage ? (s.key === "planilha" ? fourth : s.key === "memoria" ? second : first) : first;
+        const prefix = stageLabel.match(/^([0-9]+(?:\.[0-9]+)*)/);
         const fill = isTotal ? totalFill : (!prefix || !prefix[1].includes(".")) ? rootFill : subFill;
         for (let c = 0; c <= lastCol; c++) {
           const value = row[c];
@@ -1624,7 +1630,8 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
       ws['!cols'] = Array.from({ length: lastCol + 1 }, (_, c) => {
         const values = s.rows.map(row => String((row as any[])[c] ?? ""));
         const contentWidth = Math.max(0, ...values.map(value => value.length));
-        const limit = c === 0 ? 18 : c === 3 ? 42 : 18;
+        const descriptionColumn = s.key === "memoria" ? 1 : 3;
+        const limit = c === 0 ? 18 : c === descriptionColumn ? 42 : 18;
         return { wch: Math.min(limit, Math.max(10, contentWidth + 2)) };
       });
       ws['!rows'] = [{ hpt: 22 }, ...Array.from({ length: finalRows.length - 1 }, () => ({ hpt: 18 }))];
@@ -1712,13 +1719,19 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
             const firstCol = String(data.row.raw[0] || '').trim();
             const secondCol = String(data.row.raw[1] || '').trim();
             const thirdCol = String(data.row.raw[2] || '').trim();
+            const fourthCol = String(data.row.raw[3] || '').trim();
             const isCompositionItem = s.key === 'composicao' && firstCol.startsWith('COMPOSIÇÃO (');
             const isSubitemMemoria = firstCol === '' && secondCol !== '' && thirdCol !== '';
-            const isEtapa = firstCol !== '' && secondCol === '' && thirdCol === '';
+            const isEtapa = s.key === 'planilha'
+              ? firstCol === '' && secondCol === '' && thirdCol === '' && fourthCol !== ''
+              : s.key === 'memoria'
+                ? firstCol === '' && secondCol !== '' && thirdCol === '' && fourthCol === ''
+                : firstCol !== '' && secondCol === '' && thirdCol === '';
+            const stageLabel = s.key === 'planilha' ? fourthCol : s.key === 'memoria' ? secondCol : firstCol;
             const isTotais = firstCol === "SUBTOTAL" || firstCol.includes("BDI (") || firstCol === "TOTAL GERAL";
 
-            if (isEtapa || firstCol === "Sem etapa" || isTotais || isCompositionItem) {
-              const prefixMatch = firstCol.match(/^([0-9]+(?:\.[0-9]+)*)/);
+            if (isEtapa || firstCol === "Sem etapa" || stageLabel === "Sem etapa" || isTotais || isCompositionItem) {
+              const prefixMatch = stageLabel.match(/^([0-9]+(?:\.[0-9]+)*)/);
               const isRootEtapa = !prefixMatch || !prefixMatch[1].includes('.');
               // Hachura visual da linha inteira, sem desenho manual: o
               // autoTable mantém este fundo também nas quebras de página.
