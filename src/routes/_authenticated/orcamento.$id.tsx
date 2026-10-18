@@ -1309,6 +1309,11 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
     setAnaliticas([]);
     const loadComposition = async (item: Item) => {
       const db = supabase as any;
+      const precoOriginal = Number((item as any).preco_unitario_original ?? item.preco_unitario ?? 0);
+      const fatorConfigurado = Number((item as any).fator_preco_licitado);
+      const fatorPrecoLicitado = Number.isFinite(fatorConfigurado)
+        ? fatorConfigurado
+        : precoOriginal > 0 ? Number(item.preco_unitario ?? 0) / precoOriginal : 1;
       const { data: rows, error: rowsError } = await db.from("catalogo_composicao_itens")
         .select("tipo_item,codigo_item,coeficiente,fonte_item")
         .eq("fonte", item.fonte)
@@ -1355,6 +1360,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
           if (error) throw new Error(`Erro ao calcular ${fonteItem} ${row.codigo_item}: ${error.message}`);
           price = Number(childPrice ?? 0);
         }
+        price *= fatorPrecoLicitado;
         return { composicao: item.codigo, fonte: item.fonte, ...row, descricao: metadata.descricao ?? "", unidade: metadata.unidade ?? "", preco_unitario: price, subtotal: trunc2(Number(row.coeficiente ?? 0) * price), isParent: false };
       }));
       const subtotalAnaliticoUnitario = detailRows.reduce((sum, row) => sum + Number(row.subtotal ?? 0), 0);
@@ -2232,7 +2238,15 @@ function LicitacaoTab({ orc, orcId, items, subtotal, totalComBdi }: any) {
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Licitação");
     XLSX.writeFile(wb, `${orc.nome || "orcamento"}-licitacao.xlsx`);
   };
-  const itemsAjustados = calculado.rows.map(r => ({ ...r.item, preco_unitario: r.preco }));
+  const itemsAjustados = calculado.rows.map(r => {
+    const precoOriginal = Number(r.item.preco_unitario) || 0;
+    return {
+      ...r.item,
+      preco_unitario_original: precoOriginal,
+      fator_preco_licitado: precoOriginal > 0 ? r.preco / precoOriginal : fator,
+      preco_unitario: r.preco,
+    };
+  });
   const subtotalLicitado = calculado.rows.reduce((s, r) => s + Number(r.item.quantidade) * r.preco, 0);
   const totalEncargosLicitado = subtotalLicitado * Number(orc.encargos_pct || 0);
 
