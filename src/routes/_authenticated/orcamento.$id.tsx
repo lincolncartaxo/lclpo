@@ -209,7 +209,8 @@ function Editor() {
             <TabsTrigger value="memoria">Memória de Cálculo</TabsTrigger>
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="cronograma">Cronograma F/F</TabsTrigger>
-            <TabsTrigger value="ple">PLE — Eventos e Frentes</TabsTrigger>
+            {orc.interesse_transferegov && <TabsTrigger value="ple">Transferegov (PLE/BM)</TabsTrigger>}
+            <TabsTrigger value="licitacao">Licitação</TabsTrigger>
             <TabsTrigger value="abc">Curva ABC</TabsTrigger>
             <TabsTrigger value="qci">QCI</TabsTrigger>
             <TabsTrigger value="relatorio">Relatório</TabsTrigger>
@@ -224,7 +225,8 @@ function Editor() {
           <TabsContent value="planilha"><PlanilhaTab orcId={id} items={items} reload={load} bdiPct={Number(orc.bdi_pct)} regime={orc.regime ?? "nao_desonerado"} uf={orc.uf ?? null} refPrecos={orc.ref_precos ?? null} /></TabsContent>
           <TabsContent value="resumo"><ResumoTab orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
           <TabsContent value="cronograma"><CronogramaTab orcId={id} items={items} totalComBdi={totalComBdi} /></TabsContent>
-          <TabsContent value="ple"><PleStructureTab orcId={id} items={items} /></TabsContent>
+          {orc.interesse_transferegov && <TabsContent value="ple"><PleStructureTab orcId={id} items={items} /><RelatorioTab orc={orc} orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} transferegovOnly /></TabsContent>}
+          <TabsContent value="licitacao"><LicitacaoTab orc={orc} orcId={id} items={items} subtotal={subtotal} totalComBdi={totalComBdi} /></TabsContent>
           <TabsContent value="qci"><QciTab orcId={id} items={items} subtotal={subtotal} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
           <TabsContent value="relatorio"><RelatorioTab orc={orc} orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} /></TabsContent>
         </Tabs>
@@ -249,6 +251,7 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
       nome: f.nome, objeto: f.objeto, contrato: f.contrato, orgao: f.orgao,
       municipio: f.localizacao ?? f.municipio, localizacao: f.localizacao ?? f.municipio, uf: f.uf, engenheiro: f.engenheiro, crea: f.crea, ref_precos: f.ref_precos,
       regime: f.regime ?? "nao_desonerado",
+      interesse_transferegov: !!f.interesse_transferegov,
     } as any;
     let { error } = await supabase.from("orcamentos").update(updatePayload).eq("id", orc.id);
     if (error && (error.code === "42703" || error.code === "PGRST204" || error.message?.toLowerCase().includes("localizacao"))) {
@@ -292,6 +295,10 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
         </Field>
       </div>
       <Field label="Objeto"><Textarea rows={4} value={f.objeto ?? ""} onChange={(e)=>setF({...f,objeto:e.target.value})} /></Field>
+      <label className="flex items-start gap-3 rounded-lg border p-4 cursor-pointer hover:bg-muted/30">
+        <Checkbox checked={!!f.interesse_transferegov} onCheckedChange={(v) => setF({...f, interesse_transferegov: !!v})} />
+        <span><span className="text-sm font-medium">Tenho interesse em enviar este orçamento ao Transferegov</span><br /><span className="text-xs text-muted-foreground">Ao ativar, a aba Transferegov (PLE/BM) ficará disponível neste orçamento.</span></span>
+      </label>
       <Button onClick={save}><Save className="mr-2 size-4" />Salvar Dados Gerais</Button>
     </div>
   );
@@ -1232,7 +1239,7 @@ const RELATORIO_TABS = [
   { key: "qci", label: "QCI" },
 ];
 
-function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi }: any) {
+function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi, transferegovOnly = false }: any) {
   const [sel, setSel] = useState<Record<string, boolean>>(
     Object.fromEntries(RELATORIO_TABS.map(t => [t.key, true]))
   );
@@ -1851,6 +1858,8 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
 
   return (
     <div className="mt-4 max-w-2xl space-y-4">
+      {transferegovOnly && <Button variant="outline" onClick={()=>{ setTgErros(null); setTgValidado(false); setTgOpen(true); }}><FileDown className="mr-2 size-4"/>Configurar envio ao Transferegov</Button>}
+      <div className={transferegovOnly ? "hidden" : "space-y-4"}>
       <p className="text-sm text-muted-foreground">Selecione as abas que devem compor o relatório. Por padrão todas estão selecionadas.</p>
       <div className="flex gap-2 text-xs">
         <button className="underline text-muted-foreground" onClick={()=>all(true)}>Selecionar todas</button>
@@ -1877,7 +1886,8 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
         >
           <FileDown className="mr-2 size-4"/>Exportar .pdf
         </Button>
-        <Button variant="outline" onClick={()=>{ setTgErros(null); setTgValidado(false); setTgOpen(true); }}><FileDown className="mr-2 size-4"/>JSON Transferegov</Button>
+        {!transferegovOnly && <Button variant="outline" onClick={()=>{ setTgErros(null); setTgValidado(false); setTgOpen(true); }}><FileDown className="mr-2 size-4"/>JSON Transferegov</Button>}
+      </div>
       </div>
       <Dialog open={tgOpen} onOpenChange={setTgOpen}>
         <DialogContent className="max-w-2xl">
@@ -2003,6 +2013,76 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi 
 }
 
 
+
+function LicitacaoTab({ orc, orcId, items, subtotal, totalComBdi }: any) {
+  const bdi = Number(orc.bdi_pct) || 0;
+  const [valorFinal, setValorFinal] = useState("");
+  const [modo, setModo] = useState<"linear" | "linear_2_casas">("linear");
+  const [salvo, setSalvo] = useState(false);
+  const [carregando, setCarregando] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const { data } = await (supabase as any).from("orcamento_licitacoes").select("valor_final,modo").eq("orcamento_id", orcId).maybeSingle();
+      if (active && data) { setValorFinal(String(data.valor_final)); setModo(data.modo === "linear_2_casas" ? data.modo : "linear"); setSalvo(true); }
+      if (active) setCarregando(false);
+    })();
+    return () => { active = false; };
+  }, [orcId]);
+
+  const alvo = Number(valorFinal.replace(/\./g, "").replace(",", "."));
+  const fator = totalComBdi > 0 && alvo > 0 ? alvo / totalComBdi : 0;
+  const desconto = fator > 0 ? (1 - fator) * 100 : 0;
+  const calculado = useMemo(() => {
+    if (!(alvo > 0) || !(totalComBdi > 0)) return { rows: [], total: 0, diferenca: 0, ajustado: 0 };
+    const rows = (items as Item[]).map((item, index) => {
+      const original = Number(item.preco_unitario) || 0;
+      const linear = original * fator;
+      return { item, index, linear, preco: modo === "linear_2_casas" ? Math.round(linear * 100) / 100 : linear };
+    });
+    if (modo === "linear_2_casas" && rows.length) {
+      // Solver de menor impacto: recalcula apenas o preço unitário de um item
+      // com quantidade positiva, preservando os demais arredondamentos.
+      const candidato = [...rows].filter(r => Number(r.item.quantidade) > 0).sort((a, b) => Number(b.item.quantidade) - Number(a.item.quantidade))[0];
+      if (candidato) {
+        const demais = rows.reduce((s, r) => s + (r === candidato ? 0 : Number(r.item.quantidade) * r.preco * (1 + bdi)), 0);
+        candidato.preco = Math.max(0, Math.round(((alvo - demais) / (Number(candidato.item.quantidade) * (1 + bdi))) * 100) / 100);
+      }
+    }
+    const total = rows.reduce((s, r) => s + Number(r.item.quantidade) * r.preco * (1 + bdi), 0);
+    return { rows, total, diferenca: alvo - total, ajustado: modo === "linear_2_casas" ? rows.reduce((s, r) => s + (r.preco - Math.round(r.linear * 100) / 100), 0) : 0 };
+  }, [alvo, bdi, fator, items, modo, totalComBdi]);
+
+  const save = async () => {
+    if (!(alvo > 0)) return toast.error("Informe um valor final de licitação maior que zero");
+    const { error } = await (supabase as any).from("orcamento_licitacoes").upsert({ orcamento_id: orcId, valor_final: alvo, modo, updated_at: new Date().toISOString() }, { onConflict: "orcamento_id" });
+    if (error) return toast.error(error.message);
+    setSalvo(true); toast.success("Configuração de licitação salva");
+  };
+  const exportXlsx = async () => {
+    if (!calculado.rows.length) return toast.error("Informe o valor final antes de exportar");
+    const XLSX = await import("xlsx-js-style");
+    const rows = [["Etapa", "Item", "Fonte", "Código", "Descrição", "Un.", "Quantidade", "Preço unitário original", "Preço unitário licitado sem BDI", "Preço unitário licitado com BDI", "Total licitado"], ...calculado.rows.map(r => [r.item.etapa || "", r.item.item || "", r.item.fonte || "", r.item.codigo || "", r.item.descricao, r.item.unidade || "", Number(r.item.quantidade), Number(r.item.preco_unitario), r.preco, r.preco * (1 + bdi), Number(r.item.quantidade) * r.preco * (1 + bdi)]), ["", "", "", "", "", "", "", "", "", "TOTAL", calculado.total]];
+    const ws = XLSX.utils.aoa_to_sheet([["PLANILHA ORÇAMENTÁRIA AJUSTADA — LICITAÇÃO"], ["Valor original c/ BDI", totalComBdi], ["Valor vencedor c/ BDI", alvo], ["Desconto", desconto / 100], [], ...rows]);
+    ws["A1"].s = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F3864" } } };
+    ws["A4"].z = "0.00%";
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Licitação");
+    XLSX.writeFile(wb, `${orc.nome || "orcamento"}-licitacao.xlsx`);
+  };
+
+  return <div className="mt-4 max-w-6xl space-y-5">
+    <div><h2 className="text-lg font-semibold">Licitação</h2><p className="text-sm text-muted-foreground">Informe o valor final da proposta vencedora para recalcular os preços unitários e os relatórios do orçamento.</p></div>
+    <div className="grid gap-4 md:grid-cols-3">
+      <Field label="Valor final da planilha vencedora (R$)"><Input value={valorFinal} onChange={e => { setValorFinal(e.target.value); setSalvo(false); }} placeholder="0,00" /></Field>
+      <Field label="Forma de aplicação do desconto"><Select value={modo} onValueChange={v => { setModo(v as any); setSalvo(false); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="linear">Desconto linear</SelectItem><SelectItem value="linear_2_casas">Desconto linear com ajuste para 2 casas decimais</SelectItem></SelectContent></Select></Field>
+      <div className="rounded-lg border bg-muted/20 p-3"><p className="text-xs text-muted-foreground">Desconto calculado</p><p className="text-2xl font-semibold">{fmtPct(desconto / 100)}</p><p className="text-xs text-muted-foreground">Original: {fmtBRL(totalComBdi)} · Vencedora: {fmtBRL(alvo || 0)}</p></div>
+    </div>
+    {modo === "linear_2_casas" && <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">O solver ajusta minimamente um preço unitário para aproximar o total do valor vencedor após o arredondamento para centavos. Diferença residual: <b>{fmtBRL(calculado.diferenca)}</b>.</p>}
+    <div className="flex flex-wrap gap-2"><Button onClick={save} disabled={carregando}><Save className="mr-2 size-4" />{salvo ? "Configuração salva" : "Salvar licitação"}</Button><Button variant="outline" onClick={exportXlsx} disabled={!calculado.rows.length}><FileDown className="mr-2 size-4" />Exportar planilha ajustada</Button></div>
+    {calculado.rows.length > 0 && <div className="rounded-lg border overflow-auto"><table className="w-full text-sm"><thead><tr className="bg-muted"><th className="p-2 text-left">Item</th><th className="p-2 text-left">Código</th><th className="p-2 text-left">Descrição</th><th className="p-2 text-right">Qtd.</th><th className="p-2 text-right">PU original</th><th className="p-2 text-right">PU licitado</th><th className="p-2 text-right">Total</th></tr></thead><tbody>{calculado.rows.map(r => <tr key={r.item.id} className="border-t"><td className="p-2">{r.item.item || "—"}</td><td className="p-2">{r.item.codigo || "—"}</td><td className="p-2 min-w-80">{r.item.descricao}</td><td className="p-2 text-right">{fmtNum(Number(r.item.quantidade), 4)}</td><td className="p-2 text-right">{fmtBRL(Number(r.item.preco_unitario))}</td><td className="p-2 text-right">{r.preco.toLocaleString("pt-BR", { minimumFractionDigits: modo === "linear_2_casas" ? 2 : 6, maximumFractionDigits: modo === "linear_2_casas" ? 2 : 6 })}</td><td className="p-2 text-right">{fmtBRL(Number(r.item.quantidade) * r.preco * (1 + bdi))}</td></tr>)}</tbody><tfoot><tr className="border-t bg-muted font-semibold"><td className="p-2" colSpan={6}>TOTAL LICITADO C/ BDI</td><td className="p-2 text-right">{fmtBRL(calculado.total)}</td></tr></tfoot></table></div>}
+  </div>;
+}
 
 /* ---------- MEMÓRIA DE CÁLCULO ---------- */
 function MemoriaTab({ orcId, items, reload }: any) {
