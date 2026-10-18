@@ -2023,6 +2023,7 @@ function LicitacaoTab({ orc, orcId, items, subtotal, totalComBdi }: any) {
   const [valorFinal, setValorFinal] = useState("");
   const [modo, setModo] = useState<"linear" | "linear_2_casas">("linear");
   const [aplicarSolver, setAplicarSolver] = useState(false);
+  const [relatoriosOpen, setRelatoriosOpen] = useState(false);
   const [salvo, setSalvo] = useState(false);
   const [carregando, setCarregando] = useState(true);
 
@@ -2104,9 +2105,24 @@ function LicitacaoTab({ orc, orcId, items, subtotal, totalComBdi }: any) {
       <div className="rounded-lg border bg-muted/20 p-3"><p className="text-xs text-muted-foreground">Desconto calculado</p><p className="text-2xl font-semibold">{fmtPct(desconto / 100)}</p><p className="text-xs text-muted-foreground">Original: {fmtBRL(totalComBdi)} · Vencedora: {fmtBRL(alvo || 0)}</p></div>
     </div>
     {modo === "linear_2_casas" && <label className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 cursor-pointer"><Checkbox checked={aplicarSolver} onCheckedChange={v => setAplicarSolver(!!v)} /><span><b>Aplicar solver para eliminar o resíduo?</b><br />Antes do solver, o desconto exibido é o mesmo percentual global em todos os itens. Ao ativar, o sistema combina alterações de centavos em vários preços unitários, preservando duas casas decimais em todos os itens, para fazer o total monetário coincidir com a proposta vencedora. Resíduo atual: <b>{fmtBRL(calculado.diferenca)}</b>.</span></label>}
-    <div className="flex flex-wrap gap-2"><Button onClick={save} disabled={carregando}><Save className="mr-2 size-4" />{salvo ? "Configuração salva" : "Salvar licitação"}</Button><Button variant="outline" onClick={exportXlsx} disabled={!calculado.rows.length}><FileDown className="mr-2 size-4" />Exportar planilha ajustada</Button></div>
+    <div className="flex flex-wrap gap-2"><Button onClick={save} disabled={carregando}><Save className="mr-2 size-4" />{salvo ? "Configuração salva" : "Salvar licitação"}</Button><Button variant="outline" onClick={() => setRelatoriosOpen(true)} disabled={!calculado.rows.length}><FileDown className="mr-2 size-4" />Relatórios da licitação</Button></div>
     {calculado.rows.length > 0 && <div className="rounded-lg border overflow-auto"><table className="w-full text-sm"><thead><tr className="bg-muted"><th className="p-2 text-left">Item</th><th className="p-2 text-left">Código</th><th className="p-2 text-left">Descrição</th><th className="p-2 text-right">Qtd.</th><th className="p-2 text-right">PU original</th><th className="p-2 text-right">Desconto</th><th className="p-2 text-right">PU licitado</th><th className="p-2 text-right">Total</th></tr></thead><tbody>{calculado.rows.map(r => <tr key={r.item.id} className="border-t"><td className="p-2">{r.item.item || "—"}</td><td className="p-2">{r.item.codigo || "—"}</td><td className="p-2 min-w-80">{r.item.descricao}</td><td className="p-2 text-right">{fmtNum(Number(r.item.quantidade), 4)}</td><td className="p-2 text-right">{fmtBRL(Number(r.item.preco_unitario))}</td><td className="p-2 text-right">{fmtPct(aplicarSolver && Number(r.item.preco_unitario) > 0 ? 1 - r.preco / Number(r.item.preco_unitario) : desconto / 100)}</td><td className="p-2 text-right">{r.preco.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td className="p-2 text-right">{fmtBRL(Number(r.item.quantidade) * r.preco * (1 + bdi))}</td></tr>)}</tbody><tfoot><tr className="border-t bg-muted font-semibold"><td className="p-2" colSpan={7}>TOTAL LICITADO C/ BDI</td><td className="p-2 text-right">{fmtBRL(calculado.total)}</td></tr></tfoot></table></div>}
-    {calculado.rows.length > 0 && <div className="rounded-lg border p-4"><h3 className="font-semibold">Relatórios da licitação</h3><p className="mb-3 text-sm text-muted-foreground">Os relatórios abaixo usam os preços unitários ajustados e os totais da proposta vencedora.</p><RelatorioTab orc={orc} orcId={orcId} items={itemsAjustados} subtotal={subtotalLicitado} totalEncargos={totalEncargosLicitado} totalComBdi={calculado.total} /></div>}
+    <Dialog open={relatoriosOpen} onOpenChange={setRelatoriosOpen}>
+      <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto">
+        <DialogHeader><DialogTitle>Relatórios da licitação</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">Os relatórios usam os preços unitários ajustados, preservando o BDI ({fmtPct(bdi)}) e os encargos sociais ({fmtPct(Number(orc.encargos_pct || 0) )}) da planilha original.</p>
+          <div className="grid gap-3 sm:grid-cols-4 rounded-lg border bg-muted/20 p-3 text-sm">
+            <div><span className="text-muted-foreground">Total original c/ BDI</span><br /><b>{fmtBRL(totalComBdi)}</b></div>
+            <div><span className="text-muted-foreground">Valor vencedor c/ BDI</span><br /><b>{fmtBRL(alvo)}</b></div>
+            <div><span className="text-muted-foreground">Desconto global</span><br /><b>{fmtPct(desconto / 100)}</b></div>
+            <div><span className="text-muted-foreground">Total ajustado</span><br /><b>{fmtBRL(calculado.total)}</b></div>
+          </div>
+          <RelatorioTab orc={orc} orcId={orcId} items={itemsAjustados} subtotal={subtotalLicitado} totalEncargos={totalEncargosLicitado} totalComBdi={calculado.total} />
+        </div>
+        <DialogFooter><Button variant="outline" onClick={exportXlsx}><FileDown className="mr-2 size-4" />Exportar planilha ajustada</Button><Button onClick={() => setRelatoriosOpen(false)}>Fechar</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>;
 }
 
