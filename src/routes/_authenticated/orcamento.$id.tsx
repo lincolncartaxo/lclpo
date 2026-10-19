@@ -1564,20 +1564,20 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
         const percent = percentFor(entry, i + 1);
         return [totalFor(entry) * percent, percent];
       }).flat();
-      const header = ["Item", "Descrição", "", "Total", "Peso %", ...Array.from({ length: cronoMeses }, (_, i) => [`M${i + 1}`, "" ]).flat()];
-      const subheader = ["", "", "", "", "", ...Array.from({ length: cronoMeses }, () => ["Valor (R$)", "%"]).flat()];
+      const header = ["Item", "Descrição", "Total", "Peso %", ...Array.from({ length: cronoMeses }, (_, i) => [`M${i + 1}`, "" ]).flat()];
+      const subheader = ["", "", "", "", ...Array.from({ length: cronoMeses }, () => ["Valor (R$)", "%"]).flat()];
       const cronogramaRows: (string|number)[][] = [header, subheader];
       prefixEntries.forEach(entry => {
         const total = totalFor(entry);
         const pairs = monthPairs(entry);
-        cronogramaRows.push([entry.label.split(/\s[-–:]\s/)[0] || entry.label, entry.label.replace(/^\s*\d+(?:\.\d+)*\s*[-–:]?\s*/, ""), "", total, totalComBdi ? (total / totalComBdi) * 100 : 0, ...pairs.map((value, index) => index % 2 === 1 ? value * 100 : value)]);
+        cronogramaRows.push([entry.label.split(/\s[-–:]\s/)[0] || entry.label, entry.label.replace(/^\s*\d+(?:\.\d+)*\s*[-–:]?\s*/, ""), total, totalComBdi ? (total / totalComBdi) * 100 : 0, ...pairs.map((value, index) => index % 2 === 1 ? value * 100 : value)]);
       });
       const periodValues = Array.from({ length: cronoMeses }, (_, i) => leaves.reduce((s, leaf) => s + totalLeaf(leaf) * Number(crono[leaf.label]?.[i + 1] ?? 0), 0));
       const periodTotal = periodValues.reduce((s, value) => s + value, 0);
       const cumulativeValues: number[] = [];
       periodValues.reduce((sum, value, index) => { cumulativeValues[index] = sum + value; return cumulativeValues[index]; }, 0);
-      cronogramaRows.push(["TOTAL PERÍODO", "", "", periodTotal, totalComBdi ? (periodTotal / totalComBdi) * 100 : 0, ...periodValues.flatMap(value => [value, totalComBdi ? (value / totalComBdi) * 100 : 0])]);
-      cronogramaRows.push(["TOTAL ACUMULADO", "", "", "", "", ...cumulativeValues.flatMap(value => [value, totalComBdi ? (value / totalComBdi) * 100 : 0])]);
+      cronogramaRows.push(["", "TOTAL PERÍODO", periodTotal, totalComBdi ? (periodTotal / totalComBdi) * 100 : 0, ...periodValues.flatMap(value => [value, totalComBdi ? (value / totalComBdi) * 100 : 0])]);
+      cronogramaRows.push(["", "TOTAL ACUMULADO", "", "", ...cumulativeValues.flatMap(value => [value, totalComBdi ? (value / totalComBdi) * 100 : 0])]);
       out.push({ key: "cronograma", title: "Cronograma F/F", rows: cronogramaRows });
     }
     if (sel.qci) {
@@ -1680,7 +1680,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
           : s.key === "memoria"
             ? isMemoryStageRow(row)
             : first !== "" && second === "" && third === "";
-        const isTotal = first === "SUBTOTAL" || first.includes("BDI (") || first === "TOTAL GERAL" || first === "TOTAL PERÍODO" || first === "TOTAL ACUMULADO";
+        const isTotal = first === "SUBTOTAL" || first.includes("BDI (") || first === "TOTAL GERAL" || first === "TOTAL PERÍODO" || first === "TOTAL ACUMULADO" || second === "TOTAL PERÍODO" || second === "TOTAL ACUMULADO";
         const isCompositionItem = s.key === "composicao" && first.startsWith("COMPOSIÇÃO (");
         const stageLabel = isStage
           ? [first, s.key === "planilha" ? fourth : s.key === "memoria" ? second : ""].filter(Boolean).join(" ")
@@ -1690,7 +1690,13 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
         for (let c = 0; c <= lastCol; c++) {
           const value = row[c];
           const header = hasHead ? String((s.rows[0] as any[])[c] ?? "").toUpperCase() : "";
-          const style: any = { border: allBorders, alignment: { vertical: "center", wrapText: true } };
+          const monthBoundary = s.key === "cronograma" && c >= 4 && (c - 4) % 2 === 0;
+          const style: any = {
+            border: monthBoundary
+              ? { ...allBorders, left: { style: "medium", color: { rgb: blue } } }
+              : allBorders,
+            alignment: { vertical: "center", wrapText: true },
+          };
           if (isStage || isTotal || isCompositionItem) style.fill = { fgColor: { rgb: isCompositionItem ? rootFill : fill } };
           if (isStage || isTotal || isCompositionItem) style.font = { bold: true, color: { rgb: blue } };
           if (typeof value === "number") {
@@ -1713,7 +1719,14 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
       ws['!rows'] = [{ hpt: 22 }, ...Array.from({ length: finalRows.length - 1 }, () => ({ hpt: 18 }))];
       (ws as any)['!freeze'] = { xSplit: 0, ySplit: dataStart + (hasHead ? headerRows : 0) };
       ws['!merges'] = [
-        { s: { r: titleRowIndex, c: 0 }, e: { r: titleRowIndex, c: lastCol } }
+        { s: { r: titleRowIndex, c: 0 }, e: { r: titleRowIndex, c: lastCol } },
+        ...(s.key === "cronograma" ? [
+          { s: { r: dataStart, c: 0 }, e: { r: dataStart + 1, c: 0 } },
+          { s: { r: dataStart, c: 1 }, e: { r: dataStart + 1, c: 1 } },
+          { s: { r: dataStart, c: 2 }, e: { r: dataStart + 1, c: 2 } },
+          { s: { r: dataStart, c: 3 }, e: { r: dataStart + 1, c: 3 } },
+          ...Array.from({ length: cronoMeses }, (_, i) => ({ s: { r: dataStart, c: 4 + i * 2 }, e: { r: dataStart, c: 5 + i * 2 } })),
+        ] : []),
       ];
       
       const safeSheetName = s.title.substring(0, 31).split('').filter((char) => !'[]*?/\\:'.includes(char)).join('');
@@ -1801,6 +1814,10 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
         },
         
         didParseCell: function (data: any) {
+          if (s.key === 'cronograma' && data.column.index >= 4 && (data.column.index - 4) % 2 === 0) {
+            data.cell.styles.lineWidth = { left: 0.8 };
+            data.cell.styles.lineColor = { left: [31, 56, 100] };
+          }
           if (data.section === 'body') {
             const firstCol = String(data.row.raw[0] || '').trim();
             const secondCol = String(data.row.raw[1] || '').trim();
@@ -1814,7 +1831,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
             const stageLabel = isEtapa
               ? [firstCol, s.key === 'planilha' ? fourthCol : s.key === 'memoria' ? secondCol : ''].filter(Boolean).join(' ')
               : firstCol;
-            const isTotais = firstCol === "SUBTOTAL" || firstCol.includes("BDI (") || firstCol === "TOTAL GERAL" || firstCol === "TOTAL PERÍODO" || firstCol === "TOTAL ACUMULADO";
+            const isTotais = firstCol === "SUBTOTAL" || firstCol.includes("BDI (") || firstCol === "TOTAL GERAL" || firstCol === "TOTAL PERÍODO" || firstCol === "TOTAL ACUMULADO" || secondCol === "TOTAL PERÍODO" || secondCol === "TOTAL ACUMULADO";
 
             if (isEtapa || firstCol === "Sem etapa" || stageLabel === "Sem etapa" || isTotais || isCompositionItem) {
               const prefixMatch = stageLabel.match(/^([0-9]+(?:\.[0-9]+)*)/);
