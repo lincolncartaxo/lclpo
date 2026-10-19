@@ -1335,7 +1335,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
       if (rowsError) throw new Error(`Erro ao carregar ${item.fonte} ${item.codigo}: ${rowsError.message}`);
       if (!rows?.length) return [];
 
-      const codes = Array.from(new Set(rows.map((row: any) => String(row.codigo_item))));
+      const codes: string[] = Array.from(new Set(rows.map((row: any) => String(row.codigo_item))));
       const codesLookup = Array.from(new Set(codes.flatMap(code => [code, code.padStart(8, "0")])));
       const fontesItens = Array.from(new Set(rows.map((row: any) => String(row.fonte_item || item.fonte))));
       const [{ data: insumoMeta, error: insumoError }, { data: composicaoMeta, error: composicaoError }] = await Promise.all([
