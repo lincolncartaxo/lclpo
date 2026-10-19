@@ -127,6 +127,24 @@ type Item = {
   memoria?: any[];
 };
 
+function totalEtapaComDescendentes(
+  groups: Record<string, { label: string; list: Item[] }>,
+  etapa: string,
+) {
+  const group = groups[etapa];
+  if (!group) return 0;
+  const prefix = prefixOf(group.label);
+  const stageItems = prefix
+    ? Object.values(groups)
+        .filter(candidate => {
+          const candidatePrefix = prefixOf(candidate.label);
+          return candidatePrefix === prefix || candidatePrefix.startsWith(`${prefix}.`);
+        })
+        .flatMap(candidate => candidate.list)
+    : group.list;
+  return stageItems.reduce((sum, item) => sum + Number(item.quantidade) * Number(item.preco_unitario), 0);
+}
+
 const UFS = ["AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT","PA","PB","PE","PI","PR","RJ","RN","RO","RR","RS","SC","SE","SP","TO"];
 function parseRef(ref: string | null | undefined): { fonte: string | null; mes: string | null } {
   if (!ref || !ref.includes("|")) return { fonte: null, mes: null };
@@ -896,12 +914,9 @@ function useResumoRows(orcId: string, items: Item[]) {
     items.forEach(i => { if (i.etapa) set.add(i.etapa); });
     etapasExtra.forEach(e => set.add(e));
     const groups = groupItemsByEtapa(items, Array.from(set));
-    const val = (l: Item[]) => l.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario), 0);
     const rows = Object.entries(groups).map(([etapa, g]) => {
       const pfx = prefixOf(etapa);
-      const total = pfx
-        ? val(items.filter(i => { const c = (i.item || "").trim(); return c === pfx || c.startsWith(pfx + "."); }))
-        : val(g.list);
+      const total = totalEtapaComDescendentes(groups, etapa);
       return { label: g.label, total, nivel: pfx ? pfx.split(".").length - 1 : 0 };
     });
     // base do % = somente etapas de nível raiz (evita contar subetapas duas vezes)
@@ -1518,11 +1533,14 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
     }
 
     if (sel.resumo) {
-      const grouped: Record<string, number> = {};
-      Object.values(groups).forEach(g => { grouped[g.label] = g.list.reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario),0); });
-      const tot = Object.values(grouped).reduce((a,b)=>a+b,0) || 1;
+      const grouped = Object.entries(groups).map(([etapa, group]) => ({
+        label: group.label,
+        total: totalEtapaComDescendentes(groups, etapa),
+        nivel: prefixOf(group.label).split(".").filter(Boolean).length,
+      }));
+      const tot = grouped.filter(group => group.nivel <= 1).reduce((sum, group) => sum + group.total, 0) || 1;
       const rows: (string|number)[][] = [["Etapa","Total","% Obra"]];
-      Object.entries(grouped).forEach(([k,v]) => rows.push([k, v, `${(v/tot*100).toFixed(2)}%`]));
+      grouped.forEach(group => rows.push([group.label, group.total, `${(group.total/tot*100).toFixed(2)}%`]));
       rows.push(["SUBTOTAL", subtotal, "100,00%"]);
       rows.push([`BDI (${fmtPct(bdiPct)})`, totalComBdi - subtotal, ""]);
       rows.push(["TOTAL GERAL", totalComBdi, ""]);
