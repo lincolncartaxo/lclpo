@@ -1714,12 +1714,14 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
       if (s.key === "cronograma") {
         const cronogramaTotalStyle = {
           fill: { fgColor: { rgb: totalFill } },
-          font: { bold: true, color: { rgb: blue }, sz: 11 },
+          font: { name: "Arial", bold: true, color: { rgb: blue }, sz: 11 },
           alignment: { vertical: "center", wrapText: true },
         };
+        const cronogramaTotalRows: number[] = [];
         s.rows.forEach((row, index) => {
           const label = String((row as any[])[1] ?? "").trim();
           if (label !== "TOTAL PERÍODO" && label !== "TOTAL ACUMULADO") return;
+          cronogramaTotalRows.push(dataStart + index);
           for (let c = 0; c <= lastCol; c++) {
             const monthBoundary = c >= 4 && (c - 4) % 2 === 0;
             setStyle(dataStart + index, c, {
@@ -1730,6 +1732,8 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
             });
           }
         });
+        (ws as any)["!rows"] = (ws as any)["!rows"] ?? [];
+        cronogramaTotalRows.forEach(rowIndex => { (ws as any)["!rows"][rowIndex] = { hpt: 30 }; });
       }
 
       // Larguras compactas e proporcionais ao conteúdo, sem deixar uma
@@ -1871,8 +1875,11 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
               data.cell.styles.textColor = [31, 56, 100];
               if (isCronogramaTotal) {
                 data.cell.styles.fillColor = [220, 230, 241];
+                data.cell.styles.font = 'helvetica';
+                data.cell.styles.fontSize = 8;
                 data.cell.styles.fontStyle = 'bold';
                 data.cell.styles.textColor = [31, 56, 100];
+                data.cell.styles.halign = data.column.index === 1 ? 'left' : 'right';
               }
             }
 
