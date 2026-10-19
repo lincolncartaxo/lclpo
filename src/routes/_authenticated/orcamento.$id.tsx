@@ -1711,6 +1711,26 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
           setStyle(excelRow, c, style);
         }
       }
+      if (s.key === "cronograma") {
+        const cronogramaTotalStyle = {
+          fill: { fgColor: { rgb: totalFill } },
+          font: { bold: true, color: { rgb: blue }, sz: 11 },
+          alignment: { vertical: "center", wrapText: true },
+        };
+        s.rows.forEach((row, index) => {
+          const label = String((row as any[])[1] ?? "").trim();
+          if (label !== "TOTAL PERÍODO" && label !== "TOTAL ACUMULADO") return;
+          for (let c = 0; c <= lastCol; c++) {
+            const monthBoundary = c >= 4 && (c - 4) % 2 === 0;
+            setStyle(dataStart + index, c, {
+              ...cronogramaTotalStyle,
+              border: monthBoundary
+                ? { ...allBorders, left: { style: "medium", color: { rgb: blue } } }
+                : allBorders,
+            });
+          }
+        });
+      }
 
       // Larguras compactas e proporcionais ao conteúdo, sem deixar uma
       // descrição isolada expandir toda a planilha.
