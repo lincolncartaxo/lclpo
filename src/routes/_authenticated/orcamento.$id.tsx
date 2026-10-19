@@ -1035,18 +1035,17 @@ function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: It
     return m;
   }, [etapas]);
   const isParent = (e: string) => (descendentes[e]?.length ?? 0) > 0;
-  const folhasDe = (e: string) => descendentes[e].filter(d => !isParent(d));
+  const etapasDaSubarvore = (e: string) => [e, ...(descendentes[e] ?? [])];
   const totalEtapa = (e: string) => {
-    if (!isParent(e)) return (totaisPorEtapa[e] || 0) * fator;
-    return folhasDe(e).reduce((s, d) => s + (totaisPorEtapa[d] || 0) * fator, 0);
+    return totalEtapaComDescendentes(groups, e) * fator;
   };
   const pctCell = (e: string, mes: number): number => {
     if (!isParent(e)) return grid[e]?.[mes] || 0;
     const tot = totalEtapa(e);
     if (tot <= 0) return 0;
-    return folhasDe(e).reduce((s, d) => s + (grid[d]?.[mes] || 0) * (totaisPorEtapa[d] || 0) * fator, 0) / tot;
+    return etapasDaSubarvore(e).reduce((sum, stage) => sum + (grid[stage]?.[mes] || 0) * (totaisPorEtapa[stage] || 0) * fator, 0) / tot;
   };
-  const valorMes = (mes: number) => etapas.filter(e => !isParent(e)).reduce((s,e)=>s + (grid[e]?.[mes]||0) * totalEtapa(e), 0);
+  const valorMes = (mes: number) => etapas.reduce((sum, e) => sum + (grid[e]?.[mes] || 0) * (totaisPorEtapa[e] || 0) * fator, 0);
 
 
   return (
@@ -1550,9 +1549,31 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
       const cronogramaRows: (string|number)[][] = [
         ["Etapa", ...Array.from({ length: cronoMeses }, (_, i) => `M${i + 1} (%)`), "Σ (%)", "Total estimado"],
       ];
-      Object.values(groups).forEach(g => {
-        const total = g.list.reduce((s,i)=>s+Number(i.quantidade)*Number(i.preco_unitario)*(1+bdiPct),0);
-        const percentuais = Array.from({ length: cronoMeses }, (_, i) => Number((((crono[g.label]?.[i + 1] ?? 0) * 100)).toFixed(2)));
+      Object.entries(groups).forEach(([etapa, g]) => {
+        const prefix = prefixOf(g.label);
+        const branch = prefix
+          ? Object.entries(groups).filter(([, candidate]) => {
+              const candidatePrefix = prefixOf(candidate.label);
+              return candidatePrefix === prefix || candidatePrefix.startsWith(`${prefix}.`);
+            })
+          : [[etapa, g] as [string, typeof g]];
+        const branchTotal = branch.reduce((sum, [, candidate]) => sum + candidate.list.reduce((s, item) => s + Number(item.quantidade) * Number(item.preco_unitario), 0), 0);
+        const total = totalEtapaComDescendentes(groups, etapa) * (1 + bdiPct);
+        const percentuais = Array.from({ length: cronoMeses }, (_, i) => {
+          const mes = i + 1;
+          if (branch.length <= 1) {
+            const raw = Number(crono[normalizeCronogramaEtapa(g.label)]?.[mes] ?? crono[g.label]?.[mes] ?? 0);
+            return Number(((raw > 1 && raw <= 100 ? raw : raw * 100).toFixed(2)));
+          }
+          if (branchTotal <= 0) return 0;
+          const valorPonderado = branch.reduce((sum, [, candidate]) => {
+            const raw = Number(crono[normalizeCronogramaEtapa(candidate.label)]?.[mes] ?? crono[candidate.label]?.[mes] ?? 0);
+            const percentual = raw > 1 && raw <= 100 ? raw / 100 : raw;
+            const totalDireto = candidate.list.reduce((s, item) => s + Number(item.quantidade) * Number(item.preco_unitario), 0);
+            return sum + percentual * totalDireto;
+          }, 0);
+          return Number((valorPonderado / branchTotal * 100).toFixed(2));
+        });
         cronogramaRows.push([g.label, ...percentuais, Number(percentuais.reduce((s, v) => s + v, 0).toFixed(2)), total]);
       });
       out.push({ key: "cronograma", title: "Cronograma F/F", rows: [
