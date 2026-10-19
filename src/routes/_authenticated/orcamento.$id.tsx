@@ -1680,7 +1680,8 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
           : s.key === "memoria"
             ? isMemoryStageRow(row)
             : first !== "" && second === "" && third === "";
-        const isTotal = first === "SUBTOTAL" || first.includes("BDI (") || first === "TOTAL GERAL" || first === "TOTAL PERÍODO" || first === "TOTAL ACUMULADO" || second === "TOTAL PERÍODO" || second === "TOTAL ACUMULADO";
+        const isCronogramaTotal = s.key === "cronograma" && (second === "TOTAL PERÍODO" || second === "TOTAL ACUMULADO");
+        const isTotal = isCronogramaTotal || first === "SUBTOTAL" || first.includes("BDI (") || first === "TOTAL GERAL" || first === "TOTAL PERÍODO" || first === "TOTAL ACUMULADO" || second === "TOTAL PERÍODO" || second === "TOTAL ACUMULADO";
         const isCompositionItem = s.key === "composicao" && first.startsWith("COMPOSIÇÃO (");
         const stageLabel = isStage
           ? [first, s.key === "planilha" ? fourth : s.key === "memoria" ? second : ""].filter(Boolean).join(" ")
@@ -1699,6 +1700,10 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
           };
           if (isStage || isTotal || isCompositionItem) style.fill = { fgColor: { rgb: isCompositionItem ? rootFill : fill } };
           if (isStage || isTotal || isCompositionItem) style.font = { bold: true, color: { rgb: blue } };
+          if (isCronogramaTotal) {
+            style.fill = { fgColor: { rgb: totalFill } };
+            style.font = { bold: true, color: { rgb: blue } };
+          }
           if (typeof value === "number") {
             style.numFmt = /%/.test(header) ? "0.00" : /(PREÇO|CUSTO|TOTAL|INVESTIMENTO|REPASSE|CONTRAPARTIDA|BDI)/.test(header) ? 'R$ #,##0.00' : "#,##0.0000";
             style.alignment = { ...style.alignment, horizontal: "right" };
@@ -1831,7 +1836,8 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
             const stageLabel = isEtapa
               ? [firstCol, s.key === 'planilha' ? fourthCol : s.key === 'memoria' ? secondCol : ''].filter(Boolean).join(' ')
               : firstCol;
-            const isTotais = firstCol === "SUBTOTAL" || firstCol.includes("BDI (") || firstCol === "TOTAL GERAL" || firstCol === "TOTAL PERÍODO" || firstCol === "TOTAL ACUMULADO" || secondCol === "TOTAL PERÍODO" || secondCol === "TOTAL ACUMULADO";
+            const isCronogramaTotal = s.key === 'cronograma' && (secondCol === "TOTAL PERÍODO" || secondCol === "TOTAL ACUMULADO");
+            const isTotais = isCronogramaTotal || firstCol === "SUBTOTAL" || firstCol.includes("BDI (") || firstCol === "TOTAL GERAL" || firstCol === "TOTAL PERÍODO" || firstCol === "TOTAL ACUMULADO" || secondCol === "TOTAL PERÍODO" || secondCol === "TOTAL ACUMULADO";
 
             if (isEtapa || firstCol === "Sem etapa" || stageLabel === "Sem etapa" || isTotais || isCompositionItem) {
               const prefixMatch = stageLabel.match(/^([0-9]+(?:\.[0-9]+)*)/);
@@ -1843,6 +1849,11 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
                 : isCompositionItem || isRootEtapa ? [214, 224, 236] : [239, 243, 247];
               data.cell.styles.fontStyle = 'bold';
               data.cell.styles.textColor = [31, 56, 100];
+              if (isCronogramaTotal) {
+                data.cell.styles.fillColor = [220, 230, 241];
+                data.cell.styles.fontStyle = 'bold';
+                data.cell.styles.textColor = [31, 56, 100];
+              }
             }
 
             if (isSubitemMemoria) {
