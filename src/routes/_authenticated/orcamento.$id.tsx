@@ -1546,39 +1546,39 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
       out.push({ key: "resumo", title: "Resumo", rows });
     }
     if (sel.cronograma) {
-      const cronogramaRows: (string|number)[][] = [
-        ["Etapa", ...Array.from({ length: cronoMeses }, (_, i) => `M${i + 1} (%)`), "Σ (%)", "Total estimado"],
-      ];
-      Object.entries(groups).forEach(([etapa, g]) => {
-        const prefix = prefixOf(g.label);
-        const branch = prefix
-          ? Object.entries(groups).filter(([, candidate]) => {
-              const candidatePrefix = prefixOf(candidate.label);
-              return candidatePrefix === prefix || candidatePrefix.startsWith(`${prefix}.`);
-            })
-          : [[etapa, g] as [string, typeof g]];
-        const branchTotal = branch.reduce((sum, [, candidate]) => sum + candidate.list.reduce((s, item) => s + Number(item.quantidade) * Number(item.preco_unitario), 0), 0);
-        const total = totalEtapaComDescendentes(groups, etapa) * (1 + bdiPct);
-        const percentuais = Array.from({ length: cronoMeses }, (_, i) => {
-          const mes = i + 1;
-          if (branch.length <= 1) {
-            const raw = Number(crono[normalizeCronogramaEtapa(g.label)]?.[mes] ?? crono[g.label]?.[mes] ?? 0);
-            return Number(((raw > 1 && raw <= 100 ? raw : raw * 100).toFixed(2)));
-          }
-          if (branchTotal <= 0) return 0;
-          const valorPonderado = branch.reduce((sum, [, candidate]) => {
-            const raw = Number(crono[normalizeCronogramaEtapa(candidate.label)]?.[mes] ?? crono[candidate.label]?.[mes] ?? 0);
-            const percentual = raw > 1 && raw <= 100 ? raw / 100 : raw;
-            const totalDireto = candidate.list.reduce((s, item) => s + Number(item.quantidade) * Number(item.preco_unitario), 0);
-            return sum + percentual * totalDireto;
-          }, 0);
-          return Number((valorPonderado / branchTotal * 100).toFixed(2));
-        });
-        cronogramaRows.push([g.label, ...percentuais, Number(percentuais.reduce((s, v) => s + v, 0).toFixed(2)), total]);
+      const entries = Object.entries(groups).filter(([, g]) => g.label !== "Sem etapa" || g.list.length > 0);
+      const prefixEntries = entries.map(([key, g]) => ({ key, label: g.label, prefix: prefixOf(g.label), group: g }));
+      const leaves = prefixEntries.filter(entry => !prefixEntries.some(other => other.prefix && other.prefix !== entry.prefix && other.prefix.startsWith(entry.prefix + ".")));
+      const totalLeaf = (entry: typeof prefixEntries[number]) => entry.group.list.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario) * (1 + bdiPct), 0);
+      const totalFor = (entry: typeof prefixEntries[number]) => {
+        const descendants = leaves.filter(leaf => !entry.prefix || leaf.prefix === entry.prefix || leaf.prefix.startsWith(entry.prefix + "."));
+        return descendants.reduce((s, leaf) => s + totalLeaf(leaf), 0);
+      };
+      const percentFor = (entry: typeof prefixEntries[number], mes: number) => {
+        const descendants = leaves.filter(leaf => !entry.prefix || leaf.prefix === entry.prefix || leaf.prefix.startsWith(entry.prefix + "."));
+        const total = descendants.reduce((s, leaf) => s + totalLeaf(leaf), 0);
+        if (!total) return 0;
+        return descendants.reduce((s, leaf) => s + totalLeaf(leaf) * Number(crono[leaf.label]?.[mes] ?? 0), 0) / total;
+      };
+      const monthPairs = (entry: typeof prefixEntries[number]) => Array.from({ length: cronoMeses }, (_, i) => {
+        const percent = percentFor(entry, i + 1);
+        return [totalFor(entry) * percent, percent];
+      }).flat();
+      const header = ["Item", "Descrição", "", "Total", "Peso %", ...Array.from({ length: cronoMeses }, (_, i) => [`M${i + 1}`, "" ]).flat()];
+      const subheader = ["", "", "", "", "", ...Array.from({ length: cronoMeses }, () => ["Valor (R$)", "%"]).flat()];
+      const cronogramaRows: (string|number)[][] = [header, subheader];
+      prefixEntries.forEach(entry => {
+        const total = totalFor(entry);
+        const pairs = monthPairs(entry);
+        cronogramaRows.push([entry.label.split(/\s[-–:]\s/)[0] || entry.label, entry.label.replace(/^\s*\d+(?:\.\d+)*\s*[-–:]?\s*/, ""), "", total, totalComBdi ? (total / totalComBdi) * 100 : 0, ...pairs.map((value, index) => index % 2 === 1 ? value * 100 : value)]);
       });
-      out.push({ key: "cronograma", title: "Cronograma F/F", rows: [
-        ...cronogramaRows,
-      ]});
+      const periodValues = Array.from({ length: cronoMeses }, (_, i) => leaves.reduce((s, leaf) => s + totalLeaf(leaf) * Number(crono[leaf.label]?.[i + 1] ?? 0), 0));
+      const periodTotal = periodValues.reduce((s, value) => s + value, 0);
+      const cumulativeValues: number[] = [];
+      periodValues.reduce((sum, value, index) => { cumulativeValues[index] = sum + value; return cumulativeValues[index]; }, 0);
+      cronogramaRows.push(["TOTAL PERÍODO", "", "", periodTotal, totalComBdi ? (periodTotal / totalComBdi) * 100 : 0, ...periodValues.flatMap(value => [value, totalComBdi ? (value / totalComBdi) * 100 : 0])]);
+      cronogramaRows.push(["TOTAL ACUMULADO", "", "", "", "", ...cumulativeValues.flatMap(value => [value, totalComBdi ? (value / totalComBdi) * 100 : 0])]);
+      out.push({ key: "cronograma", title: "Cronograma F/F", rows: cronogramaRows });
     }
     if (sel.qci) {
       const repasse = totalComBdi * 0.95;
@@ -1650,10 +1650,11 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
       }
 
       const hasHead = Array.isArray(s.rows[0]) && typeof s.rows[0][0] === "string" && s.rows.length > 1;
+      const headerRows = s.key === "cronograma" ? 2 : 1;
       const dataStart = headerInfo.length;
       if (hasHead) {
-        for (let c = 0; c <= lastCol; c++) {
-          setStyle(dataStart, c, {
+        for (let h = 0; h < headerRows; h++) for (let c = 0; c <= lastCol; c++) {
+          setStyle(dataStart + h, c, {
             fill: { fgColor: { rgb: blue } },
             font: { bold: true, color: { rgb: "FFFFFF" } },
             alignment: { horizontal: "center", vertical: "center", wrapText: true },
@@ -1667,7 +1668,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
         // O cabeçalho já recebeu fundo azul-marinho, fonte branca e
         // alinhamento centralizado acima. Não deixe a regra das linhas de
         // dados sobrescrever esse estilo.
-        if (hasHead && i === 0) continue;
+        if (hasHead && i < headerRows) continue;
         const first = String(row[0] ?? "").trim();
         const second = String(row[1] ?? "").trim();
         const third = String(row[2] ?? "").trim();
@@ -1761,8 +1762,9 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
       doc.setTextColor(0, 0, 0);
 
       const hasHead = Array.isArray(s.rows[0]) && typeof s.rows[0][0] === "string" && s.rows.length > 1;
-      const head = hasHead ? [s.rows[0].map(String)] : undefined;
-      const body = (hasHead ? s.rows.slice(1) : s.rows).map(r => 
+      const headerRows = s.key === "cronograma" ? 2 : 1;
+      const head = hasHead ? s.rows.slice(0, headerRows).map(r => r.map(String)) : undefined;
+      const body = (hasHead ? s.rows.slice(headerRows) : s.rows).map(r =>
         r.map(c => typeof c === "number" ? c.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(c))
       );
       const stageBodyRows = new Set<number>();
@@ -1806,11 +1808,11 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
             const isSubitemMemoria = firstCol === '' && secondCol !== '' && thirdCol !== '';
             const isEtapa = s.key === 'planilha' || s.key === 'memoria'
               ? stageBodyRows.has(data.row.index)
-              : firstCol !== '' && secondCol === '' && thirdCol === '';
+              : firstCol !== '' && (secondCol === '' || (s.key === 'cronograma' && /^\d+$/.test(firstCol)));
             const stageLabel = isEtapa
               ? [firstCol, s.key === 'planilha' ? fourthCol : s.key === 'memoria' ? secondCol : ''].filter(Boolean).join(' ')
               : firstCol;
-            const isTotais = firstCol === "SUBTOTAL" || firstCol.includes("BDI (") || firstCol === "TOTAL GERAL";
+            const isTotais = firstCol === "SUBTOTAL" || firstCol.includes("BDI (") || firstCol === "TOTAL GERAL" || firstCol === "TOTAL PERÍODO" || firstCol === "TOTAL ACUMULADO";
 
             if (isEtapa || firstCol === "Sem etapa" || stageLabel === "Sem etapa" || isTotais || isCompositionItem) {
               const prefixMatch = stageLabel.match(/^([0-9]+(?:\.[0-9]+)*)/);
