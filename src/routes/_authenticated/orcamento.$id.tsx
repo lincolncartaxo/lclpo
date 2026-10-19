@@ -1364,8 +1364,12 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
         return { composicao: item.codigo, fonte: item.fonte, ...row, descricao: metadata.descricao ?? "", unidade: metadata.unidade ?? "", preco_unitario: price, subtotal: trunc2(Number(row.coeficiente ?? 0) * price), isParent: false };
       }));
       const subtotalAnaliticoUnitario = detailRows.reduce((sum, row) => sum + Number(row.subtotal ?? 0), 0);
+      const fatorAplicado = Number((item as any).fator_preco_licitado);
+      const subtotalComposicao = Number.isFinite(fatorAplicado)
+        ? Math.round(Number(item.preco_unitario ?? 0) * 100) / 100
+        : subtotalAnaliticoUnitario;
       return [
-        { composicao: item.codigo, fonte: item.fonte, codigo_item: "", tipo_item: "ITEM DO ORÇAMENTO", coeficiente: "", descricao: item.descricao ?? "", unidade: item.unidade ?? "", preco_unitario: Number(item.preco_unitario ?? 0), subtotal: subtotalAnaliticoUnitario, isParent: true },
+        { composicao: item.codigo, fonte: item.fonte, codigo_item: "", tipo_item: "ITEM DO ORÇAMENTO", coeficiente: "", descricao: item.descricao ?? "", unidade: item.unidade ?? "", preco_unitario: Number(item.preco_unitario ?? 0), subtotal: subtotalComposicao, isParent: true },
         ...detailRows,
       ];
     };
