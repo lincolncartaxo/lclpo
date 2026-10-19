@@ -1673,12 +1673,14 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
         const second = String(row[1] ?? "").trim();
         const third = String(row[2] ?? "").trim();
         const fourth = String(row[3] ?? "").trim();
-        const isStage = s.key === "planilha"
+        const isStage = s.key === "cronograma"
+          ? /^\d+$/.test(first)
+          : s.key === "planilha"
           ? typeof row[8] === "string" && String(row[8]).trim() !== ""
           : s.key === "memoria"
             ? isMemoryStageRow(row)
             : first !== "" && second === "" && third === "";
-        const isTotal = first === "SUBTOTAL" || first.includes("BDI (") || first === "TOTAL GERAL";
+        const isTotal = first === "SUBTOTAL" || first.includes("BDI (") || first === "TOTAL GERAL" || first === "TOTAL PERÍODO" || first === "TOTAL ACUMULADO";
         const isCompositionItem = s.key === "composicao" && first.startsWith("COMPOSIÇÃO (");
         const stageLabel = isStage
           ? [first, s.key === "planilha" ? fourth : s.key === "memoria" ? second : ""].filter(Boolean).join(" ")
@@ -1704,12 +1706,12 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
       ws['!cols'] = Array.from({ length: lastCol + 1 }, (_, c) => {
         const values = s.rows.map(row => String((row as any[])[c] ?? ""));
         const contentWidth = Math.max(0, ...values.map(value => value.length));
-        const descriptionColumn = s.key === "memoria" ? 1 : 3;
+        const descriptionColumn = s.key === "memoria" || s.key === "cronograma" ? 1 : 3;
         const limit = c === 0 ? 18 : c === descriptionColumn ? 42 : 18;
         return { wch: Math.min(limit, Math.max(10, contentWidth + 2)) };
       });
       ws['!rows'] = [{ hpt: 22 }, ...Array.from({ length: finalRows.length - 1 }, () => ({ hpt: 18 }))];
-      (ws as any)['!freeze'] = { xSplit: 0, ySplit: dataStart + (hasHead ? 1 : 0) };
+      (ws as any)['!freeze'] = { xSplit: 0, ySplit: dataStart + (hasHead ? headerRows : 0) };
       ws['!merges'] = [
         { s: { r: titleRowIndex, c: 0 }, e: { r: titleRowIndex, c: lastCol } }
       ];
