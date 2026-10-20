@@ -378,6 +378,23 @@ const encargoNumber = (value: number | string) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+const getEncargosDetalhes = (orc: any): EncargoDetalhe[] => {
+  try {
+    const saved = typeof orc.encargos_sociais === "string" ? JSON.parse(orc.encargos_sociais) : orc.encargos_sociais;
+    return Array.isArray(saved) && saved.length ? saved : ENCARGOS_PADRAO.map(row => ({ ...row }));
+  } catch { return ENCARGOS_PADRAO.map(row => ({ ...row })); }
+};
+
+const getEncargosTotais = (rows: EncargoDetalhe[]) => {
+  const groups: Record<string, { horista: number; mensalista: number }> = {};
+  for (const group of ["A", "B", "C", "D"]) {
+    groups[group] = rows.filter(row => row.item.startsWith(`${group}-`)).reduce((sum, row) => ({
+      horista: sum.horista + encargoNumber(row.horista), mensalista: sum.mensalista + encargoNumber(row.mensalista),
+    }), { horista: 0, mensalista: 0 });
+  }
+  return { groups, geral: ["A", "B", "C", "D"].reduce((sum, group) => ({ horista: sum.horista + groups[group].horista, mensalista: sum.mensalista + groups[group].mensalista }), { horista: 0, mensalista: 0 }) };
+};
+
 function EncargosTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
   const [modalidade, setModalidade] = useState<"horista" | "mensalista">(orc.encargos_modalidade === "mensalista" ? "mensalista" : "horista");
   const [rows, setRows] = useState<EncargoDetalhe[]>(() => {
@@ -1503,10 +1520,20 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
       ["Órgão", orc.orgao ?? ""], ["Referência de Preços", fmtRef(orc.ref_precos)], ["Regime tributário", orc.regime === "desonerado" ? "Desonerado" : "Não desonerado"], ["Engenheiro", orc.engenheiro ?? ""],
       ["CREA", orc.crea ?? ""], ["Objeto", orc.objeto ?? ""],
     ]});
-    if (sel.encargos) out.push({ key: "encargos", title: "Encargos", rows: [
-      ["Encargos sobre M.O. (%)", fmtPct(Number(orc.encargos_pct))],
-      ["Total de encargos referenciais", fmtBRL(totalEncargos)],
-    ]});
+    if (sel.encargos) {
+      const encargosRows = getEncargosDetalhes(orc);
+      const encargosTotals = getEncargosTotais(encargosRows);
+      const rows: (string | number)[][] = [["Item", "Discriminação", "Horista (%)", "Mensalista (%)"]];
+      encargosRows.forEach(row => {
+        if (row.grupo) {
+          rows.push([row.item, row.descricao, encargosTotals.groups[row.grupo].horista, encargosTotals.groups[row.grupo].mensalista]);
+        } else {
+          rows.push([row.item, row.descricao, typeof row.horista === "string" ? row.horista : Number(row.horista), typeof row.mensalista === "string" ? row.mensalista : Number(row.mensalista)]);
+        }
+      });
+      rows.push(["", "TOTAL GERAL", encargosTotals.geral.horista, encargosTotals.geral.mensalista]);
+      out.push({ key: "encargos", title: "Encargos Sociais", rows });
+    }
     if (sel.bdi) out.push({ key: "bdi", title: "BDI", rows: [
       ["BDI aplicado", fmtPct(bdiPct)],
       ["Valor de BDI", fmtBRL(totalComBdi - subtotal)],
