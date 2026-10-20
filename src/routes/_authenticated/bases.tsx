@@ -570,6 +570,8 @@ type PickedItem = {
   preco_nao_desonerado: number;
 };
 
+const searchKeywords = (value: string) => value.match(/[A-Za-zÀ-ÖØ-öø-ÿ0-9_/-]+/g) ?? [];
+
 function ItemPickerDialog({
   open, setOpen, uf, mes_ref, onPick,
 }: {
@@ -589,41 +591,35 @@ function ItemPickerDialog({
     const t = setTimeout(async () => {
       if (!q.trim()) { setResults([]); return; }
       setLoading(true);
-      if (tipo === "INSUMO") {
-        const { data: catalogo } = await (supabase as any).from("catalogo_insumos")
-          .select("codigo,descricao,unidade,fonte")
-          .or(`codigo.ilike.%${q}%,descricao.ilike.%${q}%`).limit(20);
-        const codes = (catalogo ?? []).map((d: any) => d.codigo).filter(Boolean);
-        let qy: any = (supabase as any).from("precos_historicos_insumos")
-          .select("codigo_insumo,preco_desonerado,preco_nao_desonerado")
-          .in("codigo_insumo", codes).limit(20);
-        if (uf) qy = qy.eq("uf", uf);
-        if (mes_ref) qy = qy.eq("mes_ref", mes_ref);
-        const { data } = await qy;
-        const meta = new Map<string, any>((catalogo ?? []).map((d: any) => [String(d.codigo), d]));
-        setResults((data ?? []).map((d: any) => ({
-          tipo: "INSUMO", fonte: meta.get(String(d.codigo_insumo))?.fonte ?? "", codigo: d.codigo_insumo, descricao: meta.get(String(d.codigo_insumo))?.descricao, unidade: meta.get(String(d.codigo_insumo))?.unidade,
-          preco_desonerado: Number(d.preco_desonerado) || 0,
-          preco_nao_desonerado: Number(d.preco_nao_desonerado) || 0,
-        })));
-      } else {
-        const { data: catalogo } = await (supabase as any).from("catalogo_composicoes")
-          .select("codigo,descricao,unidade,fonte")
-          .or(`codigo.ilike.%${q}%,descricao.ilike.%${q}%`).limit(20);
-        const codes = (catalogo ?? []).map((d: any) => d.codigo).filter(Boolean);
-        let qy: any = (supabase as any).from("precos_historicos_composicoes")
-          .select("codigo_composicao,custo_desonerado,custo_nao_desonerado")
-          .in("codigo_composicao", codes).limit(20);
-        if (uf) qy = qy.eq("uf", uf);
-        if (mes_ref) qy = qy.eq("mes_ref", mes_ref);
-        const { data } = await qy;
-        const meta = new Map<string, any>((catalogo ?? []).map((d: any) => [String(d.codigo), d]));
-        setResults((data ?? []).map((d: any) => ({
-          tipo: "COMPOSICAO", fonte: meta.get(String(d.codigo_composicao))?.fonte ?? "", codigo: d.codigo_composicao, descricao: meta.get(String(d.codigo_composicao))?.descricao, unidade: meta.get(String(d.codigo_composicao))?.unidade,
-          preco_desonerado: Number(d.custo_desonerado) || 0,
-          preco_nao_desonerado: Number(d.custo_nao_desonerado) || 0,
-        })));
-      }
+      const isInsumo = tipo === "INSUMO";
+      const catalogTable = isInsumo ? "catalogo_insumos" : "catalogo_composicoes";
+      const priceTable = isInsumo ? "precos_historicos_insumos" : "precos_historicos_composicoes";
+      const codeColumn = isInsumo ? "codigo_insumo" : "codigo_composicao";
+      const priceColumns = isInsumo ? "preco_desonerado,preco_nao_desonerado" : "custo_desonerado,custo_nao_desonerado";
+      const baseQuery = () => (supabase as any).from(catalogTable).select("codigo,descricao,unidade,fonte").limit(20);
+      const codeQuery = baseQuery().ilike("codigo", `%${q.trim()}%`);
+      let descriptionQuery: any = baseQuery();
+      const keywords = searchKeywords(q);
+      keywords.forEach(keyword => { descriptionQuery = descriptionQuery.ilike("descricao", `%${keyword}%`); });
+      const [byCode, byDescription] = await Promise.all([codeQuery, descriptionQuery]);
+      const catalogo = Array.from(new Map([...(byCode.data ?? []), ...(byDescription.data ?? [])].map((row: any) => [`${row.fonte}|${row.codigo}`, row])).values());
+      const codes = catalogo.map((d: any) => d.codigo).filter(Boolean);
+      if (!codes.length) { setResults([]); setLoading(false); return; }
+      let priceQuery: any = (supabase as any).from(priceTable).select(`${codeColumn},${priceColumns}`).in(codeColumn, codes).limit(100);
+      if (uf) priceQuery = priceQuery.eq("uf", uf);
+      if (mes_ref) priceQuery = priceQuery.eq("mes_ref", mes_ref);
+      const { data: prices } = await priceQuery;
+      const resultMap = new Map<string, PickedItem>();
+      (prices ?? []).forEach((price: any) => {
+        const code = String(price[codeColumn]);
+        const matching = catalogo.filter((row: any) => String(row.codigo) === code);
+        matching.forEach((row: any) => resultMap.set(`${row.fonte}|${code}`, {
+          tipo, fonte: row.fonte ?? "", codigo: code, descricao: row.descricao, unidade: row.unidade,
+          preco_desonerado: Number(price[isInsumo ? "preco_desonerado" : "custo_desonerado"]) || 0,
+          preco_nao_desonerado: Number(price[isInsumo ? "preco_nao_desonerado" : "custo_nao_desonerado"]) || 0,
+        }));
+      });
+      setResults(Array.from(resultMap.values()).slice(0, 20));
       setLoading(false);
     }, 250);
     return () => clearTimeout(t);

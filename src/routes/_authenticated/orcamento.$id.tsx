@@ -10,7 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Save, Plus, Search, Trash2, FileDown, Layers } from "lucide-react";
+import { ArrowLeft, Save, Plus, Search, Trash2, FileDown, Layers, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { consultarPropostaTG, enviarPOTransferegov } from "@/lib/transferegov.functions";
@@ -26,6 +26,9 @@ const prefixOf = (s: string) => {
   const m = (s || "").trim().match(/^([0-9]+(?:\.[0-9]+)*)/);
   return m ? m[1] : "";
 };
+
+const searchKeywords = (value: string) => value.match(/[A-Za-zÀ-ÖØ-öø-ÿ0-9_/-]+/g) ?? [];
+const FONTES_ALL = ["SINAPI", "DER", "SICRO3", "SBC", "ORSE", "PRÓPRIA", "Outras"];
 
 const splitEtapaLabel = (label: string) => {
   const value = label.trim();
@@ -248,7 +251,7 @@ function Editor() {
           <TabsContent value="encargos"><EncargosTab orc={orc} onSaved={load} /></TabsContent>
           <TabsContent value="bdi"><BdiTab orc={orc} onSaved={load} /></TabsContent>
           <TabsContent value="cotacao"><CotacaoTab /></TabsContent>
-          <TabsContent value="memoria"><MemoriaTab orcId={id} items={items} reload={load} /></TabsContent>
+          <TabsContent value="memoria"><MemoriaTab orcId={id} items={items} onItemUpdated={(itemId: string, patch: Partial<Item>) => setItems(current => current.map(item => item.id === itemId ? { ...item, ...patch } : item))} /></TabsContent>
           <TabsContent value="abc"><CurvaABCTab orcId={id} items={items} bdiPct={Number(orc.bdi_pct)} /></TabsContent>
           <TabsContent value="planilha"><PlanilhaTab orcId={id} items={items} reload={load} bdiPct={Number(orc.bdi_pct)} regime={orc.regime ?? "nao_desonerado"} uf={orc.uf ?? null} refPrecos={orc.ref_precos ?? null} /></TabsContent>
           <TabsContent value="resumo"><ResumoTab orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
@@ -514,7 +517,8 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf, refPrecos }: { 
   const [openEtapa, setOpenEtapa] = useState(false);
   const [explodeRow, setExplodeRow] = useState<Item | null>(null);
   const [confirmItem, setConfirmItem] = useState<Item | null>(null);
-  const [confirmEtapa, setConfirmEtapa] = useState<{ etapa: string; affected: Item[] } | null>(null);
+  const [editingItem, setEditingItem] = useState<Item | null>(null);
+  const [confirmEtapa, setConfirmEtapa] = useState<{ etapa: string; label: string; affected: Item[] } | null>(null);
   const [etapasExtra, setEtapasExtra] = useEtapasExtra(orcId);
   const [etapaDrafts, setEtapaDrafts] = useState<Record<string, string>>({});
 
@@ -568,46 +572,43 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf, refPrecos }: { 
   const renameEtapa = async (oldName: string, newName: string) => {
     const nn = newName.trim();
     if (!nn || nn === oldName) return;
-    if (etapasExistentes.includes(nn)) return toast.error("Já existe uma etapa com esse nome");
-    setEtapasExtra(prev => {
-      const exists = prev.includes(oldName);
-      const next = exists ? prev.map(e => e === oldName ? nn : e) : [...prev, nn];
-      return Array.from(new Set(next));
-    });
-    const { error } = await supabase.from("orcamento_cronograma").update({ etapa: nn }).eq("orcamento_id", orcId).eq("etapa", oldName);
-    if (error) return toast.error(`Não foi possível renomear a etapa: ${error.message}`);
+    if (etapasExistentes.some(etapa => etapa !== oldName && etapa === nn)) return toast.error("Já existe uma etapa com esse nome");
+    const [cronogramaResult, itemsResult] = await Promise.all([
+      supabase.from("orcamento_cronograma").update({ etapa: nn }).eq("orcamento_id", orcId).eq("etapa", oldName),
+      (supabase as any).from("orcamento_itens").update({ etapa: nn }).eq("orcamento_id", orcId).eq("etapa", oldName),
+    ]);
+    if (cronogramaResult.error || itemsResult.error) return toast.error(`Não foi possível renomear a etapa: ${(cronogramaResult.error || itemsResult.error)?.message}`);
+    setEtapasExtra(prev => Array.from(new Set([...prev.filter(e => e !== oldName), nn])));
+    setEtapaDrafts(prev => { const next = { ...prev }; delete next[oldName]; return next; });
     toast.success("Etapa renomeada");
+    reload();
   };
 
-  const askDeleteEtapa = (etapa: string) => {
-    const pfx = prefixOf(etapa);
+  const askDeleteEtapa = (etapa: string, label: string) => {
+    const pfx = prefixOf(label);
     const affected = pfx
-      ? items.filter(i => { const c = (i.item||"").trim(); return c === pfx || c.startsWith(pfx + "."); })
-      : [];
-    setConfirmEtapa({ etapa, affected });
+      ? items.filter(i => { const c = (i.item||"").trim(); return i.etapa?.trim() === label.trim() || c === pfx || c.startsWith(pfx + "."); })
+      : items.filter(i => i.etapa?.trim() === label.trim());
+    setConfirmEtapa({ etapa, label, affected });
   };
 
   const doDeleteEtapa = async () => {
     if (!confirmEtapa) return;
-    const { etapa, affected } = confirmEtapa;
-    const rpcResult = await (supabase as any).rpc("excluir_etapa_orcamento", { p_orcamento_id: orcId, p_etapa: etapa });
+    const { etapa, label, affected } = confirmEtapa;
+    const rpcResult = await (supabase as any).rpc("excluir_etapa_orcamento", { p_orcamento_id: orcId, p_etapa: label });
     if (rpcResult.error) {
       const missingRpc = /function .*excluir_etapa_orcamento.*(does not exist|not found)|could not find the function/i.test(rpcResult.error.message ?? "");
       if (!missingRpc) return toast.error(rpcResult.error.message);
-      const prefix = prefixOf(etapa);
       const itemIds = affected.map(i => i.id);
       if (itemIds.length) {
         const { error } = await supabase.from("orcamento_itens").delete().in("id", itemIds);
         if (error) return toast.error(error.message);
       }
-      const itemFilter = prefix ? `etapa.eq.${etapa},item.eq.${prefix},item.like.${prefix}.%` : `etapa.eq.${etapa}`;
-      const { error: itemsError } = await supabase.from("orcamento_itens").delete().eq("orcamento_id", orcId).or(itemFilter);
-      if (itemsError) return toast.error(itemsError.message);
-      const { error: cronogramaError } = await supabase.from("orcamento_cronograma").delete().eq("orcamento_id", orcId).eq("etapa", etapa);
+      const { error: cronogramaError } = await supabase.from("orcamento_cronograma").delete().eq("orcamento_id", orcId).in("etapa", Array.from(new Set([etapa, label])));
       if (cronogramaError) return toast.error(cronogramaError.message);
     }
-    const normalized = etapa.trim();
-    setEtapasExtra(prev => prev.filter(e => e.trim() !== normalized));
+    const names = new Set([etapa.trim(), label.trim()]);
+    setEtapasExtra(prev => prev.filter(e => !names.has(e.trim())));
     setEtapaDrafts(prev => {
       const next = { ...prev };
       delete next[etapa];
@@ -631,7 +632,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf, refPrecos }: { 
               if (error) return toast.error(`Não foi possível persistir as etapas importadas: ${error.message}`);
               setEtapasExtra(prev => Array.from(new Set([...prev, ...novas])));
             }} />
-          <AddItemDialog orcId={orcId} open={open} setOpen={setOpen} onAdded={reload} nextOrdem={items.length+1} regime={regime} uf={uf} refPrecos={refPrecos} />
+          <AddItemDialog orcId={orcId} open={editingItem ? true : open} setOpen={(value: boolean) => { if (editingItem) { if (!value) setEditingItem(null); } else setOpen(value); }} onAdded={reload} nextOrdem={items.length+1} regime={regime} uf={uf} refPrecos={refPrecos} editingItem={editingItem} />
 
 
         </div>
@@ -663,7 +664,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf, refPrecos }: { 
                         setEtapaDrafts(prev => { const next = { ...prev }; delete next[etapa]; return next; });
                         renameEtapa(etapa, nn);
                       }}
-                      onDelete={()=>askDeleteEtapa(etapa)}
+                      onDelete={(currentLabel: string)=>askDeleteEtapa(etapa, currentLabel)}
                     />
                   )}
                   <td className="num font-semibold">{fmtBRL(totalEtapa(etapa, group.list))}</td>
@@ -691,7 +692,10 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf, refPrecos }: { 
                       <td className="num text-muted-foreground">{fmtPct(bdiPct)}</td>
                       <td className="num">{fmtBRL(puBdi)}</td>
                       <td className="num font-medium">{fmtBRL(tot)}</td>
-                      <td><button onClick={()=>setConfirmItem(i)} className="text-destructive hover:opacity-70"><Trash2 className="size-4"/></button></td>
+                      <td className="whitespace-nowrap">
+                        <button type="button" onClick={()=>setEditingItem(i)} className="mr-1 text-primary hover:opacity-70" title="Editar ou substituir item"><Pencil className="size-4"/></button>
+                        <button type="button" onClick={()=>setConfirmItem(i)} className="text-destructive hover:opacity-70" title="Excluir item"><Trash2 className="size-4"/></button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -714,7 +718,7 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf, refPrecos }: { 
       <ConfirmDialog
         open={!!confirmEtapa}
         title="Excluir etapa"
-        message={confirmEtapa ? `Excluir a etapa "${confirmEtapa.etapa}"${confirmEtapa.affected.length ? ` e seus ${confirmEtapa.affected.length} item(ns) vinculado(s)` : ""}?` : ""}
+        message={confirmEtapa ? `Excluir a etapa "${confirmEtapa.label}"${confirmEtapa.affected.length ? ` e seus ${confirmEtapa.affected.length} item(ns) da hierarquia atual` : ""}?` : ""}
         onCancel={()=>setConfirmEtapa(null)}
         onConfirm={doDeleteEtapa}
       />
@@ -829,12 +833,12 @@ function ExplosaoSheet({ row, onClose, regime, uf, mesRef }: { row: Item | null;
   );
 }
 
-function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, refPrecos }: any) {
-  const FONTES_ALL = ["SINAPI","DER","SICRO3","SBC","ORSE","PRÓPRIA","Outras"];
+function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, refPrecos, editingItem = null }: any) {
   const [tab, setTab] = useState("base");
   const [tipoBase, setTipoBase] = useState<"COMPOSICAO" | "INSUMO">("COMPOSICAO");
   const ref = parseRef(refPrecos);
   const mesUse: string | null = ref.mes;
+  const defaultFonte = ref.fonte ?? "__all";
   const [fonte, setFonte] = useState<string>(ref.fonte ?? "__all");
   const [q, setQ] = useState("");
   const [results, setResults] = useState<any[]>([]);
@@ -846,6 +850,32 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
   const [m, setM] = useState({ descricao: "", unidade: "un", preco_unitario: "0" });
 
   const ufUse = (uf && String(uf).trim()) || "PB";
+
+  useEffect(() => {
+    if (!open) return;
+    if (editingItem) {
+      setItem(editingItem.item ?? "");
+      setQuant(String(editingItem.quantidade ?? 1));
+      setFonte(FONTES_ALL.includes(editingItem.fonte) ? editingItem.fonte : "__all");
+      setTab(editingItem.codigo ? "base" : "manual");
+      setTipoBase("COMPOSICAO");
+      if (editingItem.codigo && editingItem.fonte) {
+        void Promise.all([
+          (supabase as any).from("catalogo_composicoes").select("codigo").eq("fonte", editingItem.fonte).eq("codigo", editingItem.codigo).limit(1),
+          (supabase as any).from("catalogo_insumos").select("codigo").eq("fonte", editingItem.fonte).eq("codigo", editingItem.codigo).limit(1),
+        ]).then(([composicoes, insumos]) => {
+          if (insumos.data?.length && !composicoes.data?.length) setTipoBase("INSUMO");
+          else setTipoBase("COMPOSICAO");
+        });
+      }
+      setQ(editingItem.codigo ?? editingItem.descricao ?? "");
+      setM({ descricao: editingItem.descricao ?? "", unidade: editingItem.unidade ?? "un", preco_unitario: String(editingItem.preco_unitario ?? 0) });
+    } else {
+      setItem(""); setQuant("1"); setQ("");
+      setM({ descricao: "", unidade: "un", preco_unitario: "0" });
+      setFonte(defaultFonte);
+    }
+  }, [open, editingItem, defaultFonte]);
 
   const resolvePrice = async (r: any) => {
     if (r.tipo_item === "COMPOSICAO") {
@@ -880,13 +910,17 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
           .select("codigo,fonte,descricao,unidade")
           .limit(30);
         if (fonte !== "__all") x = x.eq("fonte", fonte);
-        if (q.trim()) x = byCode
-          ? x.ilike("codigo", `%${q.trim()}%`)
-          : x.ilike("descricao", `%${q.trim()}%`);
+        if (q.trim() && byCode) x = x.ilike("codigo", `%${q.trim()}%`);
+        if (q.trim() && !byCode) {
+          const keywords = searchKeywords(q);
+          if (!keywords.length) return null;
+          keywords.forEach(keyword => { x = x.ilike("descricao", `%${keyword}%`); });
+        }
         return x;
       };
-      const queries = q.trim() ? await Promise.all([makeQuery(true), makeQuery(false)]) : [await makeQuery(false)];
-      const data = Array.from(new Map(queries.flatMap((x: any) => x.data ?? []).map((r: any) => [`${r.fonte}|${r.codigo}`, r])).values());
+      const queryBuilders = q.trim() ? [makeQuery(true), makeQuery(false)].filter(Boolean) : [makeQuery(false)];
+      const queries = await Promise.all(queryBuilders.map((query: any) => query));
+      const data = Array.from(new Map(queries.flatMap((x: any) => x?.data ?? []).map((r: any) => [`${r.fonte}|${r.codigo}`, r])).values());
       const rows = (data ?? []).map((r:any) => ({
          codigo: r.codigo,
          fonte: r.fonte,
@@ -913,31 +947,35 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
     } catch {
       preco = 0;
     }
-    await supabase.from("orcamento_itens").insert({
-      orcamento_id: orcId, ordem: nextOrdem, etapa: null, item: item || null,
+    const payload = {
+      item: item || null,
       fonte: r.fonte, codigo: String(r.codigo), descricao: r.descricao, unidade: r.unidade,
-      quantidade: Number(quant.replace(",",".") || 1),
+      quantidade: Number(quant.replace(",", ".") || 1),
       preco_unitario: preco,
-    });
-    if (!preco) toast.warning("Item adicionado sem preço (insumos sem cotação para a UF/mês).");
-    else toast.success("Item adicionado");
+    };
+    const result = editingItem
+      ? await (supabase.from("orcamento_itens") as any).update(payload).eq("id", editingItem.id)
+      : await supabase.from("orcamento_itens").insert({ orcamento_id: orcId, ordem: nextOrdem, etapa: null, ...payload });
+    if (result.error) return toast.error(`Não foi possível ${editingItem ? "substituir" : "adicionar"} o item: ${result.error.message}`);
+    if (!preco) toast.warning("Item salvo sem preço (insumos sem cotação para a UF/mês).");
+    else toast.success(editingItem ? "Item substituído" : "Item adicionado");
     setOpen(false); onAdded();
   };
   const addManual = async () => {
     if (!m.descricao) return toast.error("Descrição obrigatória");
-    await supabase.from("orcamento_itens").insert({
-      orcamento_id: orcId, ordem: nextOrdem, etapa: null, item: item || null,
-      fonte: "COMP", descricao: m.descricao, unidade: m.unidade,
-      quantidade: Number(quant.replace(",",".") || 1), preco_unitario: Number(m.preco_unitario.replace(",",".") || 0),
-    });
-    toast.success("Item adicionado"); setOpen(false); onAdded();
+    const payload = { item: item || null, fonte: "COMP", codigo: null, descricao: m.descricao, unidade: m.unidade, quantidade: Number(quant.replace(",", ".") || 1), preco_unitario: Number(m.preco_unitario.replace(",", ".") || 0) };
+    const result = editingItem
+      ? await (supabase.from("orcamento_itens") as any).update(payload).eq("id", editingItem.id)
+      : await supabase.from("orcamento_itens").insert({ orcamento_id: orcId, ordem: nextOrdem, etapa: null, ...payload });
+    if (result.error) return toast.error(`Não foi possível salvar o item: ${result.error.message}`);
+    toast.success(editingItem ? "Item atualizado" : "Item adicionado"); setOpen(false); onAdded();
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild><Button><Plus className="mr-2 size-4"/>Adicionar item</Button></DialogTrigger>
+      {!editingItem && <DialogTrigger asChild><Button><Plus className="mr-2 size-4"/>Adicionar item</Button></DialogTrigger>}
       <DialogContent className="max-w-3xl">
-        <DialogHeader><DialogTitle>Adicionar item</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{editingItem ? "Editar ou substituir item" : "Adicionar item"}</DialogTitle></DialogHeader>
         <p className="text-xs text-muted-foreground -mt-2">O item é agrupado automaticamente na etapa cujo prefixo corresponde (ex.: item “1.1” entra na etapa “1 - …”). Preços filtrados por: <strong>{regime === "desonerado" ? "Desonerado" : "Não Desonerado"}</strong> · UF <strong>{ufUse}</strong> · Base <strong>{refPrecos ? fmtRef(refPrecos) : "mais recente"}</strong>.</p>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Item nº (prefixo hierárquico)"><Input value={item} onChange={(e)=>setItem(e.target.value)} placeholder="Ex.: 1.1" /></Field>
@@ -967,7 +1005,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
             <div className="mt-3 max-h-80 overflow-auto rounded border">
               <table className="budget-table">
                 <thead><tr><th>Tipo</th><th>Fonte</th><th>Cód.</th><th>Descrição</th><th>Un.</th><th className="num">Preço</th><th></th></tr></thead>
-                <tbody>{results.map((r,i)=>{ const pk = `${r.fonte}|${r.codigo}`; const pv = prices[pk]; return (<tr key={i}><td>{r.tipo_item === "COMPOSICAO" ? "Composição" : "Insumo"}</td><td>{r.fonte}</td><td>{r.codigo}</td><td>{r.descricao}</td><td>{r.unidade}</td><td className="num">{pv===undefined ? "…" : fmtBRL(pv)}</td><td><Button size="sm" variant="secondary" onClick={()=>addFromBase(r)}>Adicionar</Button></td></tr>);})}</tbody>
+                <tbody>{results.map((r,i)=>{ const pk = `${r.fonte}|${r.codigo}`; const pv = prices[pk]; return (<tr key={i}><td>{r.tipo_item === "COMPOSICAO" ? "Composição" : "Insumo"}</td><td>{r.fonte}</td><td>{r.codigo}</td><td>{r.descricao}</td><td>{r.unidade}</td><td className="num">{pv===undefined ? "…" : fmtBRL(pv)}</td><td><Button size="sm" variant="secondary" onClick={()=>addFromBase(r)}>{editingItem ? "Substituir" : "Adicionar"}</Button></td></tr>);})}</tbody>
               </table>
             </div>
           </TabsContent>
@@ -977,7 +1015,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
               <div><Label>Unidade</Label><Input value={m.unidade} onChange={(e)=>setM({...m,unidade:e.target.value})}/></div>
               <div><Label>Preço Unitário (R$)</Label><Input value={m.preco_unitario} onChange={(e)=>setM({...m,preco_unitario:e.target.value})}/></div>
             </div>
-            <DialogFooter className="mt-4"><Button onClick={addManual}>Adicionar item manual</Button></DialogFooter>
+            <DialogFooter className="mt-4"><Button onClick={addManual}>{editingItem ? "Salvar item manual" : "Adicionar item manual"}</Button></DialogFooter>
           </TabsContent>
         </Tabs>
       </DialogContent>
@@ -1239,7 +1277,7 @@ function Card({ label, value, hint, highlight }: any) {
   );
 }
 
-function EtapaEditor({ etapa, draftEtapa = etapa, onDraftChange, onRename, onDelete }: { etapa: string; draftEtapa?: string; onDraftChange?: (n: string) => void; onRename: (n: string) => void; onDelete: () => void }) {
+function EtapaEditor({ etapa, draftEtapa = etapa, onDraftChange, onRename, onDelete }: { etapa: string; draftEtapa?: string; onDraftChange?: (n: string) => void; onRename: (n: string) => void; onDelete: (currentLabel: string) => void }) {
   // Divide "1 - Serviços Preliminares" em prefixo "1" + nome "Serviços Preliminares"
   const split = (s: string) => {
     const m = s.trim().match(/^([0-9]+(?:\.[0-9]+)*)\s*[-–:.]?\s*(.*)$/);
@@ -1280,7 +1318,7 @@ function EtapaEditor({ etapa, draftEtapa = etapa, onDraftChange, onRename, onDel
             className="h-8 font-semibold bg-background"
           />
           {dirty && <Button size="sm" onClick={save}>Salvar</Button>}
-          <Button size="sm" variant="ghost" onClick={onDelete} className="text-destructive">
+          <Button size="sm" variant="ghost" onClick={() => onDelete(composed)} className="text-destructive">
             <Trash2 className="size-4" />
           </Button>
         </div>
@@ -2474,7 +2512,7 @@ function LicitacaoTab({ orc, orcId, items, subtotal, totalComBdi }: any) {
 }
 
 /* ---------- MEMÓRIA DE CÁLCULO ---------- */
-function MemoriaTab({ orcId, items, reload }: any) {
+function MemoriaTab({ orcId, items, onItemUpdated }: any) {
   const [etapasExtra] = useEtapasExtra(orcId);
   const etapasExistentes = useMemo(() => {
     const set = new Set<string>();
@@ -2538,7 +2576,7 @@ function MemoriaTab({ orcId, items, reload }: any) {
                 <td colSpan={15} className="p-2 font-semibold text-xs text-muted-foreground uppercase">{g.label}</td>
               </tr>
               {g.list.sort((a,b)=>cmpCode(a.item||'', b.item||'')).map((i: any) => (
-                <MemoriaItemRow key={i.id} item={i} reload={reload} />
+                <MemoriaItemRow key={i.id} item={i} onItemUpdated={onItemUpdated} />
               ))}
             </React.Fragment>
           ))}
@@ -2548,7 +2586,7 @@ function MemoriaTab({ orcId, items, reload }: any) {
   );
 }
 
-function MemoriaItemRow({ item, reload }: { item: Item; reload: () => void }) {
+function MemoriaItemRow({ item, onItemUpdated }: { item: Item; onItemUpdated: (itemId: string, patch: Partial<Item>) => void }) {
   const [mems, setMems] = useState<any[]>(item.memoria || []);
   const [saving, setSaving] = useState(false);
 
@@ -2578,7 +2616,7 @@ function MemoriaItemRow({ item, reload }: { item: Item; reload: () => void }) {
     const { error } = await supabase.from("orcamento_itens").update({ memoria: newMems, quantidade: newGeral }).eq("id", item.id);
     setSaving(false);
     if (error) toast.error("Erro ao salvar memória");
-    else reload();
+    else onItemUpdated(item.id, { memoria: newMems, quantidade: newGeral });
   };
 
   const addMem = () => {
