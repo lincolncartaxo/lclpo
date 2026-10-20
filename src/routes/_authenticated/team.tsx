@@ -20,6 +20,7 @@ function TeamPage() {
   const [profile, setProfile] = useState<any>(null)
   const [empresa, setEmpresa] = useState<any>(null)
   const [members, setMembers] = useState<any[]>([])
+  const [canManageMembers, setCanManageMembers] = useState(false)
   const [loading, setLoading] = useState(true)
   const [openInvite, setOpenInvite] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
@@ -33,6 +34,11 @@ function TeamPage() {
     
     if (prof?.empresas) {
       setEmpresa(prof.empresas)
+      const [{ data: globalAdmin }, { data: membership }] = await Promise.all([
+        (supabase as any).rpc('has_role', { _user_id: user.id, _role: 'admin' }),
+        (supabase as any).from('organization_members').select('role').eq('organization_id', prof.empresas.id).eq('user_id', user.id).maybeSingle(),
+      ])
+      setCanManageMembers(Boolean(globalAdmin) || ['owner', 'admin'].includes(String(membership?.role || '')))
       // Buscar todos os membros dessa empresa
       const { data: mems } = await (supabase as any).from('profiles').select('*').eq('id_empresa', prof.empresas.id)
       setMembers(mems || [])
@@ -71,10 +77,11 @@ function TeamPage() {
   }
 
   const handleRemoveMember = async (memberId: string) => {
+    if (!canManageMembers) return toast.error("Apenas administradores podem remover membros")
     if (memberId === user?.id) return toast.error("Você não pode remover a si mesmo")
     if (!confirm("Remover este usuário do seu time? Ele perderá acesso a todos os orçamentos da empresa.")) return
     
-    const { error } = await (supabase as any).from('profiles').update({ id_empresa: null }).eq('id', memberId)
+    const { error } = await (supabase as any).rpc('remove_organization_member', { p_user_id: memberId })
     if (error) return toast.error("Erro ao remover: " + error.message)
     
     toast.success("Usuário removido da empresa")
@@ -124,7 +131,7 @@ function TeamPage() {
               <CardTitle className="text-lg flex items-center gap-2"><Users className="w-5 h-5"/> Equipe</CardTitle>
               <CardDescription>Membros que têm acesso aos orçamentos da {empresa.nome}.</CardDescription>
             </div>
-            <Button size="sm" onClick={() => setOpenInvite(true)}><UserPlus className="w-4 h-4 mr-2"/> Convidar</Button>
+            {canManageMembers && <Button size="sm" onClick={() => setOpenInvite(true)}><UserPlus className="w-4 h-4 mr-2"/> Convidar</Button>}
           </CardHeader>
           <CardContent>
             <Table>
@@ -140,7 +147,7 @@ function TeamPage() {
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">Membro</TableCell>
                     <TableCell className="text-right">
-                      {m.id !== user?.id && (
+                      {canManageMembers && m.id !== user?.id && (
                         <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleRemoveMember(m.id)}>
                           Remover
                         </Button>
