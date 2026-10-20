@@ -1773,6 +1773,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
         const isCronogramaTotal = s.key === "cronograma" && (second === "TOTAL PERÍODO" || second === "TOTAL ACUMULADO");
         const isTotal = isCronogramaTotal || first === "SUBTOTAL" || first.includes("BDI (") || first === "TOTAL GERAL" || first === "TOTAL PERÍODO" || first === "TOTAL ACUMULADO" || second === "TOTAL PERÍODO" || second === "TOTAL ACUMULADO";
         const isCompositionItem = s.key === "composicao" && first.startsWith("COMPOSIÇÃO (");
+        const isEncargoGroup = s.key === "encargos" && ["A", "B", "C", "D"].includes(first);
         const stageLabel = isStage
           ? [first, s.key === "planilha" ? fourth : s.key === "memoria" ? second : ""].filter(Boolean).join(" ")
           : first;
@@ -1788,8 +1789,8 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
               : allBorders,
             alignment: { vertical: "center", wrapText: true },
           };
-          if (isStage || isTotal || isCompositionItem) style.fill = { fgColor: { rgb: isCompositionItem ? rootFill : fill } };
-          if (isStage || isTotal || isCompositionItem) style.font = { bold: true, color: { rgb: blue } };
+        if (isStage || isTotal || isCompositionItem || isEncargoGroup) style.fill = { fgColor: { rgb: isTotal ? totalFill : rootFill } };
+        if (isStage || isTotal || isCompositionItem || isEncargoGroup) style.font = { bold: true, color: { rgb: blue } };
           if (isCronogramaTotal) {
             style.fill = { fgColor: { rgb: totalFill } };
             style.font = { bold: true, color: { rgb: blue } };
@@ -1943,6 +1944,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
             const thirdCol = String(data.row.raw[2] || '').trim();
             const fourthCol = String(data.row.raw[3] || '').trim();
             const isCompositionItem = s.key === 'composicao' && firstCol.startsWith('COMPOSIÇÃO (');
+            const isEncargoGroup = s.key === 'encargos' && ['A', 'B', 'C', 'D'].includes(firstCol);
             const isSubitemMemoria = firstCol === '' && secondCol !== '' && thirdCol !== '';
             const isEtapa = s.key === 'planilha' || s.key === 'memoria'
               ? stageBodyRows.has(data.row.index)
@@ -1953,7 +1955,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
             const isCronogramaTotal = s.key === 'cronograma' && (secondCol === "TOTAL PERÍODO" || secondCol === "TOTAL ACUMULADO");
             const isTotais = isCronogramaTotal || firstCol === "SUBTOTAL" || firstCol.includes("BDI (") || firstCol === "TOTAL GERAL" || firstCol === "TOTAL PERÍODO" || firstCol === "TOTAL ACUMULADO" || secondCol === "TOTAL PERÍODO" || secondCol === "TOTAL ACUMULADO";
 
-            if (isEtapa || firstCol === "Sem etapa" || stageLabel === "Sem etapa" || isTotais || isCompositionItem) {
+            if (isEtapa || firstCol === "Sem etapa" || stageLabel === "Sem etapa" || isTotais || isCompositionItem || isEncargoGroup) {
               const prefixMatch = stageLabel.match(/^([0-9]+(?:\.[0-9]+)*)/);
               const isRootEtapa = !prefixMatch || !prefixMatch[1].includes('.');
               // Hachura visual da linha inteira, sem desenho manual: o
