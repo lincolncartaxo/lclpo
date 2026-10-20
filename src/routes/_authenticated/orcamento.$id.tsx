@@ -338,28 +338,91 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
 }
 
 /* ---------- ENCARGOS ---------- */
+type EncargoDetalhe = { item: string; descricao: string; grupo?: string; horista: number | string; mensalista: number | string };
+
+const ENCARGOS_PADRAO: EncargoDetalhe[] = [
+  { item: "A", descricao: "ENCARGOS SOCIAIS BÁSICOS", grupo: "A", horista: 0, mensalista: 0 },
+  { item: "A-1", descricao: "INSS", horista: 20, mensalista: 20 },
+  { item: "A-2", descricao: "SESI", horista: 1.5, mensalista: 1.5 },
+  { item: "A-3", descricao: "SENAI", horista: 1, mensalista: 1 },
+  { item: "A-4", descricao: "INCRA", horista: 0.2, mensalista: 0.2 },
+  { item: "A-5", descricao: "SEBRAE", horista: 0.6, mensalista: 0.6 },
+  { item: "A-6", descricao: "SALÁRIO EDUCAÇÃO", horista: 2.5, mensalista: 2.5 },
+  { item: "A-7", descricao: "SEGURO CONTRA ACIDENTES DE TRABALHO", horista: 3, mensalista: 3 },
+  { item: "A-8", descricao: "FGTS", horista: 8, mensalista: 8 },
+  { item: "A-9", descricao: "SECONCI", horista: 0, mensalista: 0 },
+  { item: "B", descricao: 'ENCARGOS SOCIAIS QUE RECEBEM AS INCIDÊNCIAS DE "A"', grupo: "B", horista: 0, mensalista: 0 },
+  { item: "B-1", descricao: "REPOUSO SEMANAL REMUNERADO", horista: 17.9, mensalista: 0 },
+  { item: "B-2", descricao: "FERIADOS", horista: 4.28, mensalista: 0 },
+  { item: "B-3", descricao: "AUXILIO - ENFERMIDADE", horista: 0.9, mensalista: 0.67 },
+  { item: "B-4", descricao: "13º SALARIO", horista: 11.13, mensalista: 8.31 },
+  { item: "B-5", descricao: "LICENÇA PATERNIDADE", horista: 0.07, mensalista: 0.05 },
+  { item: "B-6", descricao: "FALTAS JUSTIFICADAS", horista: 0.74, mensalista: 0.56 },
+  { item: "B-7", descricao: "DIAS DE CHUVAS", horista: 2.21, mensalista: "-" },
+  { item: "B-8", descricao: "AUXILIO ACIDENTE DE TRABALHO", horista: 0.03, mensalista: 0.02 },
+  { item: "B-9", descricao: "FÉRIAS GOZADAS", horista: 12.67, mensalista: 9.46 },
+  { item: "B-10", descricao: "SALÁRIO MATERNIDADE", horista: 0.04, mensalista: 0.03 },
+  { item: "C", descricao: 'ENCARGOS SOCIAIS QUE NÃO RECEBEM AS INCIDÊNCIAS DE "A"', grupo: "C", horista: 0, mensalista: 0 },
+  { item: "C-1", descricao: "AVISO PRÉVIO INDENIZADO", horista: 6.74, mensalista: 5.03 },
+  { item: "C-2", descricao: "AVISO PRÉVIO TRABALHADO", horista: 0.17, mensalista: 0.13 },
+  { item: "C-3", descricao: "FÉRIAS INDENIZADAS", horista: 2.08, mensalista: 1.55 },
+  { item: "C-4", descricao: "DEPÓSITO RECISÃO SEM JUSTA CAUSA", horista: 2.87, mensalista: 2.15 },
+  { item: "C-5", descricao: "INDENIZAÇÃO ADICIONAL", horista: 0.57, mensalista: 0.42 },
+  { item: "D", descricao: "TAXAS DE REINCIDÊNCIAS DE UM GRUPO SOBRE O OUTRO", grupo: "D", horista: 0, mensalista: 0 },
+  { item: "D-1", descricao: "REINCIDENCIA DE GRUPO A SOBRE GRUPO B", horista: 18.39, mensalista: 7.03 },
+  { item: "D-2", descricao: "REINCIDENCIA DE GRUPO A SOBRE AVISO PRÉVIO TRABALHADO E REINCIDENCIA DO FGTS SOBRE AVISO PRÉVIO INDENIZADO", horista: 0.6, mensalista: 0.45 },
+];
+
+const encargoNumber = (value: number | string) => {
+  const n = typeof value === "number" ? value : Number(String(value).replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+};
+
 function EncargosTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
-  const [pct, setPct] = useState((Number(orc.encargos_pct) * 100).toFixed(2));
+  const [modalidade, setModalidade] = useState<"horista" | "mensalista">(orc.encargos_modalidade === "mensalista" ? "mensalista" : "horista");
+  const [rows, setRows] = useState<EncargoDetalhe[]>(() => {
+    if (!orc.encargos_sociais) return ENCARGOS_PADRAO.map(row => ({ ...row }));
+    try {
+      const saved = typeof orc.encargos_sociais === "string" ? JSON.parse(orc.encargos_sociais) : orc.encargos_sociais;
+      return Array.isArray(saved) && saved.length ? saved : ENCARGOS_PADRAO.map(row => ({ ...row }));
+    } catch { return ENCARGOS_PADRAO.map(row => ({ ...row })); }
+  });
+  useEffect(() => {
+    setModalidade(orc.encargos_modalidade === "mensalista" ? "mensalista" : "horista");
+    try {
+      const saved = typeof orc.encargos_sociais === "string" ? JSON.parse(orc.encargos_sociais) : orc.encargos_sociais;
+      setRows(Array.isArray(saved) && saved.length ? saved : ENCARGOS_PADRAO.map(row => ({ ...row })));
+    } catch { setRows(ENCARGOS_PADRAO.map(row => ({ ...row }))); }
+  }, [orc.id, orc.encargos_sociais, orc.encargos_modalidade]);
+  const totals = useMemo(() => {
+    const result: Record<string, { horista: number; mensalista: number }> = {};
+    for (const group of ["A", "B", "C", "D"]) {
+      result[group] = rows.filter(row => row.item.startsWith(`${group}-`)).reduce((sum, row) => ({
+        horista: sum.horista + encargoNumber(row.horista), mensalista: sum.mensalista + encargoNumber(row.mensalista),
+      }), { horista: 0, mensalista: 0 });
+    }
+    return { groups: result, geral: ["A", "B", "C", "D"].reduce((sum, group) => ({ horista: sum.horista + result[group].horista, mensalista: sum.mensalista + result[group].mensalista }), { horista: 0, mensalista: 0 }) };
+  }, [rows]);
+  const updateRow = (index: number, field: "horista" | "mensalista", value: string) => setRows(current => current.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value === "-" ? "-" : value } : row));
   const save = async () => {
-    const v = Number(pct.replace(",", ".")) / 100;
-    if (isNaN(v)) return toast.error("Valor inválido");
-    const { error } = await supabase.from("orcamentos").update({ encargos_pct: v }).eq("id", orc.id);
+    const v = totals.geral[modalidade] / 100;
+    const { error } = await (supabase as any).from("orcamentos").update({ encargos_pct: v, encargos_modalidade: modalidade, encargos_sociais: rows }).eq("id", orc.id);
     if (error) return toast.error(error.message);
     toast.success("Encargos atualizados"); onSaved();
   };
   return (
-    <div className="mt-4 max-w-xl space-y-4">
-      <p className="text-sm text-muted-foreground">Percentual de encargos sociais aplicado sobre mão de obra (referencial SINAPI: horista 86,19% / mensalista 48,51%).</p>
-      <Field label="Encargos Sociais (%)">
-        <div className="flex gap-2"><Input value={pct} onChange={(e)=>setPct(e.target.value)} /><Button onClick={save}>Salvar</Button></div>
-      </Field>
-      <div className="rounded border bg-muted/30 p-4 text-sm">
-        <h3 className="font-semibold mb-2">Tabela referencial</h3>
-        <ul className="space-y-1 text-muted-foreground">
-          <li>Horista: 86,19%</li>
-          <li>Mensalista: 48,51%</li>
-        </ul>
+    <div className="mt-4 space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div><h2 className="text-lg font-semibold">ENCARGOS SOCIAIS</h2><p className="text-sm text-muted-foreground">Edite os coeficientes. Os grupos e o total geral são recalculados automaticamente.</p></div>
+        <div className="flex items-end gap-3"><Field label="Modalidade aplicada"><Select value={modalidade} onValueChange={(value: "horista" | "mensalista") => setModalidade(value)}><SelectTrigger className="w-44"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="horista">Horista</SelectItem><SelectItem value="mensalista">Mensalista</SelectItem></SelectContent></Select></Field><Button onClick={save}><Save className="mr-2 size-4" />Salvar encargos</Button></div>
       </div>
+      <div className="overflow-x-auto rounded-md border">
+        <table className="w-full min-w-[760px] text-sm"><thead className="bg-primary text-primary-foreground"><tr><th className="p-2 text-left">Item</th><th className="p-2 text-left">Discriminação</th><th className="p-2 text-right">Horista (%)</th><th className="p-2 text-right">Mensalista (%)</th></tr></thead><tbody>
+          {rows.map((row, index) => row.grupo ? <tr key={row.item} className="bg-slate-200 font-bold text-slate-800"><td className="p-2">{row.item}</td><td className="p-2">{row.descricao}</td><td className="p-2 text-right">{totals.groups[row.grupo].horista.toFixed(2).replace(".", ",")}</td><td className="p-2 text-right">{totals.groups[row.grupo].mensalista.toFixed(2).replace(".", ",")}</td></tr> : <tr key={row.item} className="border-t"><td className="p-2 font-medium">{row.item}</td><td className="p-2">{row.descricao}</td><td className="p-1 text-right"><Input className="ml-auto w-28 text-right" value={row.horista} onChange={event => updateRow(index, "horista", event.target.value)} /></td><td className="p-1 text-right"><Input className="ml-auto w-28 text-right" value={row.mensalista} onChange={event => updateRow(index, "mensalista", event.target.value)} /></td></tr>)}
+          <tr className="border-t-2 bg-slate-300 font-bold"><td></td><td className="p-2">TOTAL GERAL</td><td className="p-2 text-right">{totals.geral.horista.toFixed(2).replace(".", ",")}</td><td className="p-2 text-right">{totals.geral.mensalista.toFixed(2).replace(".", ",")}</td></tr>
+        </tbody></table>
+      </div>
+      <p className="text-xs text-muted-foreground">O percentual da modalidade selecionada ({modalidade === "horista" ? "Horista" : "Mensalista"}) será aplicado automaticamente ao orçamento: <strong>{totals.geral[modalidade].toFixed(2).replace(".", ",")}%</strong>.</p>
     </div>
   );
 }
