@@ -20,6 +20,7 @@ function TeamPage() {
   const [profile, setProfile] = useState<any>(null)
   const [empresa, setEmpresa] = useState<any>(null)
   const [members, setMembers] = useState<any[]>([])
+  const [memberRoles, setMemberRoles] = useState<Record<string, string>>({})
   const [canManageMembers, setCanManageMembers] = useState(false)
   const [loading, setLoading] = useState(true)
   const [openInvite, setOpenInvite] = useState(false)
@@ -34,10 +35,12 @@ function TeamPage() {
     
     if (prof?.empresas) {
       setEmpresa(prof.empresas)
-      const [{ data: globalAdmin }, { data: membership }] = await Promise.all([
+      const [{ data: globalAdmin }, { data: membership }, { data: orgMembers }] = await Promise.all([
         (supabase as any).rpc('has_role', { _user_id: user.id, _role: 'admin' }),
         (supabase as any).from('organization_members').select('role').eq('organization_id', prof.empresas.id).eq('user_id', user.id).maybeSingle(),
+        (supabase as any).from('organization_members').select('user_id, role').eq('organization_id', prof.empresas.id),
       ])
+      setMemberRoles(Object.fromEntries((orgMembers || []).map((member: any) => [member.user_id, member.role])))
       setCanManageMembers(Boolean(globalAdmin) || ['owner', 'admin'].includes(String(membership?.role || '')))
       // Buscar todos os membros dessa empresa
       const { data: mems } = await (supabase as any).from('profiles').select('*').eq('id_empresa', prof.empresas.id)
@@ -145,7 +148,9 @@ function TeamPage() {
                       </div>
                       {m.nome || 'Usuário Sem Nome'} {m.id === user?.id && <span className="text-xs text-muted-foreground">(Você)</span>}
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">Membro</TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {['owner', 'admin'].includes(memberRoles[m.id]) ? 'Administrador da empresa' : 'Membro'}
+                    </TableCell>
                     <TableCell className="text-right">
                       {canManageMembers && m.id !== user?.id && (
                         <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleRemoveMember(m.id)}>

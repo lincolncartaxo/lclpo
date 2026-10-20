@@ -60,11 +60,11 @@ function AdminPanel() {
 function UsuariosManager() {
   const [users, setUsers] = useState<any[]>([])
   const [empresas, setEmpresas] = useState<any[]>([])
-  const [form, setForm] = useState<any>({ id: '', nome_completo: '', role: 'user', id_empresa: 'none' })
+  const [form, setForm] = useState<any>({ id: '', nome_completo: '', global_role: 'user', organization_role: 'member', id_empresa: 'none' })
   const [open, setOpen] = useState(false)
 
   const fetchUsers = async () => {
-    const { data, error } = await (supabase as any).rpc('admin_list_users_with_roles')
+    const { data, error } = await (supabase as any).rpc('admin_list_users_with_scoped_roles')
     if (error) return toast.error(`Não foi possível carregar usuários: ${error.message}`)
     setUsers((data || []).map((u: any) => ({
       ...u,
@@ -79,11 +79,12 @@ function UsuariosManager() {
   }, [])
 
   const handleSave = async () => {
-    const { error } = await supabase.rpc('admin_update_user_profile' as any, {
+    const { error } = await supabase.rpc('admin_update_user_scoped_roles' as any, {
       p_user_id: form.id,
       p_nome: form.nome_completo || '',
       p_id_empresa: form.id_empresa === 'none' ? null : form.id_empresa,
-      p_role: form.role || 'user',
+      p_global_role: form.global_role || 'user',
+      p_organization_role: form.organization_role || 'member',
     })
     if (error) return toast.error(error.message)
     toast.success("Usuário atualizado")
@@ -102,7 +103,7 @@ function UsuariosManager() {
     <Card>
       <CardHeader>
         <CardTitle>Gestão de Usuários</CardTitle>
-        <CardDescription>Edite funções e vincule usuários às suas empresas (Tenants).</CardDescription>
+              <CardDescription>Administração global da plataforma. O papel global é independente do papel dentro da empresa.</CardDescription>
       </CardHeader>
       <CardContent>
         <Dialog open={open} onOpenChange={setOpen}>
@@ -111,10 +112,21 @@ function UsuariosManager() {
             <div className="space-y-4">
               <div><Label>Nome</Label><Input value={form.nome_completo||''} onChange={e=>setForm({...form, nome_completo: e.target.value})} /></div>
               <div>
-                <Label>Role</Label>
-                <Select value={form.role||'user'} onValueChange={v=>setForm({...form, role: v})}>
+                <Label>Papel global da plataforma</Label>
+                <Select value={form.global_role||'user'} onValueChange={v=>setForm({...form, global_role: v})}>
                   <SelectTrigger><SelectValue/></SelectTrigger>
-                  <SelectContent><SelectItem value="user">User</SelectItem><SelectItem value="admin">Admin</SelectItem></SelectContent>
+                  <SelectContent><SelectItem value="user">Usuário</SelectItem><SelectItem value="admin">Administrador global</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Papel dentro da empresa</Label>
+                <Select value={form.organization_role||'member'} onValueChange={v=>setForm({...form, organization_role: v})}>
+                  <SelectTrigger><SelectValue/></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="member">Membro</SelectItem>
+                    <SelectItem value="admin">Administrador da empresa</SelectItem>
+                    <SelectItem value="owner">Owner da empresa</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
               <div>
@@ -136,7 +148,8 @@ function UsuariosManager() {
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
-              <TableHead>Role</TableHead>
+              <TableHead>Papel global</TableHead>
+              <TableHead>Papel na empresa</TableHead>
               <TableHead>Empresa</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
@@ -145,10 +158,11 @@ function UsuariosManager() {
             {users.map(u => (
               <TableRow key={u.id}>
                 <TableCell>{u.nome || 'Sem Nome'}</TableCell>
-                <TableCell>{u.role || 'user'}</TableCell>
+                <TableCell>{u.global_role || 'user'}</TableCell>
+                <TableCell>{u.organization_role || 'member'}</TableCell>
                 <TableCell>{u.empresas?.nome || '-'}</TableCell>
                 <TableCell className="text-right space-x-2">
-                  <Button variant="outline" size="sm" onClick={() => { setForm({id: u.id, nome_completo: u.nome, role: u.role, id_empresa: u.id_empresa || 'none'}); setOpen(true) }}><Edit className="w-4 h-4"/></Button>
+                  <Button variant="outline" size="sm" onClick={() => { setForm({id: u.id, nome_completo: u.nome, global_role: u.global_role, organization_role: u.organization_role, id_empresa: u.id_empresa || 'none'}); setOpen(true) }}><Edit className="w-4 h-4"/></Button>
                   <Button variant="destructive" size="sm" onClick={() => handleDelete(u.id)}><Trash2 className="w-4 h-4"/></Button>
                 </TableCell>
               </TableRow>
