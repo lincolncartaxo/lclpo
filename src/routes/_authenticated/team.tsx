@@ -21,6 +21,8 @@ function TeamPage() {
   const [empresa, setEmpresa] = useState<any>(null)
   const [members, setMembers] = useState<any[]>([])
   const [memberRoles, setMemberRoles] = useState<Record<string, string>>({})
+  const [isGlobalAdmin, setIsGlobalAdmin] = useState(false)
+  const [currentOrganizationRole, setCurrentOrganizationRole] = useState('member')
   const [canManageMembers, setCanManageMembers] = useState(false)
   const [loading, setLoading] = useState(true)
   const [openInvite, setOpenInvite] = useState(false)
@@ -40,6 +42,8 @@ function TeamPage() {
         (supabase as any).from('organization_members').select('role').eq('organization_id', prof.empresas.id).eq('user_id', user.id).maybeSingle(),
         (supabase as any).from('organization_members').select('user_id, role').eq('organization_id', prof.empresas.id),
       ])
+      setIsGlobalAdmin(Boolean(globalAdmin))
+      setCurrentOrganizationRole(String(membership?.role || 'member'))
       setMemberRoles(Object.fromEntries((orgMembers || []).map((member: any) => [member.user_id, member.role])))
       setCanManageMembers(Boolean(globalAdmin) || ['owner', 'admin'].includes(String(membership?.role || '')))
       // Buscar todos os membros dessa empresa
@@ -123,6 +127,13 @@ function TeamPage() {
               {empresa.status}
             </span>
           </p>
+          <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
+            <span className="text-muted-foreground">Seu acesso:</span>
+            {isGlobalAdmin && <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 font-bold">Administrador global</span>}
+            {currentOrganizationRole === 'owner' && <span className="px-2 py-1 rounded-full bg-amber-100 text-amber-700 font-bold">Owner da empresa</span>}
+            {currentOrganizationRole === 'admin' && <span className="px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-bold">Administrador da empresa</span>}
+            {currentOrganizationRole === 'member' && <span className="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-medium">Membro</span>}
+          </div>
         </div>
         <Button variant="outline" className="bg-primary/5 text-primary border-primary/20"><Star className="w-4 h-4 mr-2"/> Fazer Upgrade</Button>
       </div>
