@@ -2271,7 +2271,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
               <div className="space-y-1">
                 <Label>Nome da frente padrão</Label>
                 <Input value={tgFrente} placeholder={pleFronts[0]?.nome || "FRENTE 1"} onChange={e=>{ setTgFrente(e.target.value); setTgValidado(false); }} />
-                <p className="text-xs text-muted-foreground">Usada somente quando o item ainda não possui distribuição entre frentes.</p>
+                <p className="text-xs text-muted-foreground">Aplicada somente aos itens do orçamento que não tiverem frente ou distribuição definida. Se todos os itens estiverem associados, este campo não será utilizado.</p>
               </div>
             </div>}
             {tgModo === "BM" && <div className="rounded-md border p-3 text-sm">
