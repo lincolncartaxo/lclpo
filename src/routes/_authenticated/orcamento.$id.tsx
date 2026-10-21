@@ -128,6 +128,7 @@ type Item = {
   quantidade: number; preco_unitario: number;
   evento_id?: string | null;
   memoria?: any[];
+  bdi_id?: string | null;
 };
 
 function totalEtapaComDescendentes(
@@ -448,68 +449,65 @@ function EncargosTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
 }
 
 /* ---------- BDI ---------- */
+type BdiProfile = {
+  id: string; orcamento_id: string; nome: string; bdi_pct: number;
+  bdi_ac: number; bdi_s: number; bdi_r: number; bdi_g: number; bdi_l: number; bdi_i: number;
+  bdi_cf: number | null; bdi_pis: number | null; bdi_cofins: number | null;
+  bdi_tax_inss: number | null; bdi_tax_estadual: number | null; bdi_iss: number | null;
+};
+type BdiForm = { ac: number | string; mi: number | string; l: number | string; cf: number | string; pis: number | string; cofins: number | string; inss: number | string; estadual: number | string; iss: number | string };
+const bdiFormFrom = (b: Partial<BdiProfile>): BdiForm => ({
+  ac: Number(b.bdi_ac ?? 5.5), mi: Number(b.bdi_s ?? 2.07) + Number(b.bdi_r ?? 0) + Number(b.bdi_g ?? 0), l: Number(b.bdi_l ?? 6.38),
+  cf: Number(b.bdi_cf ?? 1.39), pis: Number(b.bdi_pis ?? 0.65), cofins: Number(b.bdi_cofins ?? 3),
+  inss: Number(b.bdi_tax_inss ?? 0), estadual: Number(b.bdi_tax_estadual ?? 0), iss: Number(b.bdi_iss ?? 2.5),
+});
 function BdiTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
-  type BdiForm = { ac: number | string; mi: number | string; l: number | string; cf: number | string; pis: number | string; cofins: number | string; inss: number | string; estadual: number | string; iss: number | string };
-  const initial = (): BdiForm => ({
-    ac: Number(orc.bdi_ac ?? 5.5), mi: Number(orc.bdi_s ?? 2.07) + Number(orc.bdi_r ?? 0) + Number(orc.bdi_g ?? 0), l: Number(orc.bdi_l ?? 6.38),
-    cf: Number(orc.bdi_cf ?? 1.39), pis: Number(orc.bdi_pis ?? 0.65), cofins: Number(orc.bdi_cofins ?? 3),
-    inss: Number(orc.bdi_tax_inss ?? 0), estadual: Number(orc.bdi_tax_estadual ?? 0), iss: Number(orc.bdi_iss ?? 2.5),
-  });
-  const [b, setB] = useState<BdiForm>(initial);
-  useEffect(() => {
-    setB({
-      ac: Number(orc.bdi_ac ?? 5.5), mi: Number(orc.bdi_s ?? 2.07) + Number(orc.bdi_r ?? 0) + Number(orc.bdi_g ?? 0), l: Number(orc.bdi_l ?? 6.38),
-      cf: Number(orc.bdi_cf ?? 1.39), pis: Number(orc.bdi_pis ?? 0.65), cofins: Number(orc.bdi_cofins ?? 3),
-      inss: Number(orc.bdi_tax_inss ?? 0), estadual: Number(orc.bdi_tax_estadual ?? 0), iss: Number(orc.bdi_iss ?? 2.5),
-    });
-  }, [orc.id, orc.bdi_ac, orc.bdi_s, orc.bdi_r, orc.bdi_g, orc.bdi_l, orc.bdi_cf, orc.bdi_pis, orc.bdi_cofins, orc.bdi_tax_inss, orc.bdi_tax_estadual, orc.bdi_iss]);
-  const requiredValues = [b.ac, b.mi, b.l, b.cf, b.pis, b.cofins, b.inss, b.estadual, b.iss];
-  const missingValues = requiredValues.some(value => value === "" || value === null || value === undefined || !Number.isFinite(Number(value)));
-  const tributosFederais = Number(b.pis || 0) + Number(b.cofins || 0) + Number(b.inss || 0);
-  const tributosTotal = tributosFederais + Number(b.estadual || 0) + Number(b.iss || 0);
-  const calc = useMemo(() => {
-    if (missingValues || tributosTotal >= 100 || [b.ac, b.mi, b.l, b.cf, b.pis, b.cofins, b.inss, b.estadual, b.iss].some(value => Number(value) < 0)) return null;
-    const ac = Number(b.ac) / 100, mi = Number(b.mi) / 100;
-    const cf = Number(b.cf) / 100, mc = Number(b.l) / 100, t = tributosTotal / 100;
-    return ((1 + ac + mi) * (1 + cf) * (1 + mc) / (1 - t)) - 1;
-  }, [b, missingValues, tributosTotal]);
-  const updateValue = (key: keyof BdiForm, value: string) => setB(current => ({ ...current, [key]: value === "" ? "" : Number(value) }));
-  const save = async () => {
-    if (missingValues) return toast.error("Preencha todos os componentes do BDI, inclusive os tributos. Informe 0 quando não houver incidência.");
-    if (requiredValues.some(value => !Number.isFinite(Number(value)) || Number(value) < 0) || tributosTotal >= 100) return toast.error("Informe percentuais válidos; a soma dos tributos deve ser menor que 100%.");
-    if (calc === null) return toast.error("Não foi possível calcular o BDI com os valores informados.");
-    const { error } = await (supabase.from("orcamentos") as any).update({
-      bdi_pct: Number(calc.toFixed(8)), bdi_ac: Number(b.ac), bdi_s: Number(b.mi), bdi_r: 0, bdi_g: 0, bdi_l: Number(b.l),
-      bdi_i: tributosTotal, bdi_cf: Number(b.cf), bdi_pis: Number(b.pis), bdi_cofins: Number(b.cofins), bdi_tax_inss: Number(b.inss),
-      bdi_tax_estadual: Number(b.estadual), bdi_iss: Number(b.iss),
-    }).eq("id", orc.id);
-    if (error) return toast.error(error.message);
-    toast.success(`BDI de ${fmtPct(calc)} aplicado ao orçamento`); await onSaved();
+  const [profiles, setProfiles] = useState<BdiProfile[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [name, setName] = useState('BDI padrão');
+  const [b, setB] = useState<BdiForm>(bdiFormFrom(orc));
+  const load = async () => {
+    const { data, error } = await (supabase as any).from('orcamento_bdis').select('*').eq('orcamento_id', orc.id).order('created_at');
+    if (error) return toast.error(`Não foi possível carregar os BDIs: ${error.message}`);
+    const rows = (data ?? []) as BdiProfile[]; setProfiles(rows);
+    const current = rows.find(x => x.id === selected) ?? rows[0];
+    if (current) { setSelected(current.id); setName(current.nome); setB(bdiFormFrom(current)); }
   };
-  return (
-    <div className="mt-4 max-w-2xl">
-      <p className="text-sm text-muted-foreground mb-3">Composição conforme o modelo do relatório. Todos os campos devem ser informados; digite 0 quando o componente não se aplicar.</p>
-      <div className="grid grid-cols-2 gap-3">
-        {[
-          ["ac", "AC - Administração Central (%)"], ["mi", "MI - Margem de Incerteza (Seguros, Riscos e Garantias) (%)"],
-          ["cf", "CF - Custo Financeiro (%)"], ["l", "MC - Margem/Lucro (%)"],
-          ["pis", "PIS - Tributo federal (%)"], ["cofins", "COFINS - Tributo federal (%)"],
-          ["inss", "INSS - Tributo federal (%)"], ["estadual", "Tributos estaduais (%)"], ["iss", "ISS - Tributo municipal (%)"],
-        ].map(([key, label]) => (
-          <Field key={key} label={label}><Input type="number" min="0" step="0.01" required value={String(b[key as keyof BdiForm])} onChange={event => updateValue(key as keyof BdiForm, event.target.value)} /></Field>
-        ))}
-      </div>
-      <div className="mt-6 rounded-lg border p-5 bg-secondary/40">
-        <div className="text-sm text-muted-foreground">Tributos federais: {tributosFederais.toFixed(2).replace(".", ",")}% · Tributos totais (T): {tributosTotal.toFixed(2).replace(".", ",")}%</div>
-        <div className="text-sm text-muted-foreground mt-3">BDI calculado</div>
-        <div className="text-3xl font-bold">{calc === null ? "Preencha todos os campos" : fmtPct(calc)}</div>
-        <div className="text-xs text-muted-foreground mt-1">Atual no orçamento: {fmtPct(orc.bdi_pct)}</div>
-        <Button className="mt-3" onClick={save} disabled={missingValues || calc === null}><Save className="mr-2 size-4" />Aplicar BDI</Button>
-      </div>
-    </div>
-  );
+  useEffect(() => { void load(); }, [orc.id]);
+  const choose = (id: string) => { const row = profiles.find(x => x.id === id); if (!row) return; setSelected(id); setName(row.nome); setB(bdiFormFrom(row)); };
+  const required = [b.ac,b.mi,b.l,b.cf,b.pis,b.cofins,b.inss,b.estadual,b.iss];
+  const missing = required.some(v => v === '' || !Number.isFinite(Number(v)));
+  const tributosTotal = Number(b.pis||0)+Number(b.cofins||0)+Number(b.inss||0)+Number(b.estadual||0)+Number(b.iss||0);
+  const calc = useMemo(() => {
+    if (missing || tributosTotal >= 100 || required.some(v => Number(v) < 0)) return null;
+    return ((1+Number(b.ac)/100+Number(b.mi)/100)*(1+Number(b.cf)/100)*(1+Number(b.l)/100)/(1-tributosTotal/100))-1;
+  }, [b, missing, tributosTotal]);
+  const updateValue = (key: keyof BdiForm, value: string) => setB(current => ({ ...current, [key]: value === '' ? '' : Number(value) }));
+  const save = async () => {
+    if (!name.trim()) return toast.error('Informe um nome para o BDI.');
+    if (calc === null) return toast.error('Informe percentuais válidos; a soma dos tributos deve ser menor que 100%.');
+    const payload = { orcamento_id: orc.id, nome: name.trim(), bdi_pct: Number(calc.toFixed(8)), bdi_ac:Number(b.ac), bdi_s:Number(b.mi), bdi_r:0, bdi_g:0, bdi_l:Number(b.l), bdi_i:tributosTotal, bdi_cf:Number(b.cf), bdi_pis:Number(b.pis), bdi_cofins:Number(b.cofins), bdi_tax_inss:Number(b.inss), bdi_tax_estadual:Number(b.estadual), bdi_iss:Number(b.iss) };
+    const result = selected ? await (supabase as any).from('orcamento_bdis').update(payload).eq('id', selected) : await (supabase as any).from('orcamento_bdis').insert(payload);
+    if (result.error) return toast.error(result.error.message);
+    // Mantém o legado sincronizado e faz este perfil ser o BDI padrão do orçamento.
+    await (supabase as any).from('orcamentos').update({
+      bdi_pct: payload.bdi_pct, bdi_ac: payload.bdi_ac, bdi_s: payload.bdi_s, bdi_r: 0,
+      bdi_g: 0, bdi_l: payload.bdi_l, bdi_i: payload.bdi_i, bdi_cf: payload.bdi_cf,
+      bdi_pis: payload.bdi_pis, bdi_cofins: payload.bdi_cofins, bdi_tax_inss: payload.bdi_tax_inss,
+      bdi_tax_estadual: payload.bdi_tax_estadual, bdi_iss: payload.bdi_iss,
+    }).eq('id', orc.id);
+    toast.success(`BDI “${name.trim()}” salvo (${fmtPct(calc)})`); await load(); await onSaved();
+  };
+  const novo = () => { setSelected(null); setName(`BDI ${profiles.length + 1}`); setB(bdiFormFrom(orc)); };
+  const remove = async () => { if (!selected || profiles.length <= 1) return toast.error('O orçamento precisa ter pelo menos um BDI.'); if (!confirm('Excluir este perfil de BDI? Os itens vinculados ficarão com o BDI padrão.')) return; const { error } = await (supabase as any).from('orcamento_bdis').delete().eq('id', selected); if (error) return toast.error(error.message); setSelected(null); await load(); };
+  return <div className="mt-4 max-w-3xl space-y-4">
+    <div className="flex flex-wrap items-end gap-3"><Field label="BDI cadastrado"><Select value={selected ?? ''} onValueChange={choose}><SelectTrigger className="w-64"><SelectValue placeholder="Novo BDI" /></SelectTrigger><SelectContent>{profiles.map(x => <SelectItem key={x.id} value={x.id}>{x.nome} · {fmtPct(Number(x.bdi_pct))}</SelectItem>)}</SelectContent></Select></Field><Button variant="outline" onClick={novo}><Plus className="mr-2 size-4" />Novo BDI</Button>{selected && <Button variant="outline" className="text-destructive" onClick={remove}><Trash2 className="mr-2 size-4" />Excluir</Button>}</div>
+    <p className="text-sm text-muted-foreground">Cadastre perfis diferentes e escolha o BDI aplicado em cada item na aba Planilha Orçamentária.</p>
+    <Field label="Nome do BDI"><Input value={name} onChange={e => setName(e.target.value)} placeholder="Ex.: BDI obras públicas" /></Field>
+    <div className="grid grid-cols-2 gap-3">{[['ac','AC - Administração Central (%)'],['mi','MI - Margem de Incerteza (%)'],['cf','CF - Custo Financeiro (%)'],['l','MC - Margem/Lucro (%)'],['pis','PIS - Tributo federal (%)'],['cofins','COFINS - Tributo federal (%)'],['inss','INSS - Tributo federal (%)'],['estadual','Tributos estaduais (%)'],['iss','ISS - Tributo municipal (%)']].map(([key,label]) => <Field key={key} label={label}><Input type="number" min="0" step="0.01" value={String(b[key as keyof BdiForm])} onChange={e => updateValue(key as keyof BdiForm,e.target.value)} /></Field>)}</div>
+    <div className="rounded-lg border p-5 bg-secondary/40"><div className="text-sm text-muted-foreground">Tributos totais: {tributosTotal.toFixed(2).replace('.',',')}%</div><div className="text-sm text-muted-foreground mt-3">BDI calculado</div><div className="text-3xl font-bold">{calc === null ? 'Preencha todos os campos' : fmtPct(calc)}</div><Button className="mt-3" onClick={save} disabled={missing || calc === null}><Save className="mr-2 size-4" />Salvar BDI</Button></div>
+  </div>;
 }
-
 /* ---------- COMPOSIÇÃO ---------- */
 function ComposicaoTab({ items }: { items: Item[] }) {
   const linked = items.filter(i => i.fonte && i.codigo);
@@ -538,6 +536,19 @@ function CotacaoTab() {
 function PlanilhaTab({ orcId, items, reload, onItemUpdated, bdiPct, regime, uf, refPrecos }: { orcId: string; items: Item[]; reload: () => void; onItemUpdated: (itemId: string, patch: Partial<Item>) => void; bdiPct: number; regime: string; uf: string | null; refPrecos: string | null }) {
   const [open, setOpen] = useState(false);
   const [openEtapa, setOpenEtapa] = useState(false);
+  const [bdis, setBdis] = useState<BdiProfile[]>([]);
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await (supabase as any).from("orcamento_bdis").select("*").eq("orcamento_id", orcId).order("created_at");
+      if (!error) setBdis((data ?? []) as BdiProfile[]);
+    })();
+  }, [orcId]);
+  const bdiForItem = (item: Item) => bdis.find(b => b.id === item.bdi_id) ?? null;
+  const itemBdiPct = (item: Item) => Number(bdiForItem(item)?.bdi_pct ?? bdiPct);
+  const changeItemBdi = async (item: Item, value: string) => {
+    const bdi_id = value === "__default__" ? null : value;
+    await updateField(item.id, "bdi_id", bdi_id);
+  };
   const [explodeRow, setExplodeRow] = useState<Item | null>(null);
   const [confirmItem, setConfirmItem] = useState<Item | null>(null);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
@@ -557,7 +568,7 @@ function PlanilhaTab({ orcId, items, reload, onItemUpdated, bdiPct, regime, uf, 
     [items, etapasExistentes, etapaDrafts]
   );
 
-  const total = items.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario) * (1 + bdiPct), 0);
+  const total = items.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario) * (1 + itemBdiPct(i)), 0);
 
   const updateField = async (id: string, field: string, value: any) => {
     const { error } = await (supabase.from("orcamento_itens") as any).update({ [field]: value }).eq("id", id);
@@ -583,7 +594,7 @@ function PlanilhaTab({ orcId, items, reload, onItemUpdated, bdiPct, regime, uf, 
   };
 
   const totalItens = (list: Item[]) =>
-    list.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario) * (1 + bdiPct), 0);
+    list.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario) * (1 + itemBdiPct(i)), 0);
 
   const totalEtapa = (etapa: string, list: Item[]) => {
     const pfx = prefixOf(etapaDrafts[etapa] ?? etapa);
@@ -699,7 +710,8 @@ function PlanilhaTab({ orcId, items, reload, onItemUpdated, bdiPct, regime, uf, 
                 </tr>
                 {group.list.map((i) => {
                   const pu = Number(i.preco_unitario);
-                  const puBdi = pu * (1 + bdiPct);
+                  const itemPct = itemBdiPct(i);
+                  const puBdi = pu * (1 + itemPct);
                   const tot = Number(i.quantidade) * puBdi;
                   return (
                     <tr key={i.id} className={i.fonte && i.codigo ? "cursor-pointer hover:bg-muted/40" : ""}>
@@ -716,7 +728,9 @@ function PlanilhaTab({ orcId, items, reload, onItemUpdated, bdiPct, regime, uf, 
                       <td className="text-muted-foreground">{i.unidade ?? "—"}</td>
                       <td className="num" onClick={(e)=>e.stopPropagation()}><input className="w-full text-right bg-transparent outline-none" type="number" step="0.01" defaultValue={i.quantidade} onBlur={(e)=>updateField(i.id,"quantidade",Number(e.target.value))} /></td>
                       <td className="num text-muted-foreground">{fmtBRL(pu)}</td>
-                      <td className="num text-muted-foreground">{fmtPct(bdiPct)}</td>
+                      <td className="num text-muted-foreground" onClick={e => e.stopPropagation()}>
+                        {bdis.length > 1 ? <Select value={i.bdi_id ?? "__default__"} onValueChange={value => void changeItemBdi(i, value)}><SelectTrigger className="h-8 min-w-28 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__default__">Padrão · {fmtPct(bdiPct)}</SelectItem>{bdis.map(b => <SelectItem key={b.id} value={b.id}>{b.nome} · {fmtPct(Number(b.bdi_pct))}</SelectItem>)}</SelectContent></Select> : fmtPct(itemPct)}
+                      </td>
                       <td className="num">{fmtBRL(puBdi)}</td>
                       <td className="num font-medium">{fmtBRL(tot)}</td>
                       <td className="whitespace-nowrap">
