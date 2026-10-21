@@ -281,17 +281,12 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
   const save = async () => {
     const updatePayload = {
       nome: f.nome, objeto: f.objeto, contrato: f.contrato, orgao: f.orgao,
-      municipio: f.localizacao ?? f.municipio, localizacao: f.localizacao ?? f.municipio, uf: f.uf, engenheiro: f.engenheiro, crea: f.crea, ref_precos: f.ref_precos,
+      municipio: f.municipio ?? f.localizacao, uf: f.uf, engenheiro: f.engenheiro, crea: f.crea, ref_precos: f.ref_precos,
       regime: f.regime ?? "nao_desonerado",
       interesse_transferegov: !!f.interesse_transferegov,
       interesse_licitacao: !!f.interesse_licitacao,
     } as any;
     let { error } = await supabase.from("orcamentos").update(updatePayload).eq("id", orc.id);
-    if (error && (error.code === "42703" || error.code === "PGRST204" || error.message?.toLowerCase().includes("localizacao"))) {
-      const fallback = { ...updatePayload };
-      delete fallback.localizacao;
-      ({ error } = await supabase.from("orcamentos").update(fallback).eq("id", orc.id));
-    }
     if (error) return toast.error(error.message);
     await recalculateBudgetPrices(orc.id, f.regime ?? "nao_desonerado", f.uf ?? null, parseRef(f.ref_precos).mes);
     toast.success("Dados Gerais salvos"); onSaved();
@@ -301,7 +296,7 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
       <div className="grid md:grid-cols-2 gap-4">
         <Field label="Nome do Orçamento"><Input value={f.nome ?? ""} onChange={(e)=>setF({...f,nome:e.target.value})} /></Field>
         <Field label="Contrato"><Input value={f.contrato ?? ""} onChange={(e)=>setF({...f,contrato:e.target.value})} /></Field>
-        <Field label="Endereço / localização da intervenção"><Input value={f.localizacao ?? f.municipio ?? ""} onChange={(e)=>setF({...f,localizacao:e.target.value})} /></Field>
+        <Field label="Município"><Input value={f.municipio ?? f.localizacao ?? ""} onChange={(e)=>setF({...f,municipio:e.target.value})} /></Field>
         <Field label="UF">
           <Select value={f.uf ?? ""} onValueChange={(v)=>setF({...f, uf: v, ref_precos: null})}>
             <SelectTrigger><SelectValue placeholder="Selecione o estado" /></SelectTrigger>
@@ -1598,7 +1593,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
     const out: { key: string; title: string; rows: (string|number)[][] }[] = [];
     const bdiPct = Number(orc.bdi_pct);
     if (sel.capa) out.push({ key: "capa", title: "Dados Gerais", rows: [
-      ["Nome", orc.nome ?? ""], ["Contrato", orc.contrato ?? ""], ["Endereço / localização", orc.localizacao ?? orc.municipio ?? ""], ["UF da base de preços", orc.uf ?? ""],
+      ["Nome", orc.nome ?? ""], ["Contrato", orc.contrato ?? ""], ["Município", orc.municipio ?? orc.localizacao ?? ""], ["UF da base de preços", orc.uf ?? ""],
       ["Órgão", orc.orgao ?? ""], ["Referência de Preços", fmtRef(orc.ref_precos)], ["Regime tributário", orc.regime === "desonerado" ? "Desonerado" : "Não desonerado"], ["Engenheiro", orc.engenheiro ?? ""],
       ["CREA", orc.crea ?? ""], ["Objeto", orc.objeto ?? ""],
     ]});
@@ -1827,7 +1822,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
     secs.forEach(s => {
       const headerInfo: any[][] = [];
       if (orc.orgao) headerInfo.push(['CONCEDENTE / ÓRGÃO:', orc.orgao]);
-      if (orc.localizacao || orc.municipio) headerInfo.push(['LOCALIZAÇÃO / UF DA BASE:', `${orc.localizacao || orc.municipio || ''} - ${orc.uf || ''}`]);
+      if (orc.municipio || orc.localizacao) headerInfo.push(['MUNICÍPIO / UF DA BASE:', `${orc.municipio || orc.localizacao || ''} - ${orc.uf || ''}`]);
       if (orc.contrato) headerInfo.push(['CONTRATO:', orc.contrato]);
       if (orc.nome) headerInfo.push(['OBRA:', orc.nome.toUpperCase()]);
       if (orc.ref_precos) headerInfo.push(['DATA BASE:', orc.ref_precos.split('|')[1] || orc.ref_precos]);

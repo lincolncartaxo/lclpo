@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Plus, FileSpreadsheet, Trash2, Copy } from "lucide-react";
+import { Plus, FileSpreadsheet, Trash2, Copy, Search } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,7 +49,8 @@ function Dashboard() {
   const [bases, setBases] = useState<Base[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusSaving, setStatusSaving] = useState<string | null>(null);
-  const [form, setForm] = useState({ nome: "", objeto: "", localizacao: "", uf: "", ref_precos: "", orgao: "", regime: "nao_desonerado" });
+  const [form, setForm] = useState({ nome: "", objeto: "", municipio: "", uf: "", ref_precos: "", orgao: "", regime: "nao_desonerado" });
+  const [search, setSearch] = useState("");
 
   const load = async () => {
     let { data, error } = await (supabase as any)
@@ -94,7 +95,7 @@ function Dashboard() {
     if (!form.nome || !form.uf || !form.ref_precos) return toast.error("Informe nome, UF e data base");
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
-    const payload = { ...form, municipio: form.localizacao, user_id: user!.id };
+    const payload = { ...form, user_id: user!.id };
     let { data, error } = await (supabase as any).from("orcamentos").insert(payload).select().single();
     if (missingLocalizacao(error)) {
       const fallback: Record<string, unknown> = { ...payload };
@@ -159,7 +160,7 @@ function Dashboard() {
             <div className="space-y-3">
               <div><Label>Nome do orçamento</Label><Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} /></div>
               <div><Label>Objeto</Label><Textarea value={form.objeto} onChange={(e) => setForm({ ...form, objeto: e.target.value })} /></div>
-              <div><Label>Endereço / localização da intervenção</Label><Input value={form.localizacao} onChange={(e) => setForm({ ...form, localizacao: e.target.value })} /></div>
+              <div><Label>Município</Label><Input value={form.municipio} onChange={(e) => setForm({ ...form, municipio: e.target.value })} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>UF da base de preços</Label>
@@ -199,18 +200,27 @@ function Dashboard() {
           <p className="mt-3 text-muted-foreground">Você ainda não tem orçamentos. Crie o primeiro.</p>
         </div>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2">
-          {orcs.map((orc) => (
-            <BudgetCard
-              key={orc.id}
-              orc={orc}
-              statusSaving={statusSaving === orc.id}
-              onStatusChange={updateStatus}
-              onDuplicate={(event) => duplicate(orc.id, event)}
-              onDelete={(event) => del(orc.id, event)}
-            />
-          ))}
-        </div>
+        <>
+          <div className="relative mb-6 max-w-xl">
+            <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
+            <Input className="pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar por município, nome ou objeto…" aria-label="Pesquisar orçamentos" />
+          </div>
+          {(() => {
+            const query = search.trim().toLocaleLowerCase("pt-BR");
+            const filtered = orcs.filter((orc) => [orc.municipio, orc.localizacao, orc.nome, orc.objeto].some((value) => String(value ?? "").toLocaleLowerCase("pt-BR").includes(query)));
+            const grouped = new Map<string, Orc[]>();
+            filtered.forEach((orc) => {
+              const municipality = (orc.municipio || orc.localizacao || "Sem município").trim() || "Sem município";
+              const key = municipality.toLocaleUpperCase("pt-BR");
+              grouped.set(key, [...(grouped.get(key) ?? []), orc]);
+            });
+            const groups = Array.from(grouped.entries()).sort(([a], [b]) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
+            return groups.length ? <div className="space-y-8">{groups.map(([municipality, budgets]) => <section key={municipality}>
+              <h2 className="mb-3 border-b pb-2 text-lg font-semibold">{municipality} <span className="text-sm font-normal text-muted-foreground">({budgets.length})</span></h2>
+              <div className="grid gap-3 md:grid-cols-2">{budgets.map((orc) => <BudgetCard key={orc.id} orc={orc} statusSaving={statusSaving === orc.id} onStatusChange={updateStatus} onDuplicate={(event) => duplicate(orc.id, event)} onDelete={(event) => del(orc.id, event)} />)}</div>
+            </section>)}</div> : <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">Nenhum orçamento encontrado.</div>;
+          })()}
+        </>
       )}
     </div>
   );
@@ -233,7 +243,7 @@ function BudgetCard({ orc, statusSaving, onStatusChange, onDuplicate, onDelete }
       <div className="flex items-start justify-between gap-3">
         <Link to="/orcamento/$id" params={{ id: orc.id }} className="min-w-0 pr-2 block">
           <h3 className="font-semibold">{orc.nome}</h3>
-          <p className="text-sm text-muted-foreground">{orc.localizacao || orc.municipio || "—"} · {orc.objeto?.slice(0, 60) || "Sem objeto"}</p>
+          <p className="text-sm text-muted-foreground">{orc.municipio || orc.localizacao || "—"} · {orc.objeto?.slice(0, 60) || "Sem objeto"}</p>
         </Link>
         <div className="flex shrink-0 flex-col items-end gap-2">
           <Select value={statusValue} onValueChange={(status) => onStatusChange(orc.id, status)} disabled={statusSaving}>
