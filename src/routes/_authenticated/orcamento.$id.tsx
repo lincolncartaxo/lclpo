@@ -449,39 +449,62 @@ function EncargosTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
 
 /* ---------- BDI ---------- */
 function BdiTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
-  const [b, setB] = useState({ ac: Number(orc.bdi_ac ?? 4.0), s: Number(orc.bdi_s ?? 0.8), r: Number(orc.bdi_r ?? 0.97), g: Number(orc.bdi_g ?? 8.04), l: Number(orc.bdi_l ?? 6.16), i: Number(orc.bdi_i ?? 5.0), tipo: "Edificações" });
+  type BdiForm = { ac: number | string; mi: number | string; l: number | string; cf: number | string; pis: number | string; cofins: number | string; inss: number | string; estadual: number | string; iss: number | string };
+  const initial = (): BdiForm => ({
+    ac: Number(orc.bdi_ac ?? 5.5), mi: Number(orc.bdi_s ?? 2.07) + Number(orc.bdi_r ?? 0) + Number(orc.bdi_g ?? 0), l: Number(orc.bdi_l ?? 6.38),
+    cf: Number(orc.bdi_cf ?? 1.39), pis: Number(orc.bdi_pis ?? 0.65), cofins: Number(orc.bdi_cofins ?? 3),
+    inss: Number(orc.bdi_tax_inss ?? 0), estadual: Number(orc.bdi_tax_estadual ?? 0), iss: Number(orc.bdi_iss ?? 2.5),
+  });
+  const [b, setB] = useState<BdiForm>(initial);
   useEffect(() => {
-    setB({ ac: Number(orc.bdi_ac ?? 4.0), s: Number(orc.bdi_s ?? 0.8), r: Number(orc.bdi_r ?? 0.97), g: Number(orc.bdi_g ?? 8.04), l: Number(orc.bdi_l ?? 6.16), i: Number(orc.bdi_i ?? 5.0), tipo: "Edificações" });
-  }, [orc.id, orc.bdi_ac, orc.bdi_s, orc.bdi_r, orc.bdi_g, orc.bdi_l, orc.bdi_i]);
+    setB({
+      ac: Number(orc.bdi_ac ?? 5.5), mi: Number(orc.bdi_s ?? 2.07) + Number(orc.bdi_r ?? 0) + Number(orc.bdi_g ?? 0), l: Number(orc.bdi_l ?? 6.38),
+      cf: Number(orc.bdi_cf ?? 1.39), pis: Number(orc.bdi_pis ?? 0.65), cofins: Number(orc.bdi_cofins ?? 3),
+      inss: Number(orc.bdi_tax_inss ?? 0), estadual: Number(orc.bdi_tax_estadual ?? 0), iss: Number(orc.bdi_iss ?? 2.5),
+    });
+  }, [orc.id, orc.bdi_ac, orc.bdi_s, orc.bdi_r, orc.bdi_g, orc.bdi_l, orc.bdi_cf, orc.bdi_pis, orc.bdi_cofins, orc.bdi_tax_inss, orc.bdi_tax_estadual, orc.bdi_iss]);
+  const requiredValues = [b.ac, b.mi, b.l, b.cf, b.pis, b.cofins, b.inss, b.estadual, b.iss];
+  const missingValues = requiredValues.some(value => value === "" || value === null || value === undefined || !Number.isFinite(Number(value)));
+  const tributosFederais = Number(b.pis || 0) + Number(b.cofins || 0) + Number(b.inss || 0);
+  const tributosTotal = tributosFederais + Number(b.estadual || 0) + Number(b.iss || 0);
   const calc = useMemo(() => {
-    const ac = b.ac/100, s=b.s/100, r=b.r/100, g=b.g/100, l=b.l/100, i=b.i/100;
-    const bdi = ((1+(ac+s+r+g))*(1+l)*(1+(0))/(1-i)) - 1; // simplificado
-    return bdi;
-  }, [b]);
+    if (missingValues || tributosTotal >= 100 || [b.ac, b.mi, b.l, b.cf, b.pis, b.cofins, b.inss, b.estadual, b.iss].some(value => Number(value) < 0)) return null;
+    const ac = Number(b.ac) / 100, mi = Number(b.mi) / 100;
+    const cf = Number(b.cf) / 100, mc = Number(b.l) / 100, t = tributosTotal / 100;
+    return ((1 + ac + mi) * (1 + cf) * (1 + mc) / (1 - t)) - 1;
+  }, [b, missingValues, tributosTotal]);
+  const updateValue = (key: keyof BdiForm, value: string) => setB(current => ({ ...current, [key]: value === "" ? "" : Number(value) }));
   const save = async () => {
-    if (b.i >= 100 || [b.ac,b.s,b.r,b.g,b.l,b.i].some(v => !Number.isFinite(v) || v < 0)) {
-      return toast.error("Informe coeficientes válidos; Tributos deve ser menor que 100%.");
-    }
-    const { error } = await (supabase.from("orcamentos") as any).update({ bdi_pct: Number(calc.toFixed(8)), bdi_ac: b.ac, bdi_s: b.s, bdi_r: b.r, bdi_g: b.g, bdi_l: b.l, bdi_i: b.i }).eq("id", orc.id);
+    if (missingValues) return toast.error("Preencha todos os componentes do BDI, inclusive os tributos. Informe 0 quando não houver incidência.");
+    if (requiredValues.some(value => !Number.isFinite(Number(value)) || Number(value) < 0) || tributosTotal >= 100) return toast.error("Informe percentuais válidos; a soma dos tributos deve ser menor que 100%.");
+    if (calc === null) return toast.error("Não foi possível calcular o BDI com os valores informados.");
+    const { error } = await (supabase.from("orcamentos") as any).update({
+      bdi_pct: Number(calc.toFixed(8)), bdi_ac: Number(b.ac), bdi_s: Number(b.mi), bdi_r: 0, bdi_g: 0, bdi_l: Number(b.l),
+      bdi_i: tributosTotal, bdi_cf: Number(b.cf), bdi_pis: Number(b.pis), bdi_cofins: Number(b.cofins), bdi_tax_inss: Number(b.inss),
+      bdi_tax_estadual: Number(b.estadual), bdi_iss: Number(b.iss),
+    }).eq("id", orc.id);
     if (error) return toast.error(error.message);
     toast.success(`BDI de ${fmtPct(calc)} aplicado ao orçamento`); await onSaved();
   };
   return (
     <div className="mt-4 max-w-2xl">
-      <p className="text-sm text-muted-foreground mb-3">Cálculo do BDI conforme Acórdão TCU 2.622/2013. Ajuste os percentuais.</p>
+      <p className="text-sm text-muted-foreground mb-3">Composição conforme o modelo do relatório. Todos os campos devem ser informados; digite 0 quando o componente não se aplicar.</p>
       <div className="grid grid-cols-2 gap-3">
         {[
-          ["ac", "AC - Adm. Central (%)"], ["s", "S - Seguros (%)"], ["r", "R - Riscos (%)"],
-          ["g", "G - Garantias (%)"], ["l", "L - Lucro (%)"], ["i", "I - Tributos (%)"],
-        ].map(([k,l]) => (
-          <Field key={k} label={l}><Input type="number" step="0.01" value={(b as any)[k]} onChange={(e)=>setB({...b, [k]: Number(e.target.value)})} /></Field>
+          ["ac", "AC - Administração Central (%)"], ["mi", "MI - Margem de Incerteza (Seguros, Riscos e Garantias) (%)"],
+          ["cf", "CF - Custo Financeiro (%)"], ["l", "MC - Margem/Lucro (%)"],
+          ["pis", "PIS - Tributo federal (%)"], ["cofins", "COFINS - Tributo federal (%)"],
+          ["inss", "INSS - Tributo federal (%)"], ["estadual", "Tributos estaduais (%)"], ["iss", "ISS - Tributo municipal (%)"],
+        ].map(([key, label]) => (
+          <Field key={key} label={label}><Input type="number" min="0" step="0.01" required value={String(b[key as keyof BdiForm])} onChange={event => updateValue(key as keyof BdiForm, event.target.value)} /></Field>
         ))}
       </div>
       <div className="mt-6 rounded-lg border p-5 bg-secondary/40">
-        <div className="text-sm text-muted-foreground">BDI calculado</div>
-        <div className="text-3xl font-bold">{fmtPct(calc)}</div>
+        <div className="text-sm text-muted-foreground">Tributos federais: {tributosFederais.toFixed(2).replace(".", ",")}% · Tributos totais (T): {tributosTotal.toFixed(2).replace(".", ",")}%</div>
+        <div className="text-sm text-muted-foreground mt-3">BDI calculado</div>
+        <div className="text-3xl font-bold">{calc === null ? "Preencha todos os campos" : fmtPct(calc)}</div>
         <div className="text-xs text-muted-foreground mt-1">Atual no orçamento: {fmtPct(orc.bdi_pct)}</div>
-        <Button className="mt-3" onClick={save}><Save className="mr-2 size-4" />Aplicar BDI</Button>
+        <Button className="mt-3" onClick={save} disabled={missingValues || calc === null}><Save className="mr-2 size-4" />Aplicar BDI</Button>
       </div>
     </div>
   );
@@ -1390,6 +1413,9 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
   const [sel, setSel] = useState<Record<string, boolean>>(
     Object.fromEntries(RELATORIO_TABS.map(t => [t.key, true]))
   );
+  const bdiComponents = [orc.bdi_cf, orc.bdi_pis, orc.bdi_cofins, orc.bdi_tax_inss, orc.bdi_tax_estadual, orc.bdi_iss];
+  const bdiTaxSum = bdiComponents.slice(1).reduce((sum: number, value: unknown) => sum + (Number(value) || 0), 0);
+  const bdiIncomplete = bdiComponents.some((value: unknown) => value === null || value === undefined || value === "" || !Number.isFinite(Number(value)) || Number(value) < 0) || bdiTaxSum >= 100;
   const [etapasExtra] = useEtapasExtra(orcId);
   const [somenteProprias, setSomenteProprias] = useState(false);
   const [analiticas, setAnaliticas] = useState<any[]>([]);
@@ -1572,10 +1598,61 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
       rows.push(["", "TOTAL GERAL", encargosTotals.geral.horista, encargosTotals.geral.mensalista]);
       out.push({ key: "encargos", title: "Encargos Sociais", rows });
     }
-    if (sel.bdi) out.push({ key: "bdi", title: "BDI", rows: [
-      ["BDI aplicado", fmtPct(bdiPct)],
-      ["Valor de BDI", fmtBRL(totalComBdi - subtotal)],
-    ]});
+    if (sel.bdi) {
+      const bdiAc = Number(orc.bdi_ac ?? 5.5);
+      const bdiMi = Number(orc.bdi_s ?? 2.07) + Number(orc.bdi_r ?? 0) + Number(orc.bdi_g ?? 0);
+      const bdiCf = orc.bdi_cf == null ? null : Number(orc.bdi_cf);
+      const bdiMc = Number(orc.bdi_l ?? 6.38);
+      const taxFields = [orc.bdi_pis, orc.bdi_cofins, orc.bdi_tax_inss, orc.bdi_tax_estadual, orc.bdi_iss];
+      const tributos = taxFields.some(value => value == null || value === "") ? null : taxFields.reduce((sum, value) => sum + Number(value), 0);
+      const federais = [orc.bdi_pis, orc.bdi_cofins, orc.bdi_tax_inss].some(value => value == null || value === "")
+        ? null : Number(orc.bdi_pis) + Number(orc.bdi_cofins) + Number(orc.bdi_tax_inss);
+      const pctText = (value: number) => `${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+      const pctOrPending = (value: number | null) => value == null ? "Pendente" : pctText(value);
+      const pis = orc.bdi_pis == null ? null : Number(orc.bdi_pis);
+      const cofins = orc.bdi_cofins == null ? null : Number(orc.bdi_cofins);
+      const inssTributario = orc.bdi_tax_inss == null ? null : Number(orc.bdi_tax_inss);
+      const estadual = orc.bdi_tax_estadual == null ? null : Number(orc.bdi_tax_estadual);
+      const iss = orc.bdi_iss == null ? null : Number(orc.bdi_iss);
+      const bdiTitulo = `QUADRO DE COMPOSIÇÃO DA TAXA DE BDI ${orc.regime === "desonerado" ? "COM" : "SEM"} DESONERAÇÃO`;
+      out.push({ key: "bdi", title: "BDI", rows: [
+        [bdiTitulo, ""],
+        ["COMPOSIÇÃO DO CUSTO INDIRETO (CI) QUE INCIDE SOBRE OS CUSTOS DIRETOS (CD)", ""],
+        ["DISCRIMINAÇÃO DOS CUSTOS INDIRETOS (CI)", "PORCENTAGEM (%) ADOTADA"],
+        ["Custo de Administração Central - AC", pctText(bdiAc)],
+        ["Custo de Margem de Incerteza do Empreendimento (Seguros, Riscos e Garantias) - MI", pctText(bdiMi)],
+        ["Custo Financeiro - CF", pctOrPending(bdiCf)],
+        ["COMPOSIÇÃO DO CUSTO INDIRETO (CI) QUE INCIDE SOBRE O PREÇO TOTAL DA OBRA (PT)", ""],
+        ["DISCRIMINAÇÃO DOS CUSTOS INDIRETOS (CI)", "PORCENTAGEM (%) ADOTADA"],
+        ["Custos Tributários - total - T", pctOrPending(tributos)],
+        ["           Tributários Federais", pctOrPending(federais)],
+        ["           Tributários Estaduais", pctOrPending(estadual)],
+        ["           Tributários Municipais", pctOrPending(iss)],
+        ["Margem de Contribuição Bruta (Benefício ou Lucro) - MC", pctText(bdiMc)],
+        ["Fórmula do BDI", "Onde:"],
+        ["BDI = {(1+AC+MI) × (1+CF) × (1+MC) ÷ (1-T) - 1} × 100", "BDI: Taxa de BDI"],
+        ["", "AC: Taxa de administração central"],
+        ["", "MI: Taxa de margem de incerteza (risco) do empreendimento"],
+        ["", "CF: Taxa referente aos custos financeiros"],
+        ["", "T: Taxa referente aos tributos municipais, estaduais e federais"],
+        ["", "MC: Taxa referente à margem de contribuição (lucro ou benefício)"],
+        ["TAXA DE BDI (BDI):", fmtPct(bdiPct)],
+        ["", ""],
+        ["CUSTOS TRIBUTÁRIOS", ""],
+        ["TIPO DE IMPOSTO", "ALÍQUOTA (%)"],
+        ["PIS - Programa de Integração Social", pctOrPending(pis)],
+        ["COFINS - Financiamento da Seguridade Social", pctOrPending(cofins)],
+        ["INSS - Previdência Social", pctOrPending(inssTributario)],
+        ["SUB-TOTAL", pctOrPending(federais)],
+        ["ISS - Imposto Sobre Serviço", pctOrPending(iss)],
+        ["Tributos estaduais", pctOrPending(estadual)],
+        ["TOTAL", pctOrPending(tributos)],
+        ["", ""],
+        ["ARRECADAÇÕES", ""],
+        ["TOTAL GERAL", pctOrPending(tributos)],
+        ["A taxa de tributos é calculada pela soma de PIS, COFINS, INSS, tributos estaduais e ISS.", ""],
+      ] });
+    }
     if (sel.composicao) {
       out.push({ key: "composicao", title: "Composições", rows: [
         ["Tipo","Código","Descrição","Un.","Coef.",`Preço Unit. (${orc.regime === "desonerado" ? "Desonerado" : "Não desonerado"})`,"Subtotal"],
@@ -1722,6 +1799,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
   };
 
   const exportXlsx = async () => {
+    if (sel.bdi && bdiIncomplete) return toast.error("Para exportar o relatório BDI, preencha e salve todos os componentes na aba BDI.");
     const XLSX = await import("xlsx-js-style");
     const wb = XLSX.utils.book_new();
     const secs = sections();
@@ -1867,17 +1945,22 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
 
       // Larguras compactas e proporcionais ao conteúdo, sem deixar uma
       // descrição isolada expandir toda a planilha.
-      ws['!cols'] = Array.from({ length: lastCol + 1 }, (_, c) => {
-        const values = s.rows.map(row => String((row as any[])[c] ?? ""));
-        const contentWidth = Math.max(0, ...values.map(value => value.length));
-        const descriptionColumn = s.key === "memoria" || s.key === "cronograma" ? 1 : 3;
-        const limit = c === 0 ? 18 : c === descriptionColumn ? 42 : 18;
-        return { wch: Math.min(limit, Math.max(10, contentWidth + 2)) };
-      });
+      ws['!cols'] = s.key === "bdi"
+        ? [{ wch: 84 }, { wch: 38 }]
+        : Array.from({ length: lastCol + 1 }, (_, c) => {
+            const values = s.rows.map(row => String((row as any[])[c] ?? ""));
+            const contentWidth = Math.max(0, ...values.map(value => value.length));
+            const descriptionColumn = s.key === "memoria" || s.key === "cronograma" ? 1 : 3;
+            const limit = c === 0 ? 18 : c === descriptionColumn ? 42 : 18;
+            return { wch: Math.min(limit, Math.max(10, contentWidth + 2)) };
+          });
       ws['!rows'] = [{ hpt: 22 }, ...Array.from({ length: finalRows.length - 1 }, () => ({ hpt: 18 }))];
       (ws as any)['!freeze'] = { xSplit: 0, ySplit: dataStart + (hasHead ? headerRows : 0) };
       ws['!merges'] = [
         { s: { r: titleRowIndex, c: 0 }, e: { r: titleRowIndex, c: lastCol } },
+        ...(s.key === "bdi" ? s.rows.flatMap((row, index) =>
+          row[0] && !row[1] ? [{ s: { r: dataStart + index, c: 0 }, e: { r: dataStart + index, c: 1 } }] : [],
+        ) : []),
         ...(s.key === "cronograma" ? [
           { s: { r: dataStart, c: 0 }, e: { r: dataStart + 1, c: 0 } },
           { s: { r: dataStart, c: 1 }, e: { r: dataStart + 1, c: 1 } },
@@ -1896,16 +1979,18 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
 
   const exportPdf = async () => {
     try {
+      if (sel.bdi && bdiIncomplete) return toast.error("Para exportar o relatório BDI, preencha e salve todos os componentes na aba BDI.");
       const { default: jsPDF } = await import("jspdf");
       const autoTableModule = await import("jspdf-autotable");
       const autoTable = (autoTableModule as any).default ?? (autoTableModule as any).autoTable;
       if (typeof autoTable !== "function") throw new Error("Módulo de tabelas PDF não foi carregado.");
-      const doc = new jsPDF({ orientation: "landscape" });
       const secs = sections();
       if (secs.length === 0) return toast.error("Selecione ao menos uma aba");
+      const pageOrientation = (section: { key: string }) => section.key === "encargos" || section.key === "bdi" ? "portrait" : "landscape";
+      const doc = new jsPDF({ orientation: pageOrientation(secs[0]) });
 
     secs.forEach((s, idx) => {
-      if (idx > 0) doc.addPage();
+      if (idx > 0) doc.addPage("a4", pageOrientation(s));
       
       let headerY = 10;
       doc.setFontSize(8);
@@ -1934,7 +2019,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
 
       doc.setTextColor(0, 0, 0);
 
-      const hasHead = Array.isArray(s.rows[0]) && typeof s.rows[0][0] === "string" && s.rows.length > 1;
+      const hasHead = s.key !== "bdi" && Array.isArray(s.rows[0]) && typeof s.rows[0][0] === "string" && s.rows.length > 1;
       const headerRows = s.key === "cronograma" ? 2 : 1;
       const head = hasHead ? s.rows.slice(0, headerRows).map(r => r.map(String)) : undefined;
       const body = (hasHead ? s.rows.slice(headerRows) : s.rows).map(r =>
@@ -1955,6 +2040,8 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
         head, 
         body, 
         theme: 'grid',
+        pageBreak: s.key === "encargos" || s.key === "bdi" ? "avoid" : "auto",
+        rowPageBreak: s.key === "encargos" || s.key === "bdi" ? "avoid" : "auto",
         headStyles: { 
           fillColor: [31, 56, 100], 
           textColor: [255, 255, 255], 
@@ -1983,6 +2070,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
             const fourthCol = String(data.row.raw[3] || '').trim();
             const isCompositionItem = s.key === 'composicao' && firstCol.startsWith('COMPOSIÇÃO (');
             const isEncargoGroup = s.key === 'encargos' && ['A', 'B', 'C', 'D'].includes(firstCol);
+            const isBdiColumnHeader = s.key === 'bdi' && ['DISCRIMINAÇÃO DOS CUSTOS INDIRETOS (CI)', 'TIPO DE IMPOSTO'].includes(firstCol);
             const isSubitemMemoria = firstCol === '' && secondCol !== '' && thirdCol !== '';
             const isEtapa = s.key === 'planilha' || s.key === 'memoria'
               ? stageBodyRows.has(data.row.index)
@@ -2013,6 +2101,14 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
               }
             }
 
+            if (s.key === 'bdi' && data.column.index === 0 && firstCol && !secondCol) data.cell.colSpan = 2;
+            if (isBdiColumnHeader) {
+              data.cell.styles.fillColor = [31, 56, 100];
+              data.cell.styles.textColor = [255, 255, 255];
+              data.cell.styles.fontStyle = 'bold';
+              data.cell.styles.halign = data.column.index === 1 ? 'right' : 'left';
+            }
+
             if (isSubitemMemoria) {
               data.cell.styles.fontStyle = 'italic';
               data.cell.styles.textColor = [50, 50, 50];
@@ -2020,7 +2116,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
                 data.cell.styles.cellPadding = { left: 8, top: 1, bottom: 1, right: 1 };
               }
             } 
-            else if (firstCol !== '' && secondCol !== '') {
+            else if (s.key !== 'bdi' && firstCol !== '' && secondCol !== '') {
               data.cell.styles.fontStyle = 'bold';
             }
           }
@@ -2237,6 +2333,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
         <Checkbox checked={somenteProprias} onCheckedChange={(v) => setSomenteProprias(!!v)} />
         <span className="text-sm">No relatório de composições, mostrar somente a fonte PRÓPRIA</span>
       </label>
+      {sel.bdi && bdiIncomplete && <p className="rounded border border-amber-500/50 bg-amber-50 p-3 text-sm text-amber-950" role="alert">O relatório BDI exige CF, PIS, COFINS, INSS, tributos estaduais e ISS informados e salvos na aba BDI. Digite 0 quando não houver incidência, ou desmarque BDI para exportar as demais seções.</p>}
       {sel.composicao && <p className="text-xs text-muted-foreground">Cada composição é apresentada uma vez por fonte, código, data-base e regime. Os subtotais da CPU são por unidade e não são multiplicados pelas quantidades dos itens do orçamento.</p>}
       {sel.composicao && analiticasLoading && <p className="text-sm text-muted-foreground" role="status">Carregando composições analíticas; a exportação será habilitada ao concluir.</p>}
       {sel.composicao && analiticasError && (
@@ -2259,12 +2356,12 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
         </div>
       )}
       <div className="flex gap-3 flex-wrap">
-        <Button onClick={exportXlsx} disabled={sel.composicao && (analiticasLoading || !!analiticasError)}><FileDown className="mr-2 size-4"/>Exportar .xlsx</Button>
+        <Button onClick={exportXlsx} disabled={(sel.composicao && (analiticasLoading || !!analiticasError)) || (sel.bdi && bdiIncomplete)}><FileDown className="mr-2 size-4"/>Exportar .xlsx</Button>
         <Button
           variant="outline"
           className="transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground"
           onClick={exportPdf}
-          disabled={sel.composicao && (analiticasLoading || !!analiticasError)}
+          disabled={(sel.composicao && (analiticasLoading || !!analiticasError)) || (sel.bdi && bdiIncomplete)}
         >
           <FileDown className="mr-2 size-4"/>Exportar .pdf
         </Button>

@@ -267,6 +267,12 @@ export type Database = {
       orcamentos: {
         Row: {
           bdi_pct: number
+          bdi_cf: number | null
+          bdi_pis: number | null
+          bdi_cofins: number | null
+          bdi_tax_inss: number | null
+          bdi_tax_estadual: number | null
+          bdi_iss: number | null
           contrato: string | null
           crea: string | null
           created_at: string
@@ -286,6 +292,12 @@ export type Database = {
         }
         Insert: {
           bdi_pct?: number
+          bdi_cf?: number | null
+          bdi_pis?: number | null
+          bdi_cofins?: number | null
+          bdi_tax_inss?: number | null
+          bdi_tax_estadual?: number | null
+          bdi_iss?: number | null
           contrato?: string | null
           crea?: string | null
           created_at?: string
@@ -305,6 +317,12 @@ export type Database = {
         }
         Update: {
           bdi_pct?: number
+          bdi_cf?: number | null
+          bdi_pis?: number | null
+          bdi_cofins?: number | null
+          bdi_tax_inss?: number | null
+          bdi_tax_estadual?: number | null
+          bdi_iss?: number | null
           contrato?: string | null
           crea?: string | null
           created_at?: string
