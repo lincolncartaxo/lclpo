@@ -189,6 +189,7 @@ function Editor() {
   const nav = useNavigate();
   const [orc, setOrc] = useState<Orc | null>(null);
   const [items, setItems] = useState<Item[]>([]);
+  const [bdis, setBdis] = useState<BdiProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const tabKey = `orc_tab_${id}`;
   const [tab, setTabState] = useState<string>(() => {
@@ -204,7 +205,8 @@ function Editor() {
     setLoading(true);
     const { data: o } = await supabase.from("orcamentos").select("*").eq("id", id).single();
     const { data: it } = await supabase.from("orcamento_itens").select("*").eq("orcamento_id", id).order("ordem");
-    setOrc(o); setItems((it ?? []) as Item[]); setLoading(false);
+    const { data: bdiRows } = await (supabase as any).from("orcamento_bdis").select("id,bdi_pct").eq("orcamento_id", id);
+    setOrc(o); setItems((it ?? []) as Item[]); setBdis((bdiRows ?? []) as BdiProfile[]); setLoading(false);
   };
   useEffect(() => { load(); }, [id]);
 
@@ -212,7 +214,10 @@ function Editor() {
 
   const subtotal = items.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario), 0);
   const totalEncargos = subtotal * Number(orc.encargos_pct);
-  const totalComBdi = subtotal * (1 + Number(orc.bdi_pct));
+  const totalComBdi = items.reduce((s, item) => {
+    const bdiPct = Number(bdis.find((bdi) => bdi.id === item.bdi_id)?.bdi_pct ?? orc.bdi_pct ?? 0);
+    return s + Number(item.quantidade) * Number(item.preco_unitario) * (1 + bdiPct);
+  }, 0);
 
   return (
     <div>
