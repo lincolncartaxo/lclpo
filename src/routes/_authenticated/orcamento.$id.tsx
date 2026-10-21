@@ -253,7 +253,7 @@ function Editor() {
           <TabsContent value="cotacao"><CotacaoTab /></TabsContent>
           <TabsContent value="memoria"><MemoriaTab orcId={id} items={items} onItemUpdated={(itemId: string, patch: Partial<Item>) => setItems(current => current.map(item => item.id === itemId ? { ...item, ...patch } : item))} /></TabsContent>
           <TabsContent value="abc"><CurvaABCTab orcId={id} items={items} bdiPct={Number(orc.bdi_pct)} /></TabsContent>
-          <TabsContent value="planilha"><PlanilhaTab orcId={id} items={items} reload={load} bdiPct={Number(orc.bdi_pct)} regime={orc.regime ?? "nao_desonerado"} uf={orc.uf ?? null} refPrecos={orc.ref_precos ?? null} /></TabsContent>
+          <TabsContent value="planilha"><PlanilhaTab orcId={id} items={items} reload={load} onItemUpdated={(itemId, patch) => setItems(current => current.map(item => item.id === itemId ? { ...item, ...patch } : item))} bdiPct={Number(orc.bdi_pct)} regime={orc.regime ?? "nao_desonerado"} uf={orc.uf ?? null} refPrecos={orc.ref_precos ?? null} /></TabsContent>
           <TabsContent value="resumo"><ResumoTab orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
           <TabsContent value="cronograma"><CronogramaTab orcId={id} items={items} totalComBdi={totalComBdi} /></TabsContent>
           {orc.interesse_transferegov && <TabsContent value="ple"><PleStructureTab orcId={id} items={items} /><RelatorioTab orc={orc} orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} transferegovOnly /></TabsContent>}
@@ -535,7 +535,7 @@ function CotacaoTab() {
 }
 
 /* ---------- PLANILHA LCLPLANMENTÁRIA ---------- */
-function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf, refPrecos }: { orcId: string; items: Item[]; reload: () => void; bdiPct: number; regime: string; uf: string | null; refPrecos: string | null }) {
+function PlanilhaTab({ orcId, items, reload, onItemUpdated, bdiPct, regime, uf, refPrecos }: { orcId: string; items: Item[]; reload: () => void; onItemUpdated: (itemId: string, patch: Partial<Item>) => void; bdiPct: number; regime: string; uf: string | null; refPrecos: string | null }) {
   const [open, setOpen] = useState(false);
   const [openEtapa, setOpenEtapa] = useState(false);
   const [explodeRow, setExplodeRow] = useState<Item | null>(null);
@@ -560,8 +560,12 @@ function PlanilhaTab({ orcId, items, reload, bdiPct, regime, uf, refPrecos }: { 
   const total = items.reduce((s, i) => s + Number(i.quantidade) * Number(i.preco_unitario) * (1 + bdiPct), 0);
 
   const updateField = async (id: string, field: string, value: any) => {
-    await (supabase.from("orcamento_itens") as any).update({ [field]: value }).eq("id", id);
-    reload();
+    const { error } = await (supabase.from("orcamento_itens") as any).update({ [field]: value }).eq("id", id);
+    if (error) {
+      toast.error(`Não foi possível salvar o campo: ${error.message}`);
+      return;
+    }
+    onItemUpdated(id, { [field]: value } as Partial<Item>);
   };
   const remove = async (id: string) => {
     await supabase.from("orcamento_itens").delete().eq("id", id);
