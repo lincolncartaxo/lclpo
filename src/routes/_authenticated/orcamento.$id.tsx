@@ -2541,7 +2541,7 @@ function LicitacaoTab({ orc, orcId, items, subtotal, totalComBdi }: any) {
       const original = Number(item.preco_unitario) || 0;
       const linear = original * fator;
       const itemBdi = Number(bdis.find((profile) => profile.id === item.bdi_id)?.bdi_pct ?? bdi);
-      return { item, index, linear, bdi: itemBdi, preco: modo === "linear_2_casas" ? Math.round(linear * 100) / 100 : linear };
+      return { item, index, linear, bdi: itemBdi, ajusteFinal: false, preco: modo === "linear_2_casas" ? Math.round(linear * 100) / 100 : linear };
     });
     if (modo === "linear_2_casas" && aplicarSolver && rows.length) {
       // Solver em centavos: combina alterações de R$ 0,01 em vários itens,
@@ -2565,6 +2565,19 @@ function LicitacaoTab({ orc, orcId, items, subtotal, totalComBdi }: any) {
         }
         if (melhor.distancia >= Math.abs(alvoCentavos - atualCentavos)) break;
         melhor.row.preco = melhor.valor;
+        atualCentavos = totalCentavos();
+      }
+      // Algumas quantidades tornam impossível atingir determinado centavo
+      // alterando apenas R$ 0,01 no preço unitário. Nesse caso, aplica-se o
+      // saldo restante no item de maior impacto, com precisão de até 6 casas,
+      // para que o total monetário final coincida exatamente com a proposta.
+      for (let ajuste = 0; ajuste < 3 && atualCentavos !== alvoCentavos; ajuste++) {
+        const row = candidatos[0];
+        const impacto = Number(row.item.quantidade) * (1 + row.bdi);
+        if (!(impacto > 0)) break;
+        const saldo = (alvoCentavos - atualCentavos) / 100;
+        row.preco = Math.max(0, Math.round((row.preco + saldo / impacto) * 1e6) / 1e6);
+        row.ajusteFinal = true;
         atualCentavos = totalCentavos();
       }
     }
@@ -2608,9 +2621,9 @@ function LicitacaoTab({ orc, orcId, items, subtotal, totalComBdi }: any) {
       <Field label="Forma de aplicação do desconto"><Select value={modo} onValueChange={v => { setModo(v as any); setSalvo(false); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="linear">Desconto linear</SelectItem><SelectItem value="linear_2_casas">Desconto linear com ajuste para 2 casas decimais</SelectItem></SelectContent></Select></Field>
       <div className="rounded-lg border bg-muted/20 p-3"><p className="text-xs text-muted-foreground">Desconto calculado</p><p className="text-2xl font-semibold">{fmtPct(desconto / 100)}</p><p className="text-xs text-muted-foreground">Original: {fmtBRL(totalComBdi)} · Vencedora: {fmtBRL(alvo || 0)}</p></div>
     </div>
-    {modo === "linear_2_casas" && <label className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 cursor-pointer"><Checkbox checked={aplicarSolver} onCheckedChange={v => setAplicarSolver(!!v)} /><span><b>Aplicar solver para eliminar o resíduo?</b><br />Antes do solver, o desconto exibido é o mesmo percentual global em todos os itens. Ao ativar, o sistema combina alterações de centavos em vários preços unitários, preservando duas casas decimais em todos os itens, para fazer o total monetário coincidir com a proposta vencedora. Resíduo atual: <b>{fmtBRL(calculado.diferenca)}</b>.</span></label>}
+    {modo === "linear_2_casas" && <label className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 cursor-pointer"><Checkbox checked={aplicarSolver} onCheckedChange={v => setAplicarSolver(!!v)} /><span><b>Aplicar solver para eliminar o resíduo?</b><br />Antes do solver, o desconto exibido é o mesmo percentual global em todos os itens. Ao ativar, o sistema combina alterações de centavos e, se necessário, aplica o saldo final com precisão de até seis casas no item de maior impacto, para fazer o total monetário coincidir com a proposta vencedora. Resíduo atual: <b>{fmtBRL(calculado.diferenca)}</b>.</span></label>}
     <div className="flex flex-wrap gap-2"><Button onClick={save} disabled={carregando}><Save className="mr-2 size-4" />{salvo ? "Configuração salva" : "Salvar licitação"}</Button><Button variant="outline" onClick={() => setRelatoriosOpen(true)} disabled={!calculado.rows.length}><FileDown className="mr-2 size-4" />Relatórios da licitação</Button></div>
-    {calculado.rows.length > 0 && <div className="rounded-lg border overflow-auto"><table className="w-full text-sm"><thead><tr className="bg-muted"><th className="p-2 text-left">Item</th><th className="p-2 text-left">Código</th><th className="p-2 text-left">Descrição</th><th className="p-2 text-right">Qtd.</th><th className="p-2 text-right">PU original</th><th className="p-2 text-right">Desconto</th><th className="p-2 text-right">PU licitado</th><th className="p-2 text-right">Total</th></tr></thead><tbody>{calculado.rows.map(r => <tr key={r.item.id} className="border-t"><td className="p-2">{r.item.item || "—"}</td><td className="p-2">{r.item.codigo || "—"}</td><td className="p-2 min-w-80">{r.item.descricao}</td><td className="p-2 text-right">{fmtNum(Number(r.item.quantidade), 4)}</td><td className="p-2 text-right">{fmtBRL(Number(r.item.preco_unitario))}</td><td className="p-2 text-right">{fmtPct(aplicarSolver && Number(r.item.preco_unitario) > 0 ? 1 - r.preco / Number(r.item.preco_unitario) : desconto / 100)}</td><td className="p-2 text-right">{r.preco.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td className="p-2 text-right">{fmtBRL(Number(r.item.quantidade) * r.preco * (1 + r.bdi))}</td></tr>)}</tbody><tfoot><tr className="border-t bg-muted font-semibold"><td className="p-2" colSpan={7}>TOTAL LICITADO C/ BDI</td><td className="p-2 text-right">{fmtBRL(calculado.total)}</td></tr></tfoot></table></div>}
+    {calculado.rows.length > 0 && <div className="rounded-lg border overflow-auto"><table className="w-full text-sm"><thead><tr className="bg-muted"><th className="p-2 text-left">Item</th><th className="p-2 text-left">Código</th><th className="p-2 text-left">Descrição</th><th className="p-2 text-right">Qtd.</th><th className="p-2 text-right">PU original</th><th className="p-2 text-right">Desconto</th><th className="p-2 text-right">PU licitado</th><th className="p-2 text-right">Total</th></tr></thead><tbody>{calculado.rows.map(r => <tr key={r.item.id} className="border-t"><td className="p-2">{r.item.item || "—"}</td><td className="p-2">{r.item.codigo || "—"}</td><td className="p-2 min-w-80">{r.item.descricao}</td><td className="p-2 text-right">{fmtNum(Number(r.item.quantidade), 4)}</td><td className="p-2 text-right">{fmtBRL(Number(r.item.preco_unitario))}</td><td className="p-2 text-right">{fmtPct(aplicarSolver && Number(r.item.preco_unitario) > 0 ? 1 - r.preco / Number(r.item.preco_unitario) : desconto / 100)}</td><td className="p-2 text-right">{r.preco.toLocaleString("pt-BR", { minimumFractionDigits: r.ajusteFinal ? 6 : 2, maximumFractionDigits: r.ajusteFinal ? 6 : 2 })}{r.ajusteFinal && <span className="ml-1 text-xs text-amber-700">(ajuste)</span>}</td><td className="p-2 text-right">{fmtBRL(Number(r.item.quantidade) * r.preco * (1 + r.bdi))}</td></tr>)}</tbody><tfoot><tr className="border-t bg-muted font-semibold"><td className="p-2" colSpan={7}>TOTAL LICITADO C/ BDI</td><td className="p-2 text-right">{fmtBRL(calculado.total)}</td></tr></tfoot></table></div>}
     <Dialog open={relatoriosOpen} onOpenChange={setRelatoriosOpen}>
       <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto">
         <DialogHeader><DialogTitle>Relatórios da licitação</DialogTitle></DialogHeader>
