@@ -103,6 +103,15 @@ function groupItemsByEtapa(items: Item[], etapas: string[], drafts: Record<strin
   const map: Record<string, { label: string; list: Item[] }> = {};
   etapasOrdenadas.forEach(e => { map[e.etapa] = { label: e.label, list: [] }; });
   items.forEach(i => {
+    // Quando o item possui uma etapa explícita (informada na importação ou
+    // editada na planilha), ela é a fonte oficial. O prefixo do código fica
+    // apenas como fallback para itens antigos sem essa associação.
+    const etapaExplicita = String(i.etapa ?? "").trim();
+    const explicitMatch = etapasInfo.find(e => e.etapa.trim() === etapaExplicita || e.label.trim() === etapaExplicita);
+    if (explicitMatch) {
+      map[explicitMatch.etapa].list.push(i);
+      return;
+    }
     const code = (i.item || "").trim();
     const match = etapasPfx.find(({ pfx }) => code === pfx || code.startsWith(pfx + "."));
     const k = match ? match.etapa : "Sem etapa";
@@ -1580,13 +1589,17 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
   }, [items, etapasExtra]);
   const groups = useMemo(() => groupItemsByEtapa(items, etapasExistentes), [items, etapasExistentes]);
 
-  const totalGrupoComHierarquia = (group: { label: string; list: Item[] }, bdiPct: number) => {
+  const totalGrupoComHierarquia = (groups: Record<string, { label: string; list: Item[] }>, etapa: string, bdiPct: number) => {
+    const group = groups[etapa];
+    if (!group) return 0;
     const prefix = prefixOf(group.label);
     const groupItems = prefix
-      ? (items as Item[]).filter(item => {
-          const code = (item.item || "").trim();
-          return code === prefix || code.startsWith(`${prefix}.`);
+      ? Object.values(groups)
+        .filter(candidate => {
+          const candidatePrefix = prefixOf(candidate.label);
+          return candidatePrefix === prefix || candidatePrefix.startsWith(`${prefix}.`);
         })
+        .flatMap(candidate => candidate.list)
       : group.list;
     return groupItems.reduce((sum, item) => sum + Number(item.quantidade) * Number(item.preco_unitario) * (1 + bdiPct), 0);
   };
@@ -1687,8 +1700,8 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
     }
     if (sel.planilha) {
       const rows: (string|number)[][] = [["Item","Fonte","Código","Descrição","Un.","Quant.","Preço Unit.","Preço Unit. c/ BDI","Total"]];
-      Object.values(groups).forEach(g => {
-        const totalG = totalGrupoComHierarquia(g, bdiPct);
+      Object.entries(groups).forEach(([etapaKey, g]) => {
+        const totalG = totalGrupoComHierarquia(groups, etapaKey, bdiPct);
         const etapa = splitEtapaLabel(g.label);
         rows.push([etapa.item, "", "", etapa.descricao, "", "", "", "", totalG.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })]);
         g.list.forEach(i => {
