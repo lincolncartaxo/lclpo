@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +41,7 @@ const isMemoryStageRow = (row: (string | number)[]) =>
   row.slice(2).every(value => String(value ?? "").trim() === "");
 
 /** Compara códigos hierárquicos numericamente: "1" < "1.2" < "1.10" < "2". */
-export const cmpCode = (a: string, b: string) => {
+const cmpCode = (a: string, b: string) => {
   const pa = (a || "").split(".").map(n => parseInt(n, 10));
   const pb = (b || "").split(".").map(n => parseInt(n, 10));
   const len = Math.max(pa.length, pb.length);
@@ -210,14 +210,14 @@ function Editor() {
     if (typeof window !== "undefined") window.localStorage.setItem(tabKey, v);
   };
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     const { data: o } = await supabase.from("orcamentos").select("*").eq("id", id).single();
     const { data: it } = await supabase.from("orcamento_itens").select("*").eq("orcamento_id", id).order("ordem");
     const { data: bdiRows } = await (supabase as any).from("orcamento_bdis").select("id,bdi_pct").eq("orcamento_id", id);
     setOrc(o); setItems((it ?? []) as Item[]); setBdis((bdiRows ?? []) as BdiProfile[]); setLoading(false);
-  };
-  useEffect(() => { load(); }, [id]);
+  }, [id]);
+  useEffect(() => { void load(); }, [load]);
 
   if (loading || !orc) return <div className="p-8 text-muted-foreground">Carregando…</div>;
 
@@ -300,7 +300,7 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
       interesse_transferegov: !!f.interesse_transferegov,
       interesse_licitacao: !!f.interesse_licitacao,
     } as any;
-    let { error } = await supabase.from("orcamentos").update(updatePayload).eq("id", orc.id);
+    const { error } = await supabase.from("orcamentos").update(updatePayload).eq("id", orc.id);
     if (error) return toast.error(error.message);
     await recalculateBudgetPrices(orc.id, f.regime ?? "nao_desonerado", f.uf ?? null, parseRef(f.ref_precos).mes);
     toast.success("Dados Gerais salvos"); onSaved();
@@ -475,22 +475,21 @@ function BdiTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [name, setName] = useState('BDI padrão');
   const [b, setB] = useState<BdiForm>(bdiFormFrom(orc));
-  const load = async () => {
+  const load = useCallback(async (preferredId?: string) => {
     const { data, error } = await (supabase as any).from('orcamento_bdis').select('*').eq('orcamento_id', orc.id).order('created_at');
     if (error) return toast.error(`Não foi possível carregar os BDIs: ${error.message}`);
     const rows = (data ?? []) as BdiProfile[]; setProfiles(rows);
-    const current = rows.find(x => x.id === selected) ?? rows[0];
+    const current = rows.find(x => x.id === preferredId) ?? rows[0];
     if (current) { setSelected(current.id); setName(current.nome); setB(bdiFormFrom(current)); }
-  };
-  useEffect(() => { void load(); }, [orc.id]);
+  }, [orc.id]);
+  useEffect(() => { void load(); }, [load]);
   const choose = (id: string) => { const row = profiles.find(x => x.id === id); if (!row) return; setSelected(id); setName(row.nome); setB(bdiFormFrom(row)); };
   const required = [b.ac,b.mi,b.l,b.cf,b.pis,b.cofins,b.inss,b.estadual,b.iss];
   const missing = required.some(v => v === '' || !Number.isFinite(Number(v)));
   const tributosTotal = Number(b.pis||0)+Number(b.cofins||0)+Number(b.inss||0)+Number(b.estadual||0)+Number(b.iss||0);
-  const calc = useMemo(() => {
-    if (missing || tributosTotal >= 100 || required.some(v => Number(v) < 0)) return null;
-    return ((1+Number(b.ac)/100+Number(b.mi)/100)*(1+Number(b.cf)/100)*(1+Number(b.l)/100)/(1-tributosTotal/100))-1;
-  }, [b, missing, tributosTotal]);
+  const calc = missing || tributosTotal >= 100 || required.some(v => Number(v) < 0)
+    ? null
+    : ((1+Number(b.ac)/100+Number(b.mi)/100)*(1+Number(b.cf)/100)*(1+Number(b.l)/100)/(1-tributosTotal/100))-1;
   const updateValue = (key: keyof BdiForm, value: string) => setB(current => ({ ...current, [key]: value === '' ? '' : Number(value) }));
   const save = async () => {
     if (!name.trim()) return toast.error('Informe um nome para o BDI.');
@@ -505,7 +504,7 @@ function BdiTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
       bdi_pis: payload.bdi_pis, bdi_cofins: payload.bdi_cofins, bdi_tax_inss: payload.bdi_tax_inss,
       bdi_tax_estadual: payload.bdi_tax_estadual, bdi_iss: payload.bdi_iss,
     }).eq('id', orc.id);
-    toast.success(`BDI “${name.trim()}” salvo (${fmtPct(calc)})`); await load(); await onSaved();
+    toast.success(`BDI “${name.trim()}” salvo (${fmtPct(calc)})`); await load(selected ?? undefined); await onSaved();
   };
   const novo = () => { setSelected(null); setName(`BDI ${profiles.length + 1}`); setB(bdiFormFrom(orc)); };
   const remove = async () => { if (!selected || profiles.length <= 1) return toast.error('O orçamento precisa ter pelo menos um BDI.'); if (!confirm('Excluir este perfil de BDI? Os itens vinculados ficarão com o BDI padrão.')) return; const { error } = await (supabase as any).from('orcamento_bdis').delete().eq('id', selected); if (error) return toast.error(error.message); setSelected(null); await load(); };
@@ -927,7 +926,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
     }
   }, [open, editingItem, defaultFonte]);
 
-  const resolvePrice = async (r: any) => {
+  const resolvePrice = useCallback(async (r: any) => {
     if (r.tipo_item === "COMPOSICAO") {
       const { data, error } = await supabase.rpc("calcular_custo_composicao" as any, {
         p_fonte: r.fonte, p_codigo: String(r.codigo),
@@ -950,7 +949,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
       ?? rows.find((p: any) => String(p.uf).toUpperCase() === "BR")
       ?? rows[0];
     return Number(match?.[coluna] ?? 0);
-  };
+  }, [ufUse, mesUse, regime]);
 
   useEffect(() => {
     const t = setTimeout(async () => {
@@ -988,7 +987,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
       setPrices(Object.fromEntries(entries));
     }, 250);
     return () => clearTimeout(t);
-  }, [q, fonte, tipoBase, regime, ufUse, mesUse]);
+  }, [q, fonte, tipoBase, regime, ufUse, mesUse, resolvePrice]);
 
   const addFromBase = async (r: any) => {
     let preco = 0;
@@ -2861,7 +2860,7 @@ function CurvaABCTab({ orcId, items, bdiPct }: any) {
     });
 
     return { abcItems: abc, totalGeral: totalOrcamento };
-  }, [items, bdiPct, bdiMult]);
+  }, [items, bdiMult]);
 
   if (abcItems.length === 0) {
     return <div className="mt-4 p-8 text-center text-muted-foreground border border-dashed rounded-lg">Adicione itens na Planilha Orçamentária para gerar a Curva ABC.</div>;

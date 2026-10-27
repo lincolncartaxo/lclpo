@@ -40,4 +40,17 @@ export default tseslint.config(
       "@typescript-eslint/no-explicit-any": "off",
     },
   },
+  {
+    // Primitivos shadcn exportam helpers/hooks junto aos componentes como API pública;
+    // o alerta de Fast Refresh nesses arquivos não representa erro de produção.
+    files: [
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/form.tsx",
+      "src/components/ui/navigation-menu.tsx",
+      "src/components/ui/sidebar.tsx",
+      "src/components/ui/toggle.tsx",
+    ],
+    rules: { "react-refresh/only-export-components": "off" },
+  },
 );

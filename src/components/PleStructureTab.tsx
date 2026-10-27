@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +31,7 @@ export function PleStructureTab({ orcId, items }: { orcId: string; items: Item[]
   const itemAllocations = useMemo(() => allocations.filter(a => a.item_id === selectedItem), [allocations, selectedItem]);
   const allocatedTotal = itemAllocations.reduce((sum, a) => sum + Number(a.quantidade || 0), 0);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const [ev, fr, al] = await Promise.all([
       db.from("orcamento_eventos").select("id,numero,titulo").eq("orcamento_id", orcId).order("numero"),
       db.from("orcamento_frentes").select("id,numero,nome").eq("orcamento_id", orcId).order("numero"),
@@ -39,8 +39,8 @@ export function PleStructureTab({ orcId, items }: { orcId: string; items: Item[]
     ]);
     if (ev.error || fr.error || al.error) return toast.error((ev.error || fr.error || al.error).message);
     setEvents(ev.data ?? []); setFronts(fr.data ?? []); setAllocations(al.data ?? []);
-  };
-  useEffect(() => { load(); }, [orcId]);
+  }, [orcId]);
+  useEffect(() => { void load(); }, [load]);
 
   const addEvent = async () => {
     const titulo = eventTitle.trim();

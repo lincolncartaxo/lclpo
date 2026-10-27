@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { supabase } from '@/integrations/supabase/client'
-import { useState, useEffect } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -587,11 +587,11 @@ function ItensDaComposicaoModal({ comp, onClose }: { comp: any, onClose: () => v
   const [itens, setItens] = useState<any[]>([])
   const [form, setForm] = useState({ codigo_item: '', descricao: '', unidade: 'un', coeficiente: 1, tipo_item: 'INSUMO', fonte: comp.fonte })
 
-  const fetchItens = async () => {
+  const fetchItens = useCallback(async () => {
     const { data } = await (supabase as any).from('catalogo_composicao_itens').select('*').eq('codigo_composicao', comp.codigo)
     setItens(data || [])
-  }
-  useEffect(() => { fetchItens() }, [comp.codigo])
+  }, [comp.codigo])
+  useEffect(() => { void fetchItens() }, [fetchItens])
 
   const handleAdd = async () => {
     if (!form.codigo_item || !form.descricao) return toast.error("Código e descrição são necessários")

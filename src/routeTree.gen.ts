@@ -15,8 +15,8 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedBasesRouteImport } from './routes/_authenticated/bases'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
-import { Route as AuthenticatedOrcamentoIdRouteImport } from './routes/_authenticated/orcamento.$id'
 import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
+import { Route as AuthenticatedOrcamentoIdRouteImport } from './routes/_authenticated/orcamento.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -47,13 +47,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-
 const AuthenticatedTeamRoute = AuthenticatedTeamRouteImport.update({
   id: '/team',
   path: '/team',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-
 const AuthenticatedOrcamentoIdRoute =
   AuthenticatedOrcamentoIdRouteImport.update({
     id: '/orcamento/$id',
@@ -66,8 +64,8 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/bases': typeof AuthenticatedBasesRoute
-  '/team': typeof AuthenticatedTeamRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/team': typeof AuthenticatedTeamRoute
   '/orcamento/$id': typeof AuthenticatedOrcamentoIdRoute
 }
 export interface FileRoutesByTo {
@@ -75,8 +73,8 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/bases': typeof AuthenticatedBasesRoute
-  '/team': typeof AuthenticatedTeamRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/team': typeof AuthenticatedTeamRoute
   '/orcamento/$id': typeof AuthenticatedOrcamentoIdRoute
 }
 export interface FileRoutesById {
@@ -86,16 +84,29 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/bases': typeof AuthenticatedBasesRoute
-  '/_authenticated/team': typeof AuthenticatedTeamRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/team': typeof AuthenticatedTeamRoute
   '/_authenticated/orcamento/$id': typeof AuthenticatedOrcamentoIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/login' | '/admin' | '/bases' | '/dashboard' | '/orcamento/$id'
+    | '/'
+    | '/login'
+    | '/admin'
+    | '/bases'
+    | '/dashboard'
+    | '/team'
+    | '/orcamento/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/admin' | '/bases' | '/dashboard' | '/orcamento/$id'
+  to:
+    | '/'
+    | '/login'
+    | '/admin'
+    | '/bases'
+    | '/dashboard'
+    | '/team'
+    | '/orcamento/$id'
   id:
     | '__root__'
     | '/'
@@ -104,6 +115,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/bases'
     | '/_authenticated/dashboard'
+    | '/_authenticated/team'
     | '/_authenticated/orcamento/$id'
   fileRoutesById: FileRoutesById
 }
@@ -143,14 +155,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    
-    '/_authenticated/team': {
-      id: '/_authenticated/team'
-      path: '/team'
-      fullPath: '/team'
-      preLoaderRoute: typeof AuthenticatedTeamRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/bases': {
       id: '/_authenticated/bases'
       path: '/bases'
@@ -163,6 +167,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/team': {
+      id: '/_authenticated/team'
+      path: '/team'
+      fullPath: '/team'
+      preLoaderRoute: typeof AuthenticatedTeamRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/orcamento/$id': {
@@ -178,16 +189,16 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedBasesRoute: typeof AuthenticatedBasesRoute
-  AuthenticatedTeamRoute: typeof AuthenticatedTeamRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedTeamRoute: typeof AuthenticatedTeamRoute
   AuthenticatedOrcamentoIdRoute: typeof AuthenticatedOrcamentoIdRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedBasesRoute: AuthenticatedBasesRoute,
-  AuthenticatedTeamRoute: AuthenticatedTeamRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedTeamRoute: AuthenticatedTeamRoute,
   AuthenticatedOrcamentoIdRoute: AuthenticatedOrcamentoIdRoute,
 }
 

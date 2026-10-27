@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { supabase } from '@/integrations/supabase/client'
-import { useState, useEffect } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -28,7 +28,7 @@ function TeamPage() {
   const [openInvite, setOpenInvite] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!user) return
     
     // Buscar perfil do usuário para saber qual a empresa dele
@@ -52,9 +52,9 @@ function TeamPage() {
     }
     
     setLoading(false)
-  }
+  }, [user])
 
-  useEffect(() => { loadData() }, [user])
+  useEffect(() => { void loadData() }, [loadData])
 
   const handleCreateCompany = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()

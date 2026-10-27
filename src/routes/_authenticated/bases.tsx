@@ -261,7 +261,7 @@ function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: st
   );
   useEffect(() => {
     if (mes) return;
-    const fontes = Array.from(new Set(rows.map((r: any) => r.fonte))).filter(f => !(f in latestMes) || true);
+    const fontes = Array.from(new Set(rows.map((r: any) => r.fonte)));
     (async () => {
       const out: Record<string, string> = {};
       await Promise.all(fontes.map(async (f) => {
