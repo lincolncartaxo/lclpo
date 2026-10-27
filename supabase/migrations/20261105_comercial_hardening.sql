@@ -63,6 +63,27 @@ $$;
 REVOKE ALL ON FUNCTION public.admin_update_user_scoped_roles(uuid,text,uuid,text,text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.admin_update_user_scoped_roles(uuid,text,uuid,text,text) TO authenticated,service_role;
 
+-- Algumas instalações remotas ainda não possuem a tabela de compartilhamento,
+-- embora as funções de autorização dependam dela. Criá-la aqui torna a
+-- migration compatível com essas instalações sem apagar dados existentes.
+CREATE TABLE IF NOT EXISTS public.orcamento_shares (
+  orcamento_id uuid NOT NULL REFERENCES public.orcamentos(id) ON DELETE CASCADE,
+  organization_id uuid NOT NULL REFERENCES public.empresas(id) ON DELETE CASCADE,
+  permission text NOT NULL DEFAULT 'view' CHECK (permission IN ('view','edit')),
+  granted_by uuid NOT NULL REFERENCES auth.users(id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (orcamento_id, organization_id)
+);
+ALTER TABLE public.orcamento_shares ENABLE ROW LEVEL SECURITY;
+GRANT SELECT,INSERT,UPDATE,DELETE ON public.orcamento_shares TO authenticated;
+DROP POLICY IF EXISTS "orcamento shares leitura comercial" ON public.orcamento_shares;
+CREATE POLICY "orcamento shares leitura comercial" ON public.orcamento_shares FOR SELECT TO authenticated
+USING (public.is_organization_member(organization_id) OR granted_by=auth.uid());
+DROP POLICY IF EXISTS "orcamento shares gerenciamento comercial" ON public.orcamento_shares;
+CREATE POLICY "orcamento shares gerenciamento comercial" ON public.orcamento_shares FOR ALL TO authenticated
+USING (granted_by=auth.uid() OR public.has_role(auth.uid(),'admin'::public.app_role))
+WITH CHECK (granted_by=auth.uid() OR public.has_role(auth.uid(),'admin'::public.app_role));
+
 -- Autorização centralizada para orçamento, itens e cronograma.
 CREATE OR REPLACE FUNCTION public.can_read_orcamento(p_orcamento_id uuid)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$
