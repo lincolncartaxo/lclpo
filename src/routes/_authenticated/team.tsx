@@ -56,23 +56,6 @@ function TeamPage() {
 
   useEffect(() => { void loadData() }, [loadData])
 
-  const handleCreateCompany = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const nome = new FormData(e.currentTarget).get('nome') as string
-    if (!nome) return toast.error("Informe o nome da empresa")
-    
-    setLoading(true)
-    // 1. Criar empresa
-    const { data: newEmpresa, error: e1 } = await (supabase as any).from('empresas').insert({ nome, plano: 'free', status: 'ativo' }).select().single()
-    if (e1) { setLoading(false); return toast.error(e1.message) }
-    
-    // 2. Vincular usuário logado como dono/membro dessa empresa
-    await (supabase as any).from('profiles').update({ id_empresa: newEmpresa.id }).eq('id', user?.id)
-    
-    toast.success("Sua empresa foi criada!")
-    loadData()
-  }
-
   const handleInvite = async () => {
     if (!inviteEmail) return toast.error("Informe um e-mail válido")
     // Em um SaaS real, aqui dispararíamos um e-mail via Resend/SendGrid com um link seguro.
@@ -103,14 +86,10 @@ function TeamPage() {
       <div className="p-8 max-w-2xl mx-auto mt-10">
         <Card className="text-center p-6">
           <Building2 className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-          <CardTitle className="mb-2">Bem-vindo ao LclPlan Empresarial</CardTitle>
+          <CardTitle className="mb-2">Aguardando vínculo com uma empresa</CardTitle>
           <CardDescription className="mb-6">
-            Para criar orçamentos e convidar outros engenheiros para colaborar com você, primeiro crie o perfil da sua empresa.
+            Neste piloto, empresas e vínculos de usuários são criados pelo administrador global da plataforma. Solicite o vínculo ao responsável pelo LclPlan; convites por e-mail ainda não estão ativos.
           </CardDescription>
-          <form onSubmit={handleCreateCompany} className="flex gap-2 max-w-sm mx-auto">
-            <Input name="nome" placeholder="Nome da sua Construtora/Empresa" required />
-            <Button type="submit" disabled={loading}>Criar Workspace</Button>
-          </form>
         </Card>
       </div>
     )
@@ -160,7 +139,7 @@ function TeamPage() {
                       {m.nome || 'Usuário Sem Nome'} {m.id === user?.id && <span className="text-xs text-muted-foreground">(Você)</span>}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
-                      {['owner', 'admin'].includes(memberRoles[m.id]) ? 'Administrador da empresa' : 'Membro'}
+                      {{ owner: 'Owner da empresa', admin: 'Administrador da empresa', editor: 'Editor', viewer: 'Somente leitura', member: 'Membro' }[memberRoles[m.id] || 'member']}
                     </TableCell>
                     <TableCell className="text-right">
                       {canManageMembers && m.id !== user?.id && (

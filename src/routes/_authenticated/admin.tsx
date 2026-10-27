@@ -124,6 +124,8 @@ function UsuariosManager() {
                   <SelectTrigger><SelectValue/></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="member">Membro</SelectItem>
+                    <SelectItem value="editor">Editor</SelectItem>
+                    <SelectItem value="viewer">Somente leitura</SelectItem>
                     <SelectItem value="admin">Administrador da empresa</SelectItem>
                     <SelectItem value="owner">Owner da empresa</SelectItem>
                   </SelectContent>
