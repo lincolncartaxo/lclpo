@@ -214,7 +214,7 @@ function Editor() {
     setLoading(true);
     const { data: o } = await supabase.from("orcamentos").select("*").eq("id", id).single();
     const { data: it } = await supabase.from("orcamento_itens").select("*").eq("orcamento_id", id).order("ordem");
-    const { data: bdiRows } = await (supabase as any).from("orcamento_bdis").select("id,bdi_pct").eq("orcamento_id", id);
+    const { data: bdiRows } = await (supabase as any).from("orcamento_bdis").select("*").eq("orcamento_id", id).order("created_at");
     setOrc(o); setItems((it ?? []) as Item[]); setBdis((bdiRows ?? []) as BdiProfile[]); setLoading(false);
   }, [id]);
   useEffect(() => { void load(); }, [load]);
@@ -271,10 +271,10 @@ function Editor() {
           <TabsContent value="planilha"><PlanilhaTab orcId={id} items={items} reload={load} onItemUpdated={(itemId, patch) => setItems(current => current.map(item => item.id === itemId ? { ...item, ...patch } : item))} bdiPct={Number(orc.bdi_pct)} regime={orc.regime ?? "nao_desonerado"} uf={orc.uf ?? null} refPrecos={orc.ref_precos ?? null} /></TabsContent>
           <TabsContent value="resumo"><ResumoTab orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
           <TabsContent value="cronograma"><CronogramaTab orcId={id} items={items} totalComBdi={totalComBdi} /></TabsContent>
-          {orc.interesse_transferegov && <TabsContent value="ple"><PleStructureTab orcId={id} items={items} /><RelatorioTab orc={orc} orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} transferegovOnly /></TabsContent>}
-          {orc.interesse_licitacao && <TabsContent value="licitacao"><LicitacaoTab orc={orc} orcId={id} items={items} subtotal={subtotal} totalComBdi={totalComBdi} /></TabsContent>}
+          {orc.interesse_transferegov && <TabsContent value="ple"><PleStructureTab orcId={id} items={items} /><RelatorioTab orc={orc} orcId={id} items={items} bdis={bdis} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} transferegovOnly /></TabsContent>}
+          {orc.interesse_licitacao && <TabsContent value="licitacao"><LicitacaoTab orc={orc} orcId={id} items={items} bdis={bdis} subtotal={subtotal} totalComBdi={totalComBdi} /></TabsContent>}
           <TabsContent value="qci"><QciTab orcId={id} items={items} subtotal={subtotal} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
-          <TabsContent value="relatorio"><RelatorioTab orc={orc} orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} /></TabsContent>
+          <TabsContent value="relatorio"><RelatorioTab orc={orc} orcId={id} items={items} bdis={bdis} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} /></TabsContent>
         </Tabs>
       </div>
     </div>
@@ -1435,13 +1435,32 @@ const RELATORIO_TABS = [
   { key: "qci", label: "QCI" },
 ];
 
-function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi, transferegovOnly = false }: any) {
+function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, totalComBdi, transferegovOnly = false }: any) {
   const [sel, setSel] = useState<Record<string, boolean>>(
     Object.fromEntries(RELATORIO_TABS.map(t => [t.key, true]))
   );
-  const bdiComponents = [orc.bdi_cf, orc.bdi_pis, orc.bdi_cofins, orc.bdi_tax_inss, orc.bdi_tax_estadual, orc.bdi_iss];
-  const bdiTaxSum = bdiComponents.slice(1).reduce((sum: number, value: unknown) => sum + (Number(value) || 0), 0);
-  const bdiIncomplete = bdiComponents.some((value: unknown) => value === null || value === undefined || value === "" || !Number.isFinite(Number(value)) || Number(value) < 0) || bdiTaxSum >= 100;
+  const reportBdis = (bdis.length ? bdis : [{
+    id: "legacy",
+    nome: "BDI padrão",
+    bdi_pct: orc.bdi_pct,
+    bdi_ac: orc.bdi_ac,
+    bdi_s: orc.bdi_s,
+    bdi_r: orc.bdi_r,
+    bdi_g: orc.bdi_g,
+    bdi_l: orc.bdi_l,
+    bdi_cf: orc.bdi_cf,
+    bdi_pis: orc.bdi_pis,
+    bdi_cofins: orc.bdi_cofins,
+    bdi_tax_inss: orc.bdi_tax_inss,
+    bdi_tax_estadual: orc.bdi_tax_estadual,
+    bdi_iss: orc.bdi_iss,
+  }]) as Partial<BdiProfile>[];
+  const isBdiIncomplete = (profile: Partial<BdiProfile>) => {
+    const required = [profile.bdi_cf, profile.bdi_pis, profile.bdi_cofins, profile.bdi_tax_inss, profile.bdi_tax_estadual, profile.bdi_iss];
+    const taxSum = required.slice(1).reduce((sum: number, value: unknown) => sum + (Number(value) || 0), 0);
+    return required.some((value: unknown) => value === null || value === undefined || value === "" || !Number.isFinite(Number(value)) || Number(value) < 0) || taxSum >= 100;
+  };
+  const bdiIncomplete = reportBdis.some(isBdiIncomplete);
   const [etapasExtra] = useEtapasExtra(orcId);
   const [somenteProprias, setSomenteProprias] = useState(false);
   const [analiticas, setAnaliticas] = useState<any[]>([]);
@@ -1628,24 +1647,25 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
       rows.push(["", "TOTAL GERAL", encargosTotals.geral.horista, encargosTotals.geral.mensalista]);
       out.push({ key: "encargos", title: "Encargos Sociais", rows });
     }
-    if (sel.bdi) {
-      const bdiAc = Number(orc.bdi_ac ?? 5.5);
-      const bdiMi = Number(orc.bdi_s ?? 2.07) + Number(orc.bdi_r ?? 0) + Number(orc.bdi_g ?? 0);
-      const bdiCf = orc.bdi_cf == null ? null : Number(orc.bdi_cf);
-      const bdiMc = Number(orc.bdi_l ?? 6.38);
-      const taxFields = [orc.bdi_pis, orc.bdi_cofins, orc.bdi_tax_inss, orc.bdi_tax_estadual, orc.bdi_iss];
+    if (sel.bdi) reportBdis.forEach((profile) => {
+      const bdiPct = Number(profile.bdi_pct ?? 0);
+      const bdiAc = Number(profile.bdi_ac ?? 5.5);
+      const bdiMi = Number(profile.bdi_s ?? 2.07) + Number(profile.bdi_r ?? 0) + Number(profile.bdi_g ?? 0);
+      const bdiCf = profile.bdi_cf == null ? null : Number(profile.bdi_cf);
+      const bdiMc = Number(profile.bdi_l ?? 6.38);
+      const taxFields = [profile.bdi_pis, profile.bdi_cofins, profile.bdi_tax_inss, profile.bdi_tax_estadual, profile.bdi_iss];
       const tributos = taxFields.some(value => value == null || value === "") ? null : taxFields.reduce((sum, value) => sum + Number(value), 0);
-      const federais = [orc.bdi_pis, orc.bdi_cofins, orc.bdi_tax_inss].some(value => value == null || value === "")
-        ? null : Number(orc.bdi_pis) + Number(orc.bdi_cofins) + Number(orc.bdi_tax_inss);
+      const federais = [profile.bdi_pis, profile.bdi_cofins, profile.bdi_tax_inss].some(value => value == null || value === "")
+        ? null : Number(profile.bdi_pis) + Number(profile.bdi_cofins) + Number(profile.bdi_tax_inss);
       const pctText = (value: number) => `${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
       const pctOrPending = (value: number | null) => value == null ? "Pendente" : pctText(value);
-      const pis = orc.bdi_pis == null ? null : Number(orc.bdi_pis);
-      const cofins = orc.bdi_cofins == null ? null : Number(orc.bdi_cofins);
-      const inssTributario = orc.bdi_tax_inss == null ? null : Number(orc.bdi_tax_inss);
-      const estadual = orc.bdi_tax_estadual == null ? null : Number(orc.bdi_tax_estadual);
-      const iss = orc.bdi_iss == null ? null : Number(orc.bdi_iss);
-      const bdiTitulo = `QUADRO DE COMPOSIÇÃO DA TAXA DE BDI ${orc.regime === "desonerado" ? "COM" : "SEM"} DESONERAÇÃO`;
-      out.push({ key: "bdi", title: "BDI", rows: [
+      const pis = profile.bdi_pis == null ? null : Number(profile.bdi_pis);
+      const cofins = profile.bdi_cofins == null ? null : Number(profile.bdi_cofins);
+      const inssTributario = profile.bdi_tax_inss == null ? null : Number(profile.bdi_tax_inss);
+      const estadual = profile.bdi_tax_estadual == null ? null : Number(profile.bdi_tax_estadual);
+      const iss = profile.bdi_iss == null ? null : Number(profile.bdi_iss);
+      const bdiTitulo = `QUADRO DE COMPOSIÇÃO DA TAXA DE BDI — ${String(profile.nome || "BDI padrão")} — ${orc.regime === "desonerado" ? "COM" : "SEM"} DESONERAÇÃO`;
+      out.push({ key: "bdi", title: `BDI - ${String(profile.nome || "BDI padrão")}`, rows: [
         [bdiTitulo, ""],
         ["COMPOSIÇÃO DO CUSTO INDIRETO (CI) QUE INCIDE SOBRE OS CUSTOS DIRETOS (CD)", ""],
         ["DISCRIMINAÇÃO DOS CUSTOS INDIRETOS (CI)", "PORCENTAGEM (%) ADOTADA"],
@@ -1682,7 +1702,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
         ["TOTAL GERAL", pctOrPending(tributos)],
         ["A taxa de tributos é calculada pela soma de PIS, COFINS, INSS, tributos estaduais e ISS.", ""],
       ] });
-    }
+    });
     if (sel.composicao) {
       out.push({ key: "composicao", title: "Composições", rows: [
         ["Tipo","Código","Descrição","Un.","Coef.",`Preço Unit. (${orc.regime === "desonerado" ? "Desonerado" : "Não desonerado"})`,"Subtotal"],
@@ -1836,6 +1856,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
     
     if (secs.length === 0) return toast.error("Selecione ao menos uma aba");
 
+    const usedSheetNames = new Set<string>();
     secs.forEach(s => {
       const headerInfo: any[][] = [];
       if (orc.orgao) headerInfo.push(['CONCEDENTE / ÓRGÃO:', orc.orgao]);
@@ -2000,7 +2021,14 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
         ] : []),
       ];
       
-      const safeSheetName = s.title.substring(0, 31).split('').filter((char) => !'[]*?/\\:'.includes(char)).join('');
+      const baseSheetName = s.title.substring(0, 31).split('').filter((char) => !'[]*?/\\:'.includes(char)).join('') || "Relatório";
+      let safeSheetName = baseSheetName;
+      let suffix = 2;
+      while (usedSheetNames.has(safeSheetName)) {
+        const suffixText = ` (${suffix++})`;
+        safeSheetName = `${baseSheetName.substring(0, 31 - suffixText.length)}${suffixText}`;
+      }
+      usedSheetNames.add(safeSheetName);
       XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
     });
     
@@ -2522,7 +2550,7 @@ function RelatorioTab({ orc, orcId, items, subtotal, totalEncargos, totalComBdi,
 
 
 
-function LicitacaoTab({ orc, orcId, items, subtotal, totalComBdi }: any) {
+function LicitacaoTab({ orc, orcId, items, bdis: parentBdis = [], subtotal, totalComBdi }: any) {
   const bdi = Number(orc.bdi_pct) || 0;
   const [bdis, setBdis] = useState<BdiProfile[]>([]);
   const [valorFinal, setValorFinal] = useState("");
@@ -2647,7 +2675,7 @@ function LicitacaoTab({ orc, orcId, items, subtotal, totalComBdi }: any) {
             <div><span className="text-muted-foreground">Desconto global</span><br /><b>{fmtPct(desconto / 100)}</b></div>
             <div><span className="text-muted-foreground">Total ajustado</span><br /><b>{fmtBRL(calculado.total)}</b></div>
           </div>
-          <RelatorioTab orc={orc} orcId={orcId} items={itemsAjustados} subtotal={subtotalLicitado} totalEncargos={totalEncargosLicitado} totalComBdi={calculado.total} />
+          <RelatorioTab orc={orc} orcId={orcId} items={itemsAjustados} bdis={parentBdis.length ? parentBdis : bdis} subtotal={subtotalLicitado} totalEncargos={totalEncargosLicitado} totalComBdi={calculado.total} />
         </div>
         <DialogFooter><Button variant="outline" onClick={exportXlsx}><FileDown className="mr-2 size-4" />Exportar planilha ajustada</Button><Button onClick={() => setRelatoriosOpen(false)}>Fechar</Button></DialogFooter>
       </DialogContent>
