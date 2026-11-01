@@ -85,7 +85,7 @@ export const importPrecosCSV = createServerFn({ method: "POST" })
       }
       // Lotes menores reduzem o tempo de DELETE + INSERT + validação de FK
       // por chamada no Supabase, especialmente em catálogos já grandes.
-      const MAX_ITENS_POR_LOTE = 250;
+      const MAX_ITENS_POR_LOTE = 50;
       const lotes: any[][] = [];
       let lote: any[] = [];
       for (const grupo of grupos.values()) {
