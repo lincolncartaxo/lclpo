@@ -96,8 +96,14 @@ export const importPrecosCSV = createServerFn({ method: "POST" })
         lote.push(...grupo);
       }
       if (lote.length) lotes.push(lote);
+      const codigos = Array.from(grupos.keys()).map(key => key.split('|')[0]);
+      const { error: clearError } = await supabase.rpc('limpar_catalogo_composicao_itens_importacao', {
+        p_fonte: data.fonte.trim().toUpperCase(),
+        p_codigos: codigos,
+      });
+      if (clearError) return { ok: false, error: `Erro ao preparar a injeção analítica: ${clearError.message}` };
       for (const batch of lotes) {
-        const { error: rpcError } = await supabase.rpc('upsert_catalogo_composicao_itens_lote', { payload: batch });
+        const { error: rpcError } = await supabase.rpc('inserir_catalogo_composicao_itens_lote', { payload: batch });
         if (rpcError) return { ok: false, error: `Erro na injeção analítica: ${rpcError.message}` };
       }
       return { ok: true, message: `Sucesso! ${itens.length} vínculos analíticos inseridos/atualizados em ${grupos.size} composições. ${linhasIgnoradas} linhas de cabeçalho foram ignoradas.` };
