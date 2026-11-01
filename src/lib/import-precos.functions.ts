@@ -28,34 +28,76 @@ export const importPrecosCSV = createServerFn({ method: "POST" })
     });
     if (roleError || !isAdmin) return { ok: false, error: "Somente administradores podem importar bases de preços." };
     
-    // Parse CSV
-        // Detect delimiter
-    const firstLine = data.csvContent.split('\n')[0] || '';
+    // Parse CSV. Remove BOM e espaços do cabeçalho para aceitar arquivos
+    // SINAPI exportados com ponto e vírgula e cabeçalhos espaçados.
+    const csvContent = data.csvContent.replace(/^\uFEFF/, '');
+    const firstLine = csvContent.split('\n')[0] || '';
     const delimiter = firstLine.includes(';') ? ';' : ',';
-    const parsed = Papa.parse(data.csvContent, { header: true, skipEmptyLines: true, delimiter });
+    const parsed = Papa.parse(csvContent, { header: true, skipEmptyLines: true, delimiter });
     
     if (data.tipo === 'composicao-analitica') {
       // Formato esperado: codigo_composicao, tipo_item (INSUMO/COMPOSICAO), codigo_item, coeficiente
-      const itens: any[] = [];
-      for (const row of parsed.data as any[]) {
-        const coef = parseFloat(String(row.coeficiente || '0').replace(',', '.'));
-        itens.push({
-          codigo_composicao: row.codigo_composicao,
-          fonte: data.fonte,
-          tipo_item: (row.tipo_item || 'INSUMO').toUpperCase(),
-          codigo_item: row.codigo_item,
-          coeficiente: isNaN(coef) ? 0 : coef
-        });
+      const porChave = new Map<string, any>();
+      let linhasIgnoradas = 0;
+      for (const rawRow of parsed.data as any[]) {
+        const row: Record<string, string> = {};
+        for (const [key, value] of Object.entries(rawRow as Record<string, unknown>)) {
+          row[key.trim().toLowerCase()] = String(value ?? '').trim();
+        }
+        const codigoComposicao = row.codigo_composicao;
+        const codigoItem = row.codigo_item;
+        const tipoItem = row.tipo_item.toUpperCase();
+
+        // O arquivo anexado tem uma linha marcadora para cada composição,
+        // por exemplo: 104658;;;. Ela não é um item e não pode ser enviada à
+        // coluna NOT NULL codigo_item.
+        if (!codigoComposicao || !codigoItem || !tipoItem) {
+          linhasIgnoradas++;
+          continue;
+        }
+        if (!['INSUMO', 'COMPOSICAO'].includes(tipoItem)) {
+          return { ok: false, error: `Tipo de item inválido na composição ${codigoComposicao}: ${tipoItem}` };
+        }
+        const coef = parseLocalizedNumber(row.coeficiente || '0');
+        if (!Number.isFinite(coef)) {
+          return { ok: false, error: `Coeficiente inválido na composição ${codigoComposicao}, item ${codigoItem}.` };
+        }
+        const item = {
+          codigo_composicao: codigoComposicao,
+          fonte: data.fonte.trim().toUpperCase(),
+          tipo_item: tipoItem,
+          codigo_item: codigoItem,
+          coeficiente: coef,
+        };
+        // Evita duplicidade no mesmo CSV; a última ocorrência prevalece.
+        porChave.set(`${codigoComposicao}|${item.fonte}|${tipoItem}|${codigoItem}`, item);
       }
+      const itens = Array.from(porChave.values());
       if (itens.length === 0) return { ok: false, error: "Nenhum item analítico encontrado." };
-      
-      const BATCH_SIZE = 1000;
-      for (let i = 0; i < itens.length; i += BATCH_SIZE) {
-        const batch = itens.slice(i, i + BATCH_SIZE);
+
+      // Não dividir uma composição entre lotes: a RPC substitui a estrutura
+      // inteira do código e apaga os itens antigos antes de inserir os novos.
+      const grupos = new Map<string, any[]>();
+      for (const item of itens) {
+        const grupo = grupos.get(`${item.codigo_composicao}|${item.fonte}`) ?? [];
+        grupo.push(item);
+        grupos.set(`${item.codigo_composicao}|${item.fonte}`, grupo);
+      }
+      const lotes: any[][] = [];
+      let lote: any[] = [];
+      for (const grupo of grupos.values()) {
+        if (lote.length && lote.length + grupo.length > 1000) {
+          lotes.push(lote);
+          lote = [];
+        }
+        lote.push(...grupo);
+      }
+      if (lote.length) lotes.push(lote);
+      for (const batch of lotes) {
         const { error: rpcError } = await supabase.rpc('upsert_catalogo_composicao_itens_lote', { payload: batch });
         if (rpcError) return { ok: false, error: `Erro na injeção analítica: ${rpcError.message}` };
       }
-      return { ok: true, message: `Sucesso! ${itens.length} vínculos analíticos inseridos/atualizados.` };
+      return { ok: true, message: `Sucesso! ${itens.length} vínculos analíticos inseridos/atualizados em ${grupos.size} composições. ${linhasIgnoradas} linhas de cabeçalho foram ignoradas.` };
     }
 
     // Processamento Normal de Insumos / Composicoes Sinteticas
