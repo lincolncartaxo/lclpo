@@ -284,12 +284,8 @@ export function ImportExcelDialog({
         });
       }
       if (!parsed.length) return toast.error("Nenhuma linha encontrada no intervalo");
-      const missingSource = parsed.filter((row) => !row.etapa && !row.fonte);
-      if (missingSource.length) {
-        const lines = missingSource.slice(0, 8).map((row) => row.linha).join(", ");
-        const suffix = missingSource.length > 8 ? ` e mais ${missingSource.length - 8}` : "";
-        return toast.error(`Informe a Fonte nas linhas de itens ${lines}${suffix}`);
-      }
+      // Fonte ausente assume SINAPI, a base padrão do app.
+      for (const row of parsed) if (!row.etapa && !row.fonte) row.fonte = "SINAPI";
       if (!comPrecos) await resolvePrices(parsed);
       setRows(parsed);
       setStep(3);
