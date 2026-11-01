@@ -466,10 +466,10 @@ export function ImportExcelDialog({
           <div className="space-y-3 max-w-lg">
             {colField("item", "de Itemização")}
             {colField("codigo", "do Código")}
-            {colField("fonte", "da Fonte")}
-            {colField("descricao", "da Descrição")}
-            {colField("unidade", "da Unidade", false)}
             {colField("quantidade", "da Quantidade")}
+            {colField("fonte", "da Fonte", false)}
+            {colField("descricao", "da Descrição", false)}
+            {colField("unidade", "da Unidade", false)}
             {comPrecos && colField("preco", "do Preço Unitário")}
             {!comPrecos && (
               <label className="flex items-center gap-2 text-sm pt-2">
@@ -478,8 +478,9 @@ export function ImportExcelDialog({
               </label>
             )}
             <p className="text-xs text-muted-foreground">
-              Linhas sem quantidade são detectadas como etapas e os itens seguintes são vinculados à
-              etapa anterior.
+              Basta informar item, código e quantidade: descrição, unidade e preço são buscados no
+              banco. Sem fonte informada, assume-se SINAPI. Linhas sem código ou sem quantidade são
+              etapas.
             </p>
           </div>
         )}
