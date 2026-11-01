@@ -261,16 +261,8 @@ export function ImportExcelDialog({
         const quantidade = num(get(row, "quantidade"));
         const fonte = text(get(row, "fonte")).toUpperCase();
         if (!item && !codigo && !descricao) continue;
-        // Etapas normalmente não possuem Fonte. Algumas planilhas, porém,
-        // trazem código hierárquico e/ou um valor calculado na coluna de
-        // quantidade para a etapa. A Fonte só é obrigatória em linhas que
-        // realmente representam itens precificados.
-        const etapa = !fonte && (
-          !codigo ||
-          quantidade === 0 ||
-          isHierarchicalLabel(item) ||
-          isHierarchicalLabel(codigo)
-        );
+        // Linhas sem código ou sem quantidade são etapas; as demais são itens.
+        const etapa = !codigo || quantidade === 0;
         const etapaNome: string | null = etapa
           ? [item, descricao].filter(Boolean).join(" - ")
           : currentStage;
