@@ -83,10 +83,13 @@ export const importPrecosCSV = createServerFn({ method: "POST" })
         grupo.push(item);
         grupos.set(`${item.codigo_composicao}|${item.fonte}`, grupo);
       }
+      // Lotes menores reduzem o tempo de DELETE + INSERT + validação de FK
+      // por chamada no Supabase, especialmente em catálogos já grandes.
+      const MAX_ITENS_POR_LOTE = 250;
       const lotes: any[][] = [];
       let lote: any[] = [];
       for (const grupo of grupos.values()) {
-        if (lote.length && lote.length + grupo.length > 1000) {
+        if (lote.length && lote.length + grupo.length > MAX_ITENS_POR_LOTE) {
           lotes.push(lote);
           lote = [];
         }
