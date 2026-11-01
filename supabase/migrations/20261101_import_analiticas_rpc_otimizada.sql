@@ -1,6 +1,6 @@
 -- Versão enxuta da RPC usada pelos lotes pequenos do importador.
--- O frontend já valida e deduplica as linhas; aqui evitamos varrer o JSON
--- duas vezes antes do INSERT.
+-- A fonte é limpa antes da carga; por isso não fazemos ON CONFLICT/UPDATE
+-- registro a registro, que é caro em catálogos já grandes.
 CREATE OR REPLACE FUNCTION public.inserir_catalogo_composicao_itens_lote(payload jsonb)
 RETURNS void
 LANGUAGE plpgsql
@@ -26,7 +26,5 @@ BEGIN
   WHERE NULLIF(btrim(rec.codigo_composicao), '') IS NOT NULL
     AND NULLIF(btrim(rec.codigo_item), '') IS NOT NULL
     AND upper(NULLIF(btrim(rec.tipo_item), '')) IN ('INSUMO', 'COMPOSICAO')
-  ON CONFLICT (codigo_composicao, fonte, tipo_item, codigo_item)
-  DO UPDATE SET coeficiente = EXCLUDED.coeficiente;
 END;
 $$;
