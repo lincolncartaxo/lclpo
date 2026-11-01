@@ -234,7 +234,8 @@ export function ImportExcelDialog({
   };
 
   const next2 = async () => {
-    const required = ["item", "codigo", "fonte", "descricao", "quantidade"] as const;
+    // Essenciais: item, código e quantidade. Descrição, unidade e preço vêm do banco.
+    const required = ["item", "codigo", "quantidade"] as const;
     if (required.some((key) => colIdx(cols[key]) < 0))
       return toast.error("Preencha as colunas obrigatórias");
     if (comPrecos && colIdx(cols.preco) < 0) return toast.error("Informe a coluna do preço");
