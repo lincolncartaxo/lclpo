@@ -234,7 +234,8 @@ export function ImportExcelDialog({
   };
 
   const next2 = async () => {
-    const required = ["item", "codigo", "fonte", "descricao", "quantidade"] as const;
+    // Essenciais: item, código e quantidade. Descrição, unidade e preço vêm do banco.
+    const required = ["item", "codigo", "quantidade"] as const;
     if (required.some((key) => colIdx(cols[key]) < 0))
       return toast.error("Preencha as colunas obrigatórias");
     if (comPrecos && colIdx(cols.preco) < 0) return toast.error("Informe a coluna do preço");
@@ -260,16 +261,8 @@ export function ImportExcelDialog({
         const quantidade = num(get(row, "quantidade"));
         const fonte = text(get(row, "fonte")).toUpperCase();
         if (!item && !codigo && !descricao) continue;
-        // Etapas normalmente não possuem Fonte. Algumas planilhas, porém,
-        // trazem código hierárquico e/ou um valor calculado na coluna de
-        // quantidade para a etapa. A Fonte só é obrigatória em linhas que
-        // realmente representam itens precificados.
-        const etapa = !fonte && (
-          !codigo ||
-          quantidade === 0 ||
-          isHierarchicalLabel(item) ||
-          isHierarchicalLabel(codigo)
-        );
+        // Linhas sem código ou sem quantidade são etapas; as demais são itens.
+        const etapa = !codigo || quantidade === 0;
         const etapaNome: string | null = etapa
           ? [item, descricao].filter(Boolean).join(" - ")
           : currentStage;
@@ -291,12 +284,8 @@ export function ImportExcelDialog({
         });
       }
       if (!parsed.length) return toast.error("Nenhuma linha encontrada no intervalo");
-      const missingSource = parsed.filter((row) => !row.etapa && !row.fonte);
-      if (missingSource.length) {
-        const lines = missingSource.slice(0, 8).map((row) => row.linha).join(", ");
-        const suffix = missingSource.length > 8 ? ` e mais ${missingSource.length - 8}` : "";
-        return toast.error(`Informe a Fonte nas linhas de itens ${lines}${suffix}`);
-      }
+      // Fonte ausente assume SINAPI, a base padrão do app.
+      for (const row of parsed) if (!row.etapa && !row.fonte) row.fonte = "SINAPI";
       if (!comPrecos) await resolvePrices(parsed);
       setRows(parsed);
       setStep(3);
@@ -319,11 +308,12 @@ export function ImportExcelDialog({
         ordem: nextOrdem + index,
         etapa: row.etapaNome,
         item: row.item || null,
-        fonte: comPrecos ? row.fonte || "PLANILHA" : (row.fonteBase ?? row.fonte) || "COMP",
+        fonte: comPrecos ? row.fonte || "PLANILHA" : (row.fonteBase ?? row.fonte) || "SINAPI",
         codigo: row.codigo || null,
+        // Por padrão a descrição vem do banco; a da planilha só é usada se marcado.
         descricao:
-          !comPrecos && row.fonteBase && !usarDesc
-            ? row.descBase!
+          !comPrecos && !usarDesc
+            ? row.descBase || row.descricao || "(sem descrição)"
             : row.descricao || row.descBase || "(sem descrição)",
         unidade: row.unidade || null,
         quantidade: row.quantidade,
@@ -476,10 +466,10 @@ export function ImportExcelDialog({
           <div className="space-y-3 max-w-lg">
             {colField("item", "de Itemização")}
             {colField("codigo", "do Código")}
-            {colField("fonte", "da Fonte")}
-            {colField("descricao", "da Descrição")}
-            {colField("unidade", "da Unidade", false)}
             {colField("quantidade", "da Quantidade")}
+            {colField("fonte", "da Fonte", false)}
+            {colField("descricao", "da Descrição", false)}
+            {colField("unidade", "da Unidade", false)}
             {comPrecos && colField("preco", "do Preço Unitário")}
             {!comPrecos && (
               <label className="flex items-center gap-2 text-sm pt-2">
@@ -488,8 +478,9 @@ export function ImportExcelDialog({
               </label>
             )}
             <p className="text-xs text-muted-foreground">
-              Linhas sem quantidade são detectadas como etapas e os itens seguintes são vinculados à
-              etapa anterior.
+              Basta informar item, código e quantidade: descrição, unidade e preço são buscados no
+              banco. Sem fonte informada, assume-se SINAPI. Linhas sem código ou sem quantidade são
+              etapas.
             </p>
           </div>
         )}

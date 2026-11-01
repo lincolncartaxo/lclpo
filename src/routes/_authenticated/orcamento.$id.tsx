@@ -1654,9 +1654,13 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
       const bdiCf = profile.bdi_cf == null ? null : Number(profile.bdi_cf);
       const bdiMc = Number(profile.bdi_l ?? 6.38);
       const taxFields = [profile.bdi_pis, profile.bdi_cofins, profile.bdi_tax_inss, profile.bdi_tax_estadual, profile.bdi_iss];
-      const tributos = taxFields.some(value => value == null || value === "") ? null : taxFields.reduce((sum, value) => sum + Number(value), 0);
-      const federais = [profile.bdi_pis, profile.bdi_cofins, profile.bdi_tax_inss].some(value => value == null || value === "")
-        ? null : Number(profile.bdi_pis) + Number(profile.bdi_cofins) + Number(profile.bdi_tax_inss);
+      const tributos = taxFields.some((value) => value == null)
+        ? null
+        : taxFields.reduce<number>((sum, value) => sum + Number(value), 0);
+      const federaisFields = [profile.bdi_pis, profile.bdi_cofins, profile.bdi_tax_inss];
+      const federais = federaisFields.some((value) => value == null)
+        ? null
+        : federaisFields.reduce<number>((sum, value) => sum + Number(value), 0);
       const pctText = (value: number) => `${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
       const pctOrPending = (value: number | null) => value == null ? "Pendente" : pctText(value);
       const pis = profile.bdi_pis == null ? null : Number(profile.bdi_pis);
