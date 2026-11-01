@@ -308,11 +308,12 @@ export function ImportExcelDialog({
         ordem: nextOrdem + index,
         etapa: row.etapaNome,
         item: row.item || null,
-        fonte: comPrecos ? row.fonte || "PLANILHA" : (row.fonteBase ?? row.fonte) || "COMP",
+        fonte: comPrecos ? row.fonte || "PLANILHA" : (row.fonteBase ?? row.fonte) || "SINAPI",
         codigo: row.codigo || null,
+        // Por padrão a descrição vem do banco; a da planilha só é usada se marcado.
         descricao:
-          !comPrecos && row.fonteBase && !usarDesc
-            ? row.descBase!
+          !comPrecos && !usarDesc
+            ? row.descBase || row.descricao || "(sem descrição)"
             : row.descricao || row.descBase || "(sem descrição)",
         unidade: row.unidade || null,
         quantidade: row.quantidade,
