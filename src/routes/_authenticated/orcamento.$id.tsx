@@ -171,12 +171,15 @@ function fmtRef(ref: string | null | undefined) {
   return parts.length >= 2 ? `${p.fonte} | ${parts[1]}/${parts[0]}` : `${p.fonte} | ${p.mes}`;
 }
 
-async function recalculateBudgetPrices(orcamentoId: string, regime: string, uf: string | null, mesRef: string | null = null) {
+type PriceFallbackItem = { id: string; fonte: string; codigo: string; descricao?: string | null; precoAnterior: number };
+
+async function recalculateBudgetPrices(orcamentoId: string, regime: string, uf: string | null, mesRef: string | null = null): Promise<PriceFallbackItem[]> {
   const { data: items } = await supabase
     .from("orcamento_itens")
-    .select("id,fonte,codigo")
+    .select("id,fonte,codigo,descricao,preco_unitario")
     .eq("orcamento_id", orcamentoId)
     .not("codigo", "is", null);
+  const fallback: PriceFallbackItem[] = [];
   await Promise.all((items ?? []).map(async (item) => {
     if (!item.fonte || !item.codigo) return;
     const { data, error } = await supabase.rpc("calcular_custo_composicao", {
@@ -189,8 +192,17 @@ async function recalculateBudgetPrices(orcamentoId: string, regime: string, uf: 
     const price = Number(data);
     if (!error && Number.isFinite(price) && price > 0) {
       await supabase.from("orcamento_itens").update({ preco_unitario: price }).eq("id", item.id);
+    } else {
+      fallback.push({
+        id: item.id,
+        fonte: String(item.fonte),
+        codigo: String(item.codigo),
+        descricao: item.descricao,
+        precoAnterior: Number(item.preco_unitario) || 0,
+      });
     }
   }));
+  return fallback;
 }
 
 function Editor() {
@@ -302,8 +314,15 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
     } as any;
     const { error } = await supabase.from("orcamentos").update(updatePayload).eq("id", orc.id);
     if (error) return toast.error(error.message);
-    await recalculateBudgetPrices(orc.id, f.regime ?? "nao_desonerado", f.uf ?? null, parseRef(f.ref_precos).mes);
-    toast.success("Dados Gerais salvos"); onSaved();
+    const fallbacks = await recalculateBudgetPrices(orc.id, f.regime ?? "nao_desonerado", f.uf ?? null, parseRef(f.ref_precos).mes);
+    if (fallbacks.length) {
+      const preview = fallbacks.slice(0, 5).map(item => `${item.codigo} (${item.fonte})`).join(", ");
+      const suffix = fallbacks.length > 5 ? ` e mais ${fallbacks.length - 5}` : "";
+      toast.warning(`${fallbacks.length} item(ns) não possuem preço na nova Data Base. O preço anterior foi mantido: ${preview}${suffix}.`, { duration: 12000 });
+    } else {
+      toast.success("Dados Gerais salvos e preços atualizados");
+    }
+    onSaved();
   };
   return (
     <div className="mt-4 max-w-3xl space-y-4">
