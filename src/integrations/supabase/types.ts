@@ -1088,9 +1088,17 @@ export type Database = {
         }
         Returns: boolean
       }
+      inserir_catalogo_composicao_itens_lote: {
+        Args: { payload: Json }
+        Returns: undefined
+      }
       is_organization_member: {
         Args: { p_organization_id: string }
         Returns: boolean
+      }
+      limpar_catalogo_composicao_itens_importacao: {
+        Args: { p_codigos?: string[]; p_fonte: string }
+        Returns: undefined
       }
       listar_bases_precos: {
         Args: { p_uf: string }
