@@ -44,9 +44,9 @@ export const importPrecosCSV = createServerFn({ method: "POST" })
         for (const [key, value] of Object.entries(rawRow as Record<string, unknown>)) {
           row[key.trim().toLowerCase()] = String(value ?? '').trim();
         }
-        const codigoComposicao = row.codigo_composicao;
-        const codigoItem = row.codigo_item;
-        const tipoItem = row.tipo_item.toUpperCase();
+        const codigoComposicao = row.codigo_composicao ?? "";
+        const codigoItem = row.codigo_item ?? "";
+        const tipoItem = (row.tipo_item ?? "").toUpperCase();
 
         // O arquivo anexado tem uma linha marcadora para cada composição,
         // por exemplo: 104658;;;. Ela não é um item e não pode ser enviada à
