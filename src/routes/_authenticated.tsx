@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet, redirect, Link, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Building2, LayoutDashboard, FileSpreadsheet, LogOut, Database, Shield } from "lucide-react";
+import { Building2, LayoutDashboard, FileSpreadsheet, LogOut, Database, Shield, CreditCard } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 
@@ -31,6 +31,7 @@ function AuthLayout() {
           <NavItem to="/dashboard" icon={LayoutDashboard}>Orçamentos</NavItem>
           <NavItem to="/bases" icon={Database}>Bases</NavItem>
           <NavItem to="/team" icon={Building2}>Minha Empresa</NavItem>
+          <NavItem to="/planos" icon={CreditCard}>Planos</NavItem>
           <AdminLink />
         </nav>
         <div className="p-3 border-t border-sidebar-border">
