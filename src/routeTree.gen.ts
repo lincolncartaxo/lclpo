@@ -15,6 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedBasesRouteImport } from './routes/_authenticated/bases'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedPlanosRouteImport } from './routes/_authenticated/planos'
 import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
 import { Route as AuthenticatedOrcamentoIdRouteImport } from './routes/_authenticated/orcamento.$id'
 
@@ -47,6 +48,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedPlanosRoute = AuthenticatedPlanosRouteImport.update({
+  id: '/planos',
+  path: '/planos',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedTeamRoute = AuthenticatedTeamRouteImport.update({
   id: '/team',
   path: '/team',
@@ -65,6 +71,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRoute
   '/bases': typeof AuthenticatedBasesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/planos': typeof AuthenticatedPlanosRoute
   '/team': typeof AuthenticatedTeamRoute
   '/orcamento/$id': typeof AuthenticatedOrcamentoIdRoute
 }
@@ -74,6 +81,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AuthenticatedAdminRoute
   '/bases': typeof AuthenticatedBasesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/planos': typeof AuthenticatedPlanosRoute
   '/team': typeof AuthenticatedTeamRoute
   '/orcamento/$id': typeof AuthenticatedOrcamentoIdRoute
 }
@@ -85,6 +93,7 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/bases': typeof AuthenticatedBasesRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/planos': typeof AuthenticatedPlanosRoute
   '/_authenticated/team': typeof AuthenticatedTeamRoute
   '/_authenticated/orcamento/$id': typeof AuthenticatedOrcamentoIdRoute
 }
@@ -96,6 +105,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/bases'
     | '/dashboard'
+    | '/planos'
     | '/team'
     | '/orcamento/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -105,6 +115,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/bases'
     | '/dashboard'
+    | '/planos'
     | '/team'
     | '/orcamento/$id'
   id:
@@ -115,6 +126,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/bases'
     | '/_authenticated/dashboard'
+    | '/_authenticated/planos'
     | '/_authenticated/team'
     | '/_authenticated/orcamento/$id'
   fileRoutesById: FileRoutesById
@@ -169,6 +181,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/planos': {
+      id: '/_authenticated/planos'
+      path: '/planos'
+      fullPath: '/planos'
+      preLoaderRoute: typeof AuthenticatedPlanosRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/team': {
       id: '/_authenticated/team'
       path: '/team'
@@ -190,6 +209,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedBasesRoute: typeof AuthenticatedBasesRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedPlanosRoute: typeof AuthenticatedPlanosRoute
   AuthenticatedTeamRoute: typeof AuthenticatedTeamRoute
   AuthenticatedOrcamentoIdRoute: typeof AuthenticatedOrcamentoIdRoute
 }
@@ -198,6 +218,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedBasesRoute: AuthenticatedBasesRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedPlanosRoute: AuthenticatedPlanosRoute,
   AuthenticatedTeamRoute: AuthenticatedTeamRoute,
   AuthenticatedOrcamentoIdRoute: AuthenticatedOrcamentoIdRoute,
 }
