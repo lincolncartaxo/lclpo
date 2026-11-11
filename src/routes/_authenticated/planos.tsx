@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,9 +26,13 @@ export const Route = createFileRoute("/_authenticated/planos")({
 function PlanosPage() {
   const [current, setCurrent] = useState<{ plan: string; subscribed: boolean; end: string | null } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
+  const checkout = useServerFn(createCheckout);
+  const portal = useServerFn(openCustomerPortal);
+  const subscription = useServerFn(syncSubscription);
 
   const refresh = async () => {
-    try { setCurrent(await syncSubscription()); } catch (e: any) { toast.error(e.message ?? "Erro ao verificar assinatura"); }
+    try { setCurrent(await subscription()); } catch (e: any) { toast.error(e.message ?? "Erro ao verificar assinatura"); }
   };
   useEffect(() => {
     const st = new URLSearchParams(window.location.search).get("status");
@@ -35,20 +40,36 @@ function PlanosPage() {
     refresh();
   }, []);
 
-  const assinar = async (plan: PaidPlanCode) => {
-    setBusy(plan);
+  const openPayment = async (operation: string, request: () => Promise<{ url: string }>) => {
+    setBusy(operation);
+    setPaymentUrl(null);
+    // Open synchronously during the click so popup blockers permit the new tab.
+    const paymentWindow = window.open("about:blank", "_blank");
+    if (paymentWindow) paymentWindow.opener = null;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
-      const { url } = await createCheckout({ data: { plan, origin: window.location.origin } });
-      window.location.href = url;
-    } catch (e: any) { toast.error(e.message); setBusy(null); }
+      const { url } = await Promise.race([
+        request(),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => reject(new Error("O Stripe demorou a responder. Tente novamente em instantes.")), 30000);
+        }),
+      ]);
+      const destination = new URL(url);
+      if (destination.protocol !== "https:" || !["checkout.stripe.com", "billing.stripe.com"].includes(destination.hostname)) {
+        throw new Error("Não foi possível abrir o pagamento.");
+      }
+      setPaymentUrl(destination.href);
+      if (paymentWindow && !paymentWindow.closed) paymentWindow.location.replace(destination.href);
+    } catch (e: unknown) {
+      paymentWindow?.close();
+      toast.error(e instanceof Error ? e.message : "Não foi possível abrir o Stripe.");
+    } finally {
+      clearTimeout(timeout);
+      setBusy(null);
+    }
   };
-  const gerenciar = async () => {
-    setBusy("portal");
-    try {
-      const { url } = await openCustomerPortal({ data: { origin: window.location.origin } });
-      window.location.href = url;
-    } catch (e: any) { toast.error(e.message); setBusy(null); }
-  };
+  const assinar = (plan: PaidPlanCode) => openPayment(plan, () => checkout({ data: { plan, origin: window.location.origin } }));
+  const gerenciar = () => openPayment("portal", () => portal({ data: { origin: window.location.origin } }));
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
@@ -60,9 +81,13 @@ function PlanosPage() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={refresh}>Atualizar status</Button>
-          {current?.subscribed && <Button onClick={gerenciar} disabled={busy === "portal"}>Gerenciar assinatura</Button>}
+          {current?.subscribed && <Button onClick={gerenciar} disabled={!!busy}>Gerenciar assinatura</Button>}
         </div>
       </div>
+      {paymentUrl && <div role="status" className="flex flex-wrap items-center gap-3 text-sm">
+        <span>Seu acesso ao Stripe está pronto.</span>
+        <Button variant="outline" asChild><a href={paymentUrl} target="_blank" rel="noopener noreferrer">Abrir Stripe</a></Button>
+      </div>}
       <div className="grid md:grid-cols-3 gap-4">
         {(Object.entries(BILLING_PLANS) as [PaidPlanCode, (typeof BILLING_PLANS)[PaidPlanCode]][]).map(([code, p]) => {
           const ativo = current?.plan === code;
