@@ -59,9 +59,16 @@ function PlanosPage() {
         throw new Error("Não foi possível abrir o pagamento.");
       }
       setPaymentUrl(destination.href);
-      if (paymentWindow && !paymentWindow.closed) paymentWindow.location.replace(destination.href);
+      let opened = false;
+      try {
+        if (paymentWindow && !paymentWindow.closed) { paymentWindow.location.href = destination.href; opened = true; }
+      } catch { opened = false; }
+      if (!opened) {
+        try { paymentWindow?.close(); } catch { /* ignore */ }
+        toast.info("Clique em \"Abrir Stripe\" para continuar o pagamento.");
+      }
     } catch (e: unknown) {
-      paymentWindow?.close();
+      try { paymentWindow?.close(); } catch { /* ignore */ }
       toast.error(e instanceof Error ? e.message : "Não foi possível abrir o Stripe.");
     } finally {
       clearTimeout(timeout);
