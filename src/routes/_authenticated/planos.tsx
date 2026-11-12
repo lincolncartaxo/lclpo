@@ -30,6 +30,8 @@ function PlanosPage() {
   const checkout = useServerFn(createCheckout);
   const portal = useServerFn(openCustomerPortal);
   const subscription = useServerFn(syncSubscription);
+  const [inEditorFrame, setInEditorFrame] = useState(false);
+  useEffect(() => { try { setInEditorFrame(window.self !== window.top); } catch { setInEditorFrame(true); } }, []);
 
   const refresh = async () => {
     try { setCurrent(await subscription()); } catch (e: any) { toast.error(e.message ?? "Erro ao verificar assinatura"); }
@@ -96,6 +98,14 @@ function PlanosPage() {
       {paymentUrl && <div role="status" className="flex flex-wrap items-center gap-3 text-sm">
         <span>Seu acesso ao Stripe está pronto.</span>
         <Button variant="outline" asChild><a href={paymentUrl} target="_blank" rel="noopener noreferrer">Abrir Stripe</a></Button>
+        <Button variant="secondary" onClick={async () => {
+          try { await navigator.clipboard.writeText(paymentUrl); toast.success("Link copiado. Cole em uma nova aba do navegador."); }
+          catch { window.prompt("Copie o link de pagamento:", paymentUrl); }
+        }}>Copiar link</Button>
+        {inEditorFrame && <p className="w-full text-muted-foreground">
+          Dentro do editor, a página do Stripe pode abrir em branco. Use "Copiar link" e cole em uma nova aba,
+          ou teste pelo site publicado.
+        </p>}
       </div>}
       <div className="grid md:grid-cols-3 gap-4">
         {(Object.entries(BILLING_PLANS) as [PaidPlanCode, (typeof BILLING_PLANS)[PaidPlanCode]][]).map(([code, p]) => {
