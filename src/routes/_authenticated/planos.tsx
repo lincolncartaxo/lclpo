@@ -54,8 +54,10 @@ function PlanosPage() {
           timeout = setTimeout(() => reject(new Error("O Stripe demorou a responder. Tente novamente em instantes.")), 30000);
         }),
       ]);
-      const destination = new URL(url);
-      if (destination.protocol !== "https:" || !["checkout.stripe.com", "billing.stripe.com"].includes(destination.hostname)) {
+      const raw = typeof url === "string" ? url.trim() : "";
+      if (!raw) throw new Error("O Stripe não retornou o link de pagamento.");
+      const destination = new URL(raw);
+      if (destination.protocol !== "https:" || !(destination.hostname === "stripe.com" || destination.hostname.endsWith(".stripe.com"))) {
         throw new Error("Não foi possível abrir o pagamento.");
       }
       setPaymentUrl(destination.href);
