@@ -1,5 +1,11 @@
 # Roadmap
 
+## Preparação para piloto comercial
+- [ ] Concluir cobrança Stripe por empresa, atualização automática e autorização de gestão.
+- [ ] Adicionar e executar testes de cálculos com referências reais e regras de preço.
+- [ ] Validar isolamento entre empresas e limites com testes de acesso.
+- [ ] Verificar cadastro, orçamento, exportação e cobrança no fluxo do piloto; registrar bloqueios externos.
+
 - [x] Permitir preenchimento do cronograma diretamente em percentual (0 a 100).
 - [x] Corrigir o somatório automático das etapas e subetapas pela hierarquia dos itens.
 - [x] Exportar Planilha Orçamentária em JSON no formato Transferegov (aba Relatório).
