@@ -5,3 +5,5 @@
 - Apply verified Stripe notifications through the transactional billing-event RPC and preserve non-Stripe paid grants; retries must not duplicate or downgrade billing state.
 - Calculate analytical compositions recursively from reference-specific input prices with per-line truncation and cycle detection; synthetic prices are only fallback for compositions without analytical items.
 - Keep shared budget arithmetic in browser-safe domain helpers and cover financial rules with executable tests; screen and database calculations need matching reference checks.
+- Use row-local organization predicates for budget SELECT policies so INSERT RETURNING can read newly created budgets without self-lookup visibility failures.
+- Keep content-route metadata in the shared metadata helper; each leaf supplies its own title and description.
