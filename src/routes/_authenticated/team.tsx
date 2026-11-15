@@ -10,8 +10,10 @@ import { Label } from "@/components/ui/label"
 import { Building2, Users, Star, UserPlus, Trash2, Mail } from 'lucide-react'
 import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
+import { pageMetadata } from '@/lib/route-metadata'
 
 export const Route = createFileRoute('/_authenticated/team')({
+  head: () => pageMetadata('Minha Empresa', 'Consulte a empresa, equipe e permissões de colaboração nos orçamentos do LclPlan.'),
   component: TeamPage,
 })
 

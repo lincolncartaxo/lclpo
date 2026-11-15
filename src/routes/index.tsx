@@ -2,6 +2,7 @@ import { createFileRoute, redirect, Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { Building2, FileSpreadsheet, Calculator, Table2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { pageMetadata } from "@/lib/route-metadata";
 
 export const Route = createFileRoute("/")({
   beforeLoad: async () => {
@@ -9,12 +10,7 @@ export const Route = createFileRoute("/")({
     const { data } = await supabase.auth.getSession();
     if (data.session) throw redirect({ to: "/dashboard" });
   },
-  head: () => ({
-    meta: [
-      { title: "LclPlan — Plataforma de Orçamentos de Engenharia" },
-      { name: "description", content: "Crie planilhas orçamentárias completas com SINAPI e DER, BDI, encargos e cronograma físico-financeiro." },
-    ],
-  }),
+  head: () => pageMetadata("Orçamentos de Engenharia", "Crie planilhas orçamentárias com SINAPI e DER, BDI, encargos e cronograma físico-financeiro."),
   component: Landing,
 });
 

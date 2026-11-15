@@ -13,8 +13,10 @@ import { Trash2, Edit, Users, Building, FileText, Database, HardHat, Plus, Searc
 import { toast } from 'sonner'
 import { useServerFn } from '@tanstack/react-start'
 import { importPrecosCSV } from '@/lib/import-precos.functions'
+import { pageMetadata } from '@/lib/route-metadata'
 
 export const Route = createFileRoute('/_authenticated/admin')({
+  head: () => pageMetadata('Administração', 'Administre empresas, usuários, permissões e bases oficiais de preços do LclPlan.'),
   ssr: false,
   beforeLoad: async () => {
     const { data: { session } } = await supabase.auth.getSession()

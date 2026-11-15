@@ -18,6 +18,7 @@ import { fmtBRL, fmtPct, fmtNum } from "@/lib/format";
 import { ImportExcelDialog } from "@/components/ImportExcelDialog";
 import { PleStructureTab } from "@/components/PleStructureTab";
 import { trunc2, budgetItemTotal } from "@/lib/budget-calculations";
+import { pageMetadata } from "@/lib/route-metadata";
 
 /* ---------- HELPERS COMPARTILHADOS ---------- */
 // Regra SINAPI: truncar cada subtotal para centavos antes de somar as linhas.
@@ -125,7 +126,7 @@ function groupItemsByEtapa(items: Item[], etapas: string[], drafts: Record<strin
 }
 
 export const Route = createFileRoute("/_authenticated/orcamento/$id")({
-  head: () => ({ meta: [{ title: "Editor de Orçamento — LclPlan" }] }),
+  head: () => pageMetadata("Editor de Orçamento", "Elabore a planilha orçamentária, BDI, cronograma e relatórios de obras no LclPlan."),
   component: Editor,
 });
 

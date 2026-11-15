@@ -8,9 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Building2 } from "lucide-react";
+import { pageMetadata } from "@/lib/route-metadata";
 
 export const Route = createFileRoute("/login")({
-  head: () => ({ meta: [{ title: "Entrar — LclPlan" }] }),
+  head: () => pageMetadata("Entrar", "Acesse sua conta LclPlan e os orçamentos de engenharia da sua empresa."),
   component: LoginPage,
 });
 

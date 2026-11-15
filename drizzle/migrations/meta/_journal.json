@@ -50,6 +50,13 @@
       "when": 1794731994798,
       "tag": "0006_composition_reference_recursive_calculation",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794732309353,
+      "tag": "0007_budget_insert_read_visibility",
+      "breakpoints": true
     }
   ]
 }

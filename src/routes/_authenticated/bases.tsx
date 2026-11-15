@@ -12,9 +12,10 @@ import { fmtBRL } from "@/lib/format";
 import { Search, ChevronLeft, ChevronRight, Layers, Plus, Trash2, Copy, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { trunc2 } from "@/lib/budget-calculations";
+import { pageMetadata } from "@/lib/route-metadata";
 
 export const Route = createFileRoute("/_authenticated/bases")({
-  head: () => ({ meta: [{ title: "Bases — LclPlan" }] }),
+  head: () => pageMetadata("Bases de preços", "Consulte insumos, composições e preços por UF, mês e regime tributário no LclPlan."),
   component: Bases,
 });
 

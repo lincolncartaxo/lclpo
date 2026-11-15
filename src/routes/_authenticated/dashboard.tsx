@@ -9,9 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { pageMetadata } from "@/lib/route-metadata";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
-  head: () => ({ meta: [{ title: "Meus Orçamentos — LclPlan" }] }),
+  head: () => pageMetadata("Meus Orçamentos", "Gerencie os orçamentos de obras, bases de referência e documentos da sua empresa no LclPlan."),
   component: Dashboard,
 });
 
