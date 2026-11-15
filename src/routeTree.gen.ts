@@ -18,6 +18,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedPlanosRouteImport } from './routes/_authenticated/planos'
 import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
 import { Route as AuthenticatedOrcamentoIdRouteImport } from './routes/_authenticated/orcamento.$id'
+import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/stripe-webhook'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -64,6 +65,11 @@ const AuthenticatedOrcamentoIdRoute =
     path: '/orcamento/$id',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
+  id: '/api/public/stripe-webhook',
+  path: '/api/public/stripe-webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -74,6 +80,7 @@ export interface FileRoutesByFullPath {
   '/planos': typeof AuthenticatedPlanosRoute
   '/team': typeof AuthenticatedTeamRoute
   '/orcamento/$id': typeof AuthenticatedOrcamentoIdRoute
+  '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -84,6 +91,7 @@ export interface FileRoutesByTo {
   '/planos': typeof AuthenticatedPlanosRoute
   '/team': typeof AuthenticatedTeamRoute
   '/orcamento/$id': typeof AuthenticatedOrcamentoIdRoute
+  '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -96,6 +104,7 @@ export interface FileRoutesById {
   '/_authenticated/planos': typeof AuthenticatedPlanosRoute
   '/_authenticated/team': typeof AuthenticatedTeamRoute
   '/_authenticated/orcamento/$id': typeof AuthenticatedOrcamentoIdRoute
+  '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -108,6 +117,7 @@ export interface FileRouteTypes {
     | '/planos'
     | '/team'
     | '/orcamento/$id'
+    | '/api/public/stripe-webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -118,6 +128,7 @@ export interface FileRouteTypes {
     | '/planos'
     | '/team'
     | '/orcamento/$id'
+    | '/api/public/stripe-webhook'
   id:
     | '__root__'
     | '/'
@@ -129,12 +140,14 @@ export interface FileRouteTypes {
     | '/_authenticated/planos'
     | '/_authenticated/team'
     | '/_authenticated/orcamento/$id'
+    | '/api/public/stripe-webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -202,6 +215,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOrcamentoIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/api/public/stripe-webhook': {
+      id: '/api/public/stripe-webhook'
+      path: '/api/public/stripe-webhook'
+      fullPath: '/api/public/stripe-webhook'
+      preLoaderRoute: typeof ApiPublicStripeWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -231,6 +251,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
+  ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -11,6 +11,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { fmtBRL } from "@/lib/format";
 import { Search, ChevronLeft, ChevronRight, Layers, Plus, Trash2, Copy, Pencil } from "lucide-react";
 import { toast } from "sonner";
+import { trunc2 } from "@/lib/budget-calculations";
 
 export const Route = createFileRoute("/_authenticated/bases")({
   head: () => ({ meta: [{ title: "Bases — LclPlan" }] }),
@@ -231,7 +232,6 @@ function Pager({ page, setPage, count }: { page: number; setPage: (n: number) =>
 }
 
 // Trunca em 2 casas (padrão SINAPI); arredonda antes para evitar erro de ponto flutuante.
-const trunc2 = (n: number) => Math.trunc(Math.round(n * 1e6) / 1e4) / 100;
 
 async function computeCompTotals(comp: { codigo: string; fonte: string; uf?: string | null; mes_ref?: string | null }, uf: string, mes: string) {
   const args = { p_fonte: comp.fonte, p_codigo: comp.codigo, p_uf: uf === "__all" ? (comp.uf || "PB") : uf, p_mes_ref: toMesRef(mes || comp.mes_ref || "") || "" };

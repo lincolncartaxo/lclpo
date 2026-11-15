@@ -55,6 +55,41 @@ export type Database = {
           },
         ]
       }
+      billing_events: {
+        Row: {
+          created_at: string
+          event_created: number
+          event_id: string
+          event_type: string
+          organization_id: string | null
+          outcome: string
+        }
+        Insert: {
+          created_at?: string
+          event_created: number
+          event_id: string
+          event_type: string
+          organization_id?: string | null
+          outcome: string
+        }
+        Update: {
+          created_at?: string
+          event_created?: number
+          event_id?: string
+          event_type?: string
+          organization_id?: string | null
+          outcome?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       catalogo_composicao_itens: {
         Row: {
           codigo_composicao: string
@@ -757,6 +792,7 @@ export type Database = {
           provider_customer_id: string | null
           provider_subscription_id: string | null
           status: string
+          stripe_event_created: number
           trial_ends_at: string | null
           updated_at: string
         }
@@ -769,6 +805,7 @@ export type Database = {
           provider_customer_id?: string | null
           provider_subscription_id?: string | null
           status?: string
+          stripe_event_created?: number
           trial_ends_at?: string | null
           updated_at?: string
         }
@@ -781,6 +818,7 @@ export type Database = {
           provider_customer_id?: string | null
           provider_subscription_id?: string | null
           status?: string
+          stripe_event_created?: number
           trial_ends_at?: string | null
           updated_at?: string
         }
@@ -1021,7 +1059,26 @@ export type Database = {
         }
         Returns: undefined
       }
+      apply_stripe_billing_event: {
+        Args: {
+          p_customer_id: string
+          p_event_created: number
+          p_event_id: string
+          p_event_type: string
+          p_organization_id: string
+          p_period_end: string
+          p_plan_code: string
+          p_status: string
+          p_subscription_id: string
+          p_trial_end: string
+        }
+        Returns: string
+      }
       assert_import_admin: { Args: never; Returns: undefined }
+      bind_stripe_customer: {
+        Args: { p_customer_id: string; p_organization_id: string }
+        Returns: string
+      }
       calcular_custo_composicao: {
         Args: {
           p_codigo: string
@@ -1032,11 +1089,26 @@ export type Database = {
         }
         Returns: number
       }
+      calcular_custo_composicao_recursivo: {
+        Args: {
+          p_caminho?: string[]
+          p_codigo: string
+          p_fonte: string
+          p_mes_ref: string
+          p_regime: string
+          p_uf: string
+        }
+        Returns: number
+      }
       can_delete_orcamento: {
         Args: { p_orcamento_id: string }
         Returns: boolean
       }
       can_edit_orcamento: { Args: { p_orcamento_id: string }; Returns: boolean }
+      can_manage_organization_billing: {
+        Args: { p_organization_id: string }
+        Returns: boolean
+      }
       can_read_orcamento: { Args: { p_orcamento_id: string }; Returns: boolean }
       compartilhar_composicao: {
         Args: {

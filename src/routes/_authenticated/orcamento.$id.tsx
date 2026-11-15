@@ -17,10 +17,10 @@ import { consultarPropostaTG, enviarPOTransferegov } from "@/lib/transferegov.fu
 import { fmtBRL, fmtPct, fmtNum } from "@/lib/format";
 import { ImportExcelDialog } from "@/components/ImportExcelDialog";
 import { PleStructureTab } from "@/components/PleStructureTab";
+import { trunc2, budgetItemTotal } from "@/lib/budget-calculations";
 
 /* ---------- HELPERS COMPARTILHADOS ---------- */
 // Regra SINAPI: truncar cada subtotal para centavos antes de somar as linhas.
-const trunc2 = (n: number) => Math.trunc(Math.round(n * 1e6) / 1e4) / 100;
 
 const prefixOf = (s: string) => {
   const m = (s || "").trim().match(/^([0-9]+(?:\.[0-9]+)*)/);
@@ -237,7 +237,7 @@ function Editor() {
   const totalEncargos = subtotal * Number(orc.encargos_pct);
   const totalComBdi = items.reduce((s, item) => {
     const bdiPct = Number(bdis.find((bdi) => bdi.id === item.bdi_id)?.bdi_pct ?? orc.bdi_pct ?? 0);
-    return s + Number(item.quantidade) * Number(item.preco_unitario) * (1 + bdiPct);
+    return s + budgetItemTotal(Number(item.quantidade), Number(item.preco_unitario), bdiPct);
   }, 0);
 
   return (

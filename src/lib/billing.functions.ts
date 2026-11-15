@@ -1,104 +1,73 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { BILLING_PLANS, planFromProduct } from "./billing-plans";
-
-async function stripe(path: string, method: "GET" | "POST", params?: Record<string, string>) {
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) throw new Error("Stripe não configurado.");
-  const body = params ? new URLSearchParams(params).toString() : undefined;
-  const url = `https://api.stripe.com/v1/${path}${method === "GET" && body ? `?${body}` : ""}`;
-  const r = await fetch(url, {
-    method,
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/x-www-form-urlencoded" },
-    body: method === "POST" ? body : undefined,
-  });
-  const json: any = await r.json();
-  if (!r.ok) throw new Error(json?.error?.message ?? `Erro Stripe ${r.status}`);
-  return json;
-}
-
-async function findCustomer(email: string) {
-  const res = await stripe("customers", "GET", { email, limit: "1" });
-  return (res.data?.[0]?.id as string | undefined) ?? null;
-}
-
-async function getOrgId(supabase: any, userId: string) {
-  const { data } = await supabase.from("profiles").select("id_empresa").eq("id", userId).maybeSingle();
-  return (data?.id_empresa as string | null) ?? null;
-}
+import { BILLING_PLANS } from "./billing-plans";
+import { subscriptionState } from "./billing-domain";
 
 export const createCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ plan: z.enum(["pro", "business", "enterprise"]), origin: z.string().url() }).parse(d))
   .handler(async ({ data, context }) => {
-    const email = (context.claims as any).email as string | undefined;
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const { organizationBilling, ensureCustomer, stripeRequest, currentStripeSubscription, checkoutOrigin } = await import("./billing.server");
+    const billing = await organizationBilling(context.supabase, context.userId, true);
+    const email = z.string().email().optional().parse(context.claims.email);
     if (!email) throw new Error("Usuário sem e-mail.");
-    const customer = await findCustomer(email);
+    const origin = checkoutOrigin(data.origin, getRequest().url);
+    const customer = await ensureCustomer(billing.orgId, billing.subscription.provider_customer_id, email);
+    const existing = await currentStripeSubscription(customer, billing.subscription.provider_subscription_id);
+    if (existing && !["canceled", "incomplete_expired"].includes(existing.status)) throw new Error("Já existe uma assinatura. Use Gerenciar assinatura para alterar o plano.");
     const params: Record<string, string> = {
-      mode: "subscription",
+      mode: "subscription", customer,
       "line_items[0][price]": BILLING_PLANS[data.plan].priceId,
       "line_items[0][quantity]": "1",
-      success_url: `${data.origin}/planos?status=sucesso`,
-      cancel_url: `${data.origin}/planos?status=cancelado`,
-      "metadata[user_id]": context.userId,
+      success_url: `${origin}/planos?status=sucesso`,
+      cancel_url: `${origin}/planos?status=cancelado`,
+      client_reference_id: billing.orgId,
+      "metadata[organization_id]": billing.orgId,
+      "subscription_data[metadata][organization_id]": billing.orgId,
     };
-    if (customer) params.customer = customer; else params.customer_email = email;
-    const session = await stripe("checkout/sessions", "POST", params);
-    return { url: session.url as string };
+    const session = z.object({ url: z.string().url() }).parse(await stripeRequest("checkout/sessions", "POST", params, `checkout-${billing.orgId}-${data.plan}-${Math.floor(Date.now() / 60000)}`));
+    return { url: session.url };
   });
 
 export const syncSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const email = (context.claims as any).email as string | undefined;
-    if (!email) return { plan: "free" as const, subscribed: false, end: null as string | null };
-    const customer = await findCustomer(email);
-    let plan: string = "free";
-    let end: string | null = null;
-    let subId: string | null = null;
-    if (customer) {
-      const subs = await stripe("subscriptions", "GET", { customer, status: "active", limit: "1" });
-      const s = subs.data?.[0];
-      if (s) {
-        plan = planFromProduct(s.items?.data?.[0]?.price?.product) ?? "free";
-        const pe = s.current_period_end ?? s.items?.data?.[0]?.current_period_end;
-        end = pe ? new Date(pe * 1000).toISOString() : null;
-        subId = s.id;
+    const { organizationBilling, currentStripeSubscription, applySubscription } = await import("./billing.server");
+    const { orgId, subscription, canManage } = await organizationBilling(context.supabase, context.userId);
+    let providerStatus: string | null = null;
+    let cancelAtPeriodEnd = false;
+    if (canManage && subscription.provider_customer_id) {
+      const stripeSub = await currentStripeSubscription(subscription.provider_customer_id, subscription.provider_subscription_id);
+      if (stripeSub) {
+        const state = subscriptionState(stripeSub);
+        providerStatus = state.status;
+        cancelAtPeriodEnd = state.cancelAtPeriodEnd;
+        await applySubscription(orgId, stripeSub, `sync_${crypto.randomUUID()}`, "app.sync", Math.floor(Date.now() / 1000));
       }
     }
-    // Atualiza o plano da empresa do usuário (somente a própria empresa).
-    const orgId = await getOrgId(context.supabase, context.userId);
-    if (orgId) {
-      const { data: member } = await context.supabase.rpc("is_organization_member", { p_organization_id: orgId });
-      if (member) {
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const { data: cur } = await supabaseAdmin.from("organization_subscriptions").select("provider").eq("organization_id", orgId).maybeSingle();
-        // Não rebaixa planos concedidos manualmente pelo administrador.
-        if (subId || cur?.provider === "stripe") {
-          await supabaseAdmin.from("organization_subscriptions").upsert({
-            organization_id: orgId,
-            plan_code: plan,
-            status: subId ? "active" : "canceled",
-            current_period_end: end,
-            provider: "stripe",
-            provider_customer_id: customer,
-            provider_subscription_id: subId,
-            updated_at: new Date().toISOString(),
-          } as any);
-        }
-      }
-    }
-    return { plan, subscribed: !!subId, end };
+    const { data: current, error } = await context.supabase.from("organization_subscriptions").select("*").eq("organization_id", orgId).single();
+    if (error) throw new Error("Não foi possível atualizar o status da assinatura.");
+    const { data: events, error: eventsError } = canManage
+      ? await context.supabase.from("billing_events").select("event_type,outcome,created_at").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(5)
+      : { data: [], error: null };
+    if (eventsError) throw new Error("Não foi possível consultar o histórico da cobrança.");
+    return { plan: current.plan_code, subscribed: current.provider === "stripe" && ["active", "trialing"].includes(current.status),
+      end: current.current_period_end, status: current.status, canManage, providerStatus, cancelAtPeriodEnd,
+      hasCustomer: Boolean(current.provider_customer_id), manual: current.provider !== "stripe" && current.plan_code !== "free", events: events ?? [] };
   });
 
 export const openCustomerPortal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ origin: z.string().url() }).parse(d))
   .handler(async ({ data, context }) => {
-    const email = (context.claims as any).email as string | undefined;
-    const customer = email ? await findCustomer(email) : null;
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const { organizationBilling, stripeRequest, checkoutOrigin } = await import("./billing.server");
+    const billing = await organizationBilling(context.supabase, context.userId, true);
+    const customer = billing.subscription.provider_customer_id;
     if (!customer) throw new Error("Nenhuma assinatura encontrada.");
-    const s = await stripe("billing_portal/sessions", "POST", { customer, return_url: `${data.origin}/planos` });
-    return { url: s.url as string };
+    const origin = checkoutOrigin(data.origin, getRequest().url);
+    const session = z.object({ url: z.string().url() }).parse(await stripeRequest("billing_portal/sessions", "POST", { customer, return_url: `${origin}/planos` }));
+    return { url: session.url };
   });

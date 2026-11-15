@@ -36,6 +36,20 @@
       "when": 1794730843889,
       "tag": "0004_restrict_price_catalog_reads",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794731844242,
+      "tag": "0005_organization_stripe_billing",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794731994798,
+      "tag": "0006_composition_reference_recursive_calculation",
+      "breakpoints": true
     }
   ]
 }

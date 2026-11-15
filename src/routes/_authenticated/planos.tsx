@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_authenticated/planos")({
 });
 
 function PlanosPage() {
-  const [current, setCurrent] = useState<{ plan: string; subscribed: boolean; end: string | null } | null>(null);
+  const [current, setCurrent] = useState<Awaited<ReturnType<typeof syncSubscription>> | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const checkout = useServerFn(createCheckout);
@@ -38,8 +38,12 @@ function PlanosPage() {
   };
   useEffect(() => {
     const st = new URLSearchParams(window.location.search).get("status");
-    if (st === "sucesso") toast.success("Assinatura confirmada!");
+    if (st === "sucesso") toast.info("Pagamento recebido para verificação. Aguarde a confirmação da assinatura.");
     refresh();
+    const timer = window.setInterval(refresh, 60000);
+    const onFocus = () => { void refresh(); };
+    window.addEventListener("focus", onFocus);
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", onFocus); };
   }, []);
 
   const openPayment = async (operation: string, request: () => Promise<{ url: string }>) => {
@@ -88,11 +92,13 @@ function PlanosPage() {
         <div>
           <h1 className="text-2xl font-semibold">Planos</h1>
           <p className="text-muted-foreground">Plano atual: <strong>{current ? (BILLING_PLANS[current.plan as PaidPlanCode]?.name ?? "Free") : "…"}</strong>
-            {current?.end && <> · renova em {new Date(current.end).toLocaleDateString("pt-BR")}</>}</p>
+            {current?.end && <> · {current.cancelAtPeriodEnd ? "acesso até" : "período até"} {new Date(current.end).toLocaleDateString("pt-BR")}</>}</p>
+          {current && <p className="text-sm text-muted-foreground">{({ active: "Ativa", trialing: "Em avaliação", past_due: "Pagamento pendente", canceled: "Cancelada", paused: "Pausada" } as Record<string, string>)[current.status] ?? current.status}{current.manual ? " · Plano concedido pela Administração" : ""}</p>}
+          {current && !current.canManage && <p className="text-sm text-muted-foreground">A assinatura é gerenciada pelo responsável ou administrador da empresa.</p>}
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={refresh}>Atualizar status</Button>
-          {current?.subscribed && <Button onClick={gerenciar} disabled={!!busy}>Gerenciar assinatura</Button>}
+          {current?.canManage && current.hasCustomer && <Button onClick={gerenciar} disabled={!!busy}>Gerenciar assinatura</Button>}
         </div>
       </div>
       {paymentUrl && <div role="status" className="flex flex-wrap items-center gap-3 text-sm">
@@ -121,7 +127,7 @@ function PlanosPage() {
                 <p className="mt-3 text-sm flex items-center gap-2"><Check className="size-4 text-primary" /> Bases SINAPI e exportações</p>
               </CardContent>
               <CardFooter>
-                <Button className="w-full" disabled={ativo || !!busy} onClick={() => (current?.subscribed ? gerenciar() : assinar(code))}>
+                <Button className="w-full" disabled={ativo || !!busy || !current?.canManage} onClick={() => (current?.subscribed ? gerenciar() : assinar(code))}>
                   {ativo ? "Plano atual" : busy === code ? "Abrindo…" : current?.subscribed ? "Trocar plano" : "Assinar"}
                 </Button>
               </CardFooter>
@@ -129,6 +135,13 @@ function PlanosPage() {
           );
         })}
       </div>
+      {current?.canManage && current.events.length > 0 && <section className="border-t pt-4">
+        <h2 className="font-semibold">Histórico de cobrança</h2>
+        <ul className="mt-2 space-y-2 text-sm text-muted-foreground">{current.events.map((event, index) => <li key={index}>
+          {new Date(event.created_at).toLocaleString("pt-BR")} · {event.event_type === "app.sync" ? "Status verificado" : event.event_type.startsWith("invoice.") ? "Pagamento atualizado" : "Assinatura atualizada"}
+          {event.outcome === "manual_preserved" ? " · Plano administrativo preservado" : ""}
+        </li>)}</ul>
+      </section>}
     </div>
   );
 }
