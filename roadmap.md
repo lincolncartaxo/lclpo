@@ -1,13 +1,14 @@
 # Roadmap
 
 ## Preparação para piloto comercial
-- [ ] Concluir a retomada: corrigir demora e verificar exportações analíticas XLSX/PDF em orçamento real.
+- [x] Concluir a retomada: corrigir demora e verificar exportações analíticas XLSX/PDF em orçamento real.
 - [x] Implementar cobrança Stripe por empresa, histórico e autorização de gestão.
-- [ ] Ativar notificações automáticas: aguarda STRIPE_WEBHOOK_SECRET (formulário recusado), publicação e pagamento de teste.
+- [ ] Ativar notificações automáticas: STRIPE_WEBHOOK_SECRET salvo; aguarda publicação e pagamento de teste.
 - [x] Adicionar e executar testes de cálculos com referências reais e regras de preço.
 - [x] Validar isolamento entre empresas e limites com testes de acesso (contas temporárias removidas).
 - [x] Verificar acesso, orçamento existente, exportação XLSX sem analíticas, checkout e portal sem cobrança real.
-- [ ] Validar cadastro completo e exportações analíticas/PDF antes do piloto; requisitos e limitações em scripts/PILOTO_COMERCIAL.md.
+- [x] Validar exportações completas XLSX/PDF com composições analíticas em orçamento real.
+- [ ] Validar cadastro completo antes do piloto; criação da empresa ainda depende de intervenção administrativa.
 
 - [x] Permitir preenchimento do cronograma diretamente em percentual (0 a 100).
 - [x] Corrigir o somatório automático das etapas e subetapas pela hierarquia dos itens.
