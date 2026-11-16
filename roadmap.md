@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Preparação para piloto comercial
+- [ ] Concluir a retomada: corrigir demora e verificar exportações analíticas XLSX/PDF em orçamento real.
 - [x] Implementar cobrança Stripe por empresa, histórico e autorização de gestão.
 - [ ] Ativar notificações automáticas: aguarda STRIPE_WEBHOOK_SECRET (formulário recusado), publicação e pagamento de teste.
 - [x] Adicionar e executar testes de cálculos com referências reais e regras de preço.

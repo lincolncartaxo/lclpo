@@ -84,6 +84,12 @@ describe.runIf(process.env.RUN_DB_TESTS === "true")("commercial pilot database i
   it.each([["88316", "desonerado", 22.75], ["88316", "nao_desonerado", 24.05], ["95378", "desonerado", 0.33], ["95378", "nao_desonerado", 0.36]])("real SINAPI PB May 2026 %s %s = %s", async (code, regime, price) => {
     expect(requireData(await alice.rpc("calcular_custo_composicao", { p_fonte: "SINAPI", p_codigo: String(code), p_uf: "PB", p_mes_ref: "2026-05", p_regime: String(regime) }))).toBe(price);
   });
+  it("leading-zero composition codes retain the PB May 2026 price", async () => {
+    expect(requireData(await alice.rpc("calcular_custo_composicao", { p_fonte: "SINAPI", p_codigo: "00088316", p_uf: "PB", p_mes_ref: "2026-05", p_regime: "desonerado" }))).toBe(22.75);
+  });
+  it("report composition 87294 calculates without a statement timeout", async () => {
+    expect(Number(requireData(await alice.rpc("calcular_custo_composicao", { p_fonte: "SINAPI", p_codigo: "87294", p_uf: "PB", p_mes_ref: "2026-05", p_regime: "desonerado" })))).toBeGreaterThan(0);
+  }, 10000);
   it("events preserve manual paid grants and are idempotent", async () => {
     requireData(await admin.rpc("bind_stripe_customer", { p_organization_id: orgA, p_customer_id: customer }));
     const args = { p_event_id: `evt_${marker}`, p_event_type: "customer.subscription.updated", p_event_created: 100, p_organization_id: orgA, p_customer_id: customer, p_subscription_id: subscription, p_plan_code: "pro", p_status: "active", p_period_end: "2030-01-01T00:00:00Z", p_trial_end: "2030-01-01T00:00:00Z" };

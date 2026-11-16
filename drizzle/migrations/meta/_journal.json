@@ -57,6 +57,27 @@
       "when": 1794732309353,
       "tag": "0007_budget_insert_read_visibility",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794819059229,
+      "tag": "0008_composition_normalized_lookup_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794819234708,
+      "tag": "0009_composition_sargable_normalized_lookup",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794819413258,
+      "tag": "0010_composition_exact_code_fast_path",
+      "breakpoints": true
     }
   ]
 }
