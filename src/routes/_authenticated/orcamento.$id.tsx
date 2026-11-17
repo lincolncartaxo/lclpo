@@ -798,9 +798,11 @@ function PlanilhaTab({ orcId, items, reload, onItemUpdated, bdiPct, regime, uf, 
 function ExplosaoSheet({ row, onClose, regime, uf, mesRef }: { row: Item | null; onClose: () => void; regime: string; uf: string | null; mesRef: string | null }) {
   const [rows, setRows] = useState<any[]>([]);
   const [precos, setPrecos] = useState<Record<string, number>>({});
+  const [composicaoTotal, setComposicaoTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   useEffect(() => {
     if (!row) return;
+    setComposicaoTotal(null);
     setLoading(true);
     (async () => {
       const { data, error } = await (supabase as any)
@@ -848,12 +850,22 @@ function ExplosaoSheet({ row, onClose, regime, uf, mesRef }: { row: Item | null;
         return [String(r.codigo_item), Number(data) || 0] as const;
       }));
       setPrecos(Object.fromEntries(entries));
+      const { data: officialPrice } = await supabase.rpc("calcular_custo_composicao", {
+        p_fonte: row.fonte,
+        p_codigo: String(row.codigo),
+        p_uf: uf?.trim() || "PB",
+        p_mes_ref: mesRef ?? "",
+        p_regime: regime,
+      });
+      if (Number.isFinite(Number(officialPrice)) && Number(officialPrice) > 0) {
+        setComposicaoTotal(Number(officialPrice));
+      }
       setLoading(false);
     })();
   }, [row, regime, uf, mesRef]);
   const priceOf = (r: any) => Number(precos[r.codigo_item ?? ""] ?? 0);
   const subtotalOf = (r: any) => trunc2(Number(r.coeficiente) * priceOf(r));
-  const total = rows.reduce((s, r) => s + subtotalOf(r), 0);
+  const total = composicaoTotal ?? rows.reduce((s, r) => s + subtotalOf(r), 0);
   return (
     <Sheet open={!!row} onOpenChange={(o)=>{ if (!o) onClose(); }}>
       <SheetContent side="right" className="sm:max-w-2xl w-full overflow-y-auto">
