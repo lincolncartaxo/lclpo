@@ -36,6 +36,8 @@ const STATUS_OPTIONS = [
   { value: "concluido", label: "Concluído" },
   { value: "cancelado", label: "Cancelado" },
 ];
+const DEFAULT_ENGENHEIRO = "LINCOLN CARTAXO DE LIRA JÚNIOR";
+const DEFAULT_CREA = "160814689-8";
 const fmtBase = (b: Base) => {
   const [y, m] = String(b.mes_ref).split("-");
   return `${b.fonte} · ${m && y ? `${m}/${y}` : b.mes_ref}`;
@@ -50,7 +52,7 @@ function Dashboard() {
   const [bases, setBases] = useState<Base[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusSaving, setStatusSaving] = useState<string | null>(null);
-  const [form, setForm] = useState({ nome: "", objeto: "", municipio: "", uf: "", ref_precos: "", orgao: "", regime: "nao_desonerado" });
+  const [form, setForm] = useState({ nome: "", objeto: "", municipio: "", uf: "", ref_precos: "", orgao: "", regime: "nao_desonerado", engenheiro: DEFAULT_ENGENHEIRO, crea: DEFAULT_CREA });
   const [search, setSearch] = useState("");
 
   const load = async () => {
