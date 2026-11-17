@@ -162,7 +162,8 @@ BEGIN
   -- Quando a base possui custo sintético positivo, ele é o valor oficial da
   -- composição. O analítico continua sendo fallback para bases sem custo
   -- sintético, evitando divergências de centavos por arredondamento.
-  IF v_direct IS NOT NULL THEN
+  IF v_direct IS NOT NULL
+     AND upper(COALESCE(p_fonte, '')) NOT IN ('PRÓPRIA', 'PROPRIA') THEN
     RETURN v_direct;
   END IF;
   IF v_custo > 0 THEN
