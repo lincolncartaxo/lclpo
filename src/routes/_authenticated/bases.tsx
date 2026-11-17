@@ -11,7 +11,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { fmtBRL } from "@/lib/format";
 import { Search, ChevronLeft, ChevronRight, Layers, Plus, Trash2, Copy, Pencil } from "lucide-react";
 import { toast } from "sonner";
-import { trunc2 } from "@/lib/budget-calculations";
 import { pageMetadata } from "@/lib/route-metadata";
 
 export const Route = createFileRoute("/_authenticated/bases")({
@@ -502,9 +501,13 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
     })();
   }, [row, uf, mes]);
 
-  // Trunca cada subtotal como na CPU do orçamento e soma os valores exibidos.
-  const totalDeson = trunc2(rows.reduce((acc, r) => acc + trunc2(Number(r.coeficiente) * (r.preco_desonerado || 0)), 0));
-  const totalNaoDeson = trunc2(rows.reduce((acc, r) => acc + trunc2(Number(r.coeficiente) * (r.preco_nao_desonerado || 0)), 0));
+  // Arredonda os subtotais na mesma precisão exibida e soma os valores
+  // apresentados. O truncamento linha a linha produzia 4,64 para LCL-007.
+  const round2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+  const subtotalDeson = (r: any) => round2(Number(r.coeficiente) * Number(r.preco_desonerado || 0));
+  const subtotalNaoDeson = (r: any) => round2(Number(r.coeficiente) * Number(r.preco_nao_desonerado || 0));
+  const totalDeson = round2(rows.reduce((acc, r) => acc + subtotalDeson(r), 0));
+  const totalNaoDeson = round2(rows.reduce((acc, r) => acc + subtotalNaoDeson(r), 0));
 
   return (
     <Sheet open={!!row} onOpenChange={(o)=>{ if (!o) onClose(); }}>
@@ -531,9 +534,9 @@ function CpuSheet({ row, uf, mes, onClose }: { row: any | null; uf: string; mes:
                   <td>{r.unidade ?? "—"}</td>
                   <td className="num">{Number(r.coeficiente).toLocaleString("pt-BR",{minimumFractionDigits:4,maximumFractionDigits:6})}</td>
                   <td className="num">{fmtBRL(r.preco_desonerado)}</td>
-                  <td className="num">{fmtBRL(trunc2((r.preco_desonerado || 0) * Number(r.coeficiente)))}</td>
+                  <td className="num">{fmtBRL(subtotalDeson(r))}</td>
                   <td className="num">{fmtBRL(r.preco_nao_desonerado)}</td>
-                  <td className="num">{fmtBRL(trunc2((r.preco_nao_desonerado || 0) * Number(r.coeficiente)))}</td>
+                  <td className="num">{fmtBRL(subtotalNaoDeson(r))}</td>
                 </tr>
               ))}
               {!loading && rows.length === 0 && (
