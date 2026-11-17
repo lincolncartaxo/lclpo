@@ -166,7 +166,9 @@ BEGIN
     RETURN v_direct;
   END IF;
   IF v_custo > 0 THEN
-    RETURN v_custo;
+    -- O arredondamento é feito no total, e não em cada parcela. Assim, por
+    -- exemplo, 4,6557 torna-se 4,66 em uma composição própria.
+    RETURN round(v_custo, 2);
   END IF;
   RETURN COALESCE(v_direct, 0);
 END;
