@@ -9,7 +9,9 @@ BEGIN
     SELECT oi.id, oi.fonte, oi.codigo, o.uf, o.ref_precos, o.regime
     FROM public.orcamento_itens oi
     JOIN public.orcamentos o ON o.id = oi.orcamento_id
-    WHERE oi.orcamento_id = '6d42c1a8'::uuid
+    -- O identificador informado na interface é exibido abreviado. A coluna
+    -- contém o UUID completo; por isso comparamos o prefixo como texto.
+    WHERE oi.orcamento_id::text LIKE '6d42c1a8%'
       AND oi.fonte IS NOT NULL
       AND oi.codigo IS NOT NULL
   LOOP
