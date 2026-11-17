@@ -864,7 +864,8 @@ function ExplosaoSheet({ row, onClose, regime, uf, mesRef }: { row: Item | null;
     })();
   }, [row, regime, uf, mesRef]);
   const priceOf = (r: any) => Number(precos[r.codigo_item ?? ""] ?? 0);
-  const subtotalOf = (r: any) => trunc2(Number(r.coeficiente) * priceOf(r));
+  const round2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+  const subtotalOf = (r: any) => round2(Number(r.coeficiente) * priceOf(r));
   const total = composicaoTotal ?? rows.reduce((s, r) => s + subtotalOf(r), 0);
   return (
     <Sheet open={!!row} onOpenChange={(o)=>{ if (!o) onClose(); }}>
