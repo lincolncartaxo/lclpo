@@ -1597,7 +1597,8 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
           price = Number(childPrice ?? 0);
         }
         price *= fatorPrecoLicitado;
-        return { composicao: item.codigo, fonte: item.fonte, ...row, descricao: metadata.descricao ?? "", unidade: metadata.unidade ?? "", preco_unitario: price, subtotal: trunc2(Number(row.coeficiente ?? 0) * price), isParent: false };
+        const subtotal = Math.round((Number(row.coeficiente ?? 0) * price + Number.EPSILON) * 100) / 100;
+        return { composicao: item.codigo, fonte: item.fonte, ...row, descricao: metadata.descricao ?? "", unidade: metadata.unidade ?? "", preco_unitario: price, subtotal, isParent: false };
       }));
       const subtotalAnaliticoUnitario = detailRows.reduce((sum, row) => sum + Number(row.subtotal ?? 0), 0);
       const fatorAplicado = Number((item as any).fator_preco_licitado);
