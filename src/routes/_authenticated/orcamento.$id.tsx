@@ -2216,7 +2216,8 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
             const isCompositionItem = s.key === 'composicao' && firstCol.startsWith('COMPOSIÇÃO (');
             const isEncargoGroup = s.key === 'encargos' && ['A', 'B', 'C', 'D'].includes(firstCol);
             const isBdiColumnHeader = s.key === 'bdi' && ['DISCRIMINAÇÃO DOS CUSTOS INDIRETOS (CI)', 'TIPO DE IMPOSTO'].includes(firstCol);
-            const isSubitemMemoria = firstCol === '' && secondCol !== '' && thirdCol !== '';
+            const isSubitemMemoria = firstCol === '' && secondCol !== '' && thirdCol !== ''
+              && !(s.key === 'cronograma' && (secondCol === "TOTAL PERÍODO" || secondCol === "TOTAL ACUMULADO"));
             const isEtapa = s.key === 'planilha' || s.key === 'memoria'
               ? stageBodyRows.has(data.row.index)
               : firstCol !== '' && (secondCol === '' || (s.key === 'cronograma' && /^\d+$/.test(firstCol)));
