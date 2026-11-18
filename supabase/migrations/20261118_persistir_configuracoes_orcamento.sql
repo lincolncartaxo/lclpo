@@ -9,4 +9,3 @@ COMMENT ON COLUMN public.orcamentos.contrapartida_pct IS 'Percentual de contrapa
 ALTER TABLE public.orcamentos
   ADD CONSTRAINT orcamentos_cronograma_meses_range CHECK (cronograma_meses BETWEEN 1 AND 36),
   ADD CONSTRAINT orcamentos_contrapartida_pct_range CHECK (contrapartida_pct BETWEEN 0 AND 100);
-***
