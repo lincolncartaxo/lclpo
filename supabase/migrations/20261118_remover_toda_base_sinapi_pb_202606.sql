@@ -45,7 +45,7 @@ BEGIN
      AND p.mes_ref = '2026-06';
 
   IF v_insumos + v_composicoes = 0 THEN
-    RAISE EXCEPTION 'Nenhum registro SINAPI/PB/2026-06 foi encontrado; migration cancelada.';
+    RAISE NOTICE 'Nenhum registro SINAPI/PB/2026-06 foi encontrado; nada a remover.';
   END IF;
 
   RAISE NOTICE 'Registros encontrados: % insumos e % composicoes', v_insumos, v_composicoes;
