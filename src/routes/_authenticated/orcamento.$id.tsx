@@ -1996,7 +1996,11 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
           setStyle(dataStart + h, c, {
             fill: { fgColor: { rgb: blue } },
             font: { bold: true, color: { rgb: "FFFFFF" } },
-            alignment: { horizontal: s.key === "qci" && c === 0 ? "left" : "center", vertical: "center", wrapText: true },
+            alignment: {
+              horizontal: s.key === "qci" && c === 0 || s.key === "cronograma" && c === 1 ? "left" : "center",
+              vertical: "center",
+              wrapText: true,
+            },
             border: allBorders,
           });
         }
@@ -2050,6 +2054,7 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
             style.alignment = { ...style.alignment, horizontal: "right" };
           }
           if (s.key === "qci") style.alignment = { ...style.alignment, horizontal: c === 0 ? "left" : "center" };
+          if (s.key === "cronograma") style.alignment = { ...style.alignment, horizontal: c === 1 ? "left" : "center" };
           setStyle(excelRow, c, style);
         }
       }
@@ -2204,6 +2209,9 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
           if (s.key === 'qci') {
             data.cell.styles.halign = data.column.index === 0 ? 'left' : 'center';
           }
+          if (s.key === 'cronograma') {
+            data.cell.styles.halign = data.column.index === 1 ? 'left' : 'center';
+          }
           if (s.key === 'cronograma' && data.column.index >= 4 && (data.column.index - 4) % 2 === 0) {
             data.cell.styles.lineWidth = { left: 0.8 };
             data.cell.styles.lineColor = { left: [31, 56, 100] };
@@ -2246,7 +2254,7 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
                 data.cell.styles.fontSize = 8;
                 data.cell.styles.fontStyle = 'bold';
                 data.cell.styles.textColor = [31, 56, 100];
-                data.cell.styles.halign = data.column.index === 1 ? 'left' : 'right';
+                data.cell.styles.halign = data.column.index === 1 ? 'left' : 'center';
               }
             }
 
