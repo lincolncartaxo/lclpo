@@ -283,10 +283,10 @@ function Editor() {
           <TabsContent value="abc"><CurvaABCTab orcId={id} items={items} bdiPct={Number(orc.bdi_pct)} /></TabsContent>
           <TabsContent value="planilha"><PlanilhaTab orcId={id} items={items} reload={load} onItemUpdated={(itemId, patch) => setItems(current => current.map(item => item.id === itemId ? { ...item, ...patch } : item))} bdiPct={Number(orc.bdi_pct)} regime={orc.regime ?? "nao_desonerado"} uf={orc.uf ?? null} refPrecos={orc.ref_precos ?? null} /></TabsContent>
           <TabsContent value="resumo"><ResumoTab orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
-          <TabsContent value="cronograma"><CronogramaTab orcId={id} items={items} totalComBdi={totalComBdi} /></TabsContent>
+          <TabsContent value="cronograma"><CronogramaTab orcId={id} items={items} totalComBdi={totalComBdi} orc={orc} onSaved={load} /></TabsContent>
           {orc.interesse_transferegov && <TabsContent value="ple"><PleStructureTab orcId={id} items={items} /><RelatorioTab orc={orc} orcId={id} items={items} bdis={bdis} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} transferegovOnly /></TabsContent>}
           {orc.interesse_licitacao && <TabsContent value="licitacao"><LicitacaoTab orc={orc} orcId={id} items={items} bdis={bdis} subtotal={subtotal} totalComBdi={totalComBdi} /></TabsContent>}
-          <TabsContent value="qci"><QciTab orcId={id} items={items} subtotal={subtotal} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
+          <TabsContent value="qci"><QciTab orcId={id} items={items} subtotal={subtotal} totalComBdi={totalComBdi} orc={orc} onSaved={load} /></TabsContent>
           <TabsContent value="relatorio"><RelatorioTab orc={orc} orcId={id} items={items} bdis={bdis} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} /></TabsContent>
         </Tabs>
       </div>
@@ -1156,7 +1156,7 @@ function normalizeCronogramaEtapa(etapa: string) {
   return value === "1 - Serviço Preliminares" ? "1 - Serviços Preliminares" : value;
 }
 
-function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: Item[]; totalComBdi: number }) {
+function CronogramaTab({ orcId, items, totalComBdi, orc, onSaved }: { orcId: string; items: Item[]; totalComBdi: number; orc: any; onSaved: () => void }) {
   const [etapasExtra] = useEtapasExtra(orcId);
   const [persistedEtapas, setPersistedEtapas] = useState<string[]>([]);
   const etapasExistentes = useMemo(() => {
@@ -1184,11 +1184,17 @@ function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: It
   const mesesStorageKey = `orcamento_${orcId}_cronograma_meses`;
 
   useEffect(() => {
-    const savedMonths = Number(window.localStorage.getItem(mesesStorageKey));
-    if (Number.isFinite(savedMonths) && savedMonths >= 1) {
-      setMeses(Math.min(36, Math.max(1, Math.trunc(savedMonths))));
+    const savedMonths = Number(orc.cronograma_meses);
+    const legacyMonths = Number(window.localStorage.getItem(mesesStorageKey));
+    const value = Number.isFinite(savedMonths) && savedMonths >= 1
+      ? Math.trunc(savedMonths)
+      : Number.isFinite(legacyMonths) && legacyMonths >= 1 ? Math.trunc(legacyMonths) : 6;
+    const normalized = Math.min(36, Math.max(1, value));
+    setMeses(normalized);
+    if (!(Number.isFinite(savedMonths) && savedMonths >= 1) && normalized !== 6) {
+      void supabase.from("orcamentos").update({ cronograma_meses: normalized }).eq("id", orcId);
     }
-  }, [mesesStorageKey]);
+  }, [mesesStorageKey, orc.cronograma_meses, orcId]);
 
   useEffect(() => {
     (async () => {
@@ -1224,6 +1230,14 @@ function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: It
     if (error) toast.error(`Não foi possível salvar o cronograma: ${error.message}`);
   };
 
+  const saveMeses = async (value: number) => {
+    setMeses(value);
+    window.localStorage.setItem(mesesStorageKey, String(value));
+    const { error } = await supabase.from("orcamentos").update({ cronograma_meses: value }).eq("id", orcId);
+    if (error) toast.error(`Não foi possível salvar a quantidade de meses: ${error.message}`);
+    else onSaved();
+  };
+
   const fator = totalComBdi / Math.max(subtotalAll, 1);
   // Subetapas descendentes (por prefixo hierárquico) de cada etapa
   const descendentes = useMemo(() => {
@@ -1254,8 +1268,7 @@ function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: It
         <Label>Meses:</Label>
         <Input className="w-24" type="number" min={1} max={36} value={meses} onChange={(e)=>{
           const value = Math.max(1, Math.min(36, Number(e.target.value) || 1));
-          setMeses(value);
-          window.localStorage.setItem(mesesStorageKey, String(value));
+          void saveMeses(value);
         }} />
         <p className="text-xs text-muted-foreground">Informe o percentual de execução de cada etapa por mês (0 a 100%).</p>
       </div>
@@ -1310,12 +1323,28 @@ function CronogramaTab({ orcId, items, totalComBdi }: { orcId: string; items: It
 }
 
 /* ---------- QCI ---------- */
-function QciTab({ orcId, items, subtotal, totalComBdi, orc }: any) {
+function QciTab({ orcId, items, subtotal, totalComBdi, orc, onSaved }: any) {
   const { rows, base } = useResumoRows(orcId, items);
   const key = `orc_contrapartida_${orcId}`;
   const [cp, setCp] = useState<number>(0);
-  useEffect(() => { const v = Number(window.localStorage.getItem(key)); if (!isNaN(v)) setCp(v); }, [key]);
-  const upd = (v: number) => { const n = Math.min(100, Math.max(0, v || 0)); setCp(n); window.localStorage.setItem(key, String(n)); };
+  useEffect(() => {
+    const saved = Number(orc.contrapartida_pct);
+    const legacy = Number(window.localStorage.getItem(key));
+    const value = Number.isFinite(saved) && saved >= 0 ? saved : Number.isFinite(legacy) ? legacy : 0;
+    const normalized = Math.min(100, Math.max(0, value));
+    setCp(normalized);
+    if (!(Number.isFinite(saved) && saved >= 0) && Number.isFinite(legacy)) {
+      void supabase.from("orcamentos").update({ contrapartida_pct: normalized }).eq("id", orcId);
+    }
+  }, [key, orc.contrapartida_pct, orcId]);
+  const upd = async (v: number) => {
+    const n = Math.min(100, Math.max(0, v || 0));
+    setCp(n);
+    window.localStorage.setItem(key, String(n));
+    const { error } = await supabase.from("orcamentos").update({ contrapartida_pct: n }).eq("id", orcId);
+    if (error) toast.error(`Não foi possível salvar a contrapartida: ${error.message}`);
+    else onSaved();
+  };
   const fc = cp / 100, fr = 1 - fc;
   const line = (label: string, total: number, cls = "", pad = 8, pct?: number) => (
     <tr className={cls}><td style={{paddingLeft: pad}}>{label}</td><td className="num">{fmtBRL(total*fr)}</td><td className="num">{fmtBRL(total*fc)}</td><td className="num">{fmtBRL(total)}</td><td className="num">{pct !== undefined ? fmtPct(pct) : ""}</td></tr>
@@ -2241,10 +2270,10 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
       (data ?? []).forEach((r: any) => { (g[r.etapa] ??= {})[r.mes] = Number(r.percentual); });
       setCrono(g);
       const maxSavedMonth = (data ?? []).reduce((max: number, r: any) => Math.max(max, Number(r.mes) || 0), 0);
-      const storedMonths = Number(window.localStorage.getItem(`orcamento_${orcId}_cronograma_meses`));
+      const storedMonths = Number(orc.cronograma_meses);
       setCronoMeses(Math.min(36, Math.max(1, maxSavedMonth, Number.isFinite(storedMonths) && storedMonths > 0 ? Math.trunc(storedMonths) : 6)));
     })();
-  }, [orcId, tgOpen]);
+  }, [orc.cronograma_meses, orcId, tgOpen]);
 
   const buildTransferegov = (modo: "PLE" | "BM") => {
     const erros: string[] = [];

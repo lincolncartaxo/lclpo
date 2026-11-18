@@ -647,7 +647,9 @@ export type Database = {
           bdi_tax_estadual: number | null
           bdi_tax_inss: number | null
           contrato: string | null
+          contrapartida_pct: number
           crea: string | null
+          cronograma_meses: number
           created_at: string
           encargos_modalidade: string
           encargos_pct: number
@@ -684,7 +686,9 @@ export type Database = {
           bdi_tax_estadual?: number | null
           bdi_tax_inss?: number | null
           contrato?: string | null
+          contrapartida_pct?: number
           crea?: string | null
+          cronograma_meses?: number
           created_at?: string
           encargos_modalidade?: string
           encargos_pct?: number
@@ -721,7 +725,9 @@ export type Database = {
           bdi_tax_estadual?: number | null
           bdi_tax_inss?: number | null
           contrato?: string | null
+          contrapartida_pct?: number
           crea?: string | null
+          cronograma_meses?: number
           created_at?: string
           encargos_modalidade?: string
           encargos_pct?: number
