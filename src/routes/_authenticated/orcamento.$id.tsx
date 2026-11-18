@@ -2043,7 +2043,7 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
         if (isStage || isTotal || isCompositionItem || isEncargoGroup) style.font = { bold: true, color: { rgb: blue } };
           if (isCronogramaTotal) {
             style.fill = { fgColor: { rgb: totalFill } };
-            style.font = { bold: false, color: { rgb: blue } };
+            style.font = { bold: true, italic: false, color: { rgb: blue } };
           }
           if (typeof value === "number") {
             style.numFmt = /%/.test(header) ? "0.00" : /(PREÇO|CUSTO|TOTAL|INVESTIMENTO|REPASSE|CONTRAPARTIDA|BDI)/.test(header) ? 'R$ #,##0.00' : "#,##0.0000";
@@ -2055,8 +2055,8 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
       }
       if (s.key === "cronograma") {
         const cronogramaTotalStyle = {
-          fill: { fgColor: { rgb: blue } },
-          font: { name: "Arial", bold: true, italic: false, color: { rgb: "FFFFFF" }, sz: 11 },
+          fill: { fgColor: { rgb: totalFill } },
+          font: { name: "Arial", bold: true, italic: false, color: { rgb: blue }, sz: 11 },
           alignment: { vertical: "center", wrapText: true },
         };
         const cronogramaTotalRows: number[] = [];
@@ -2240,11 +2240,11 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
               data.cell.styles.fontStyle = 'bold';
               data.cell.styles.textColor = [31, 56, 100];
               if (isCronogramaTotal) {
-                data.cell.styles.fillColor = [31, 56, 100];
+                data.cell.styles.fillColor = [220, 230, 241];
                 data.cell.styles.font = 'helvetica';
                 data.cell.styles.fontSize = 8;
                 data.cell.styles.fontStyle = 'bold';
-                data.cell.styles.textColor = [255, 255, 255];
+                data.cell.styles.textColor = [31, 56, 100];
                 data.cell.styles.halign = data.column.index === 1 ? 'left' : 'right';
               }
             }
