@@ -1996,7 +1996,7 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
           setStyle(dataStart + h, c, {
             fill: { fgColor: { rgb: blue } },
             font: { bold: true, color: { rgb: "FFFFFF" } },
-            alignment: { horizontal: "center", vertical: "center", wrapText: true },
+            alignment: { horizontal: s.key === "qci" && c === 0 ? "left" : "center", vertical: "center", wrapText: true },
             border: allBorders,
           });
         }
@@ -2049,13 +2049,14 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
             style.numFmt = /%/.test(header) ? "0.00" : /(PREÇO|CUSTO|TOTAL|INVESTIMENTO|REPASSE|CONTRAPARTIDA|BDI)/.test(header) ? 'R$ #,##0.00' : "#,##0.0000";
             style.alignment = { ...style.alignment, horizontal: "right" };
           }
+          if (s.key === "qci") style.alignment = { ...style.alignment, horizontal: c === 0 ? "left" : "center" };
           setStyle(excelRow, c, style);
         }
       }
       if (s.key === "cronograma") {
         const cronogramaTotalStyle = {
-          fill: { fgColor: { rgb: totalFill } },
-          font: { name: "Arial", bold: false, color: { rgb: blue }, sz: 11 },
+          fill: { fgColor: { rgb: blue } },
+          font: { name: "Arial", bold: true, italic: false, color: { rgb: "FFFFFF" }, sz: 11 },
           alignment: { vertical: "center", wrapText: true },
         };
         const cronogramaTotalRows: number[] = [];
@@ -2200,6 +2201,9 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
         },
         
         didParseCell: function (data: any) {
+          if (s.key === 'qci') {
+            data.cell.styles.halign = data.column.index === 0 ? 'left' : 'center';
+          }
           if (s.key === 'cronograma' && data.column.index >= 4 && (data.column.index - 4) % 2 === 0) {
             data.cell.styles.lineWidth = { left: 0.8 };
             data.cell.styles.lineColor = { left: [31, 56, 100] };
@@ -2236,11 +2240,11 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
               data.cell.styles.fontStyle = 'bold';
               data.cell.styles.textColor = [31, 56, 100];
               if (isCronogramaTotal) {
-                data.cell.styles.fillColor = [220, 230, 241];
+                data.cell.styles.fillColor = [31, 56, 100];
                 data.cell.styles.font = 'helvetica';
                 data.cell.styles.fontSize = 8;
-                data.cell.styles.fontStyle = 'normal';
-                data.cell.styles.textColor = [31, 56, 100];
+                data.cell.styles.fontStyle = 'bold';
+                data.cell.styles.textColor = [255, 255, 255];
                 data.cell.styles.halign = data.column.index === 1 ? 'left' : 'right';
               }
             }
