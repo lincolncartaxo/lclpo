@@ -1684,6 +1684,7 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
       : group.list;
     return groupItems.reduce((sum, item) => sum + Number(item.quantidade) * Number(item.preco_unitario) * (1 + bdiPct), 0);
   };
+  const { rows: qciSummaryRows, base: qciBase } = useResumoRows(orcId, items);
 
   const toggle = (k: string) => setSel(prev => ({ ...prev, [k]: !prev[k] }));
   const all = (v: boolean) => setSel(Object.fromEntries(RELATORIO_TABS.map(t => [t.key, v])));
@@ -1903,14 +1904,28 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
       out.push({ key: "cronograma", title: "Cronograma F/F", rows: cronogramaRows });
     }
     if (sel.qci) {
-      const repasse = totalComBdi * 0.95;
-      out.push({ key: "qci", title: "QCI", rows: [
-        ["Investimento total", totalComBdi],
-        ["Custo direto (sem BDI)", subtotal],
-        [`BDI (${fmtPct(bdiPct)})`, totalComBdi - subtotal],
-        ["Repasse (95%)", repasse],
-        ["Contrapartida (5%)", totalComBdi - repasse],
-      ]});
+      const contrapartidaPct = Math.min(100, Math.max(0, Number(orc.contrapartida_pct) || 0));
+      const repassePct = 100 - contrapartidaPct;
+      const repasse = (total: number) => total * repassePct / 100;
+      const contrapartida = (total: number) => total * contrapartidaPct / 100;
+      const qciRows: (string|number)[][] = [[
+        "Etapa",
+        `Repasse (${fmtNum(repassePct)}%)`,
+        `Contrapartida (${fmtNum(contrapartidaPct)}%)`,
+        "Total",
+        "% Obra",
+      ]];
+      qciSummaryRows.forEach((row: any) => qciRows.push([
+        row.label,
+        repasse(row.total),
+        contrapartida(row.total),
+        row.total,
+        qciBase ? row.total / qciBase * 100 : 0,
+      ]));
+      qciRows.push(["SUBTOTAL", repasse(subtotal), contrapartida(subtotal), subtotal, 100]);
+      qciRows.push([`BDI (${fmtPct(bdiPct)})`, repasse(totalComBdi - subtotal), contrapartida(totalComBdi - subtotal), totalComBdi - subtotal, ""]);
+      qciRows.push(["TOTAL GERAL", repasse(totalComBdi), contrapartida(totalComBdi), totalComBdi, ""]);
+      out.push({ key: "qci", title: "QCI", rows: qciRows });
     }
     return out;
   };
@@ -2024,10 +2039,11 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
             alignment: { vertical: "center", wrapText: true },
           };
         if (isStage || isTotal || isCompositionItem || isEncargoGroup) style.fill = { fgColor: { rgb: isTotal ? totalFill : rootFill } };
+        if (s.key === "cronograma" && isStage) style.fill = { fgColor: { rgb: "FFFFFF" } };
         if (isStage || isTotal || isCompositionItem || isEncargoGroup) style.font = { bold: true, color: { rgb: blue } };
           if (isCronogramaTotal) {
             style.fill = { fgColor: { rgb: totalFill } };
-            style.font = { bold: true, color: { rgb: blue } };
+            style.font = { bold: false, color: { rgb: blue } };
           }
           if (typeof value === "number") {
             style.numFmt = /%/.test(header) ? "0.00" : /(PREÇO|CUSTO|TOTAL|INVESTIMENTO|REPASSE|CONTRAPARTIDA|BDI)/.test(header) ? 'R$ #,##0.00' : "#,##0.0000";
@@ -2039,7 +2055,7 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
       if (s.key === "cronograma") {
         const cronogramaTotalStyle = {
           fill: { fgColor: { rgb: totalFill } },
-          font: { name: "Arial", bold: true, color: { rgb: blue }, sz: 11 },
+          font: { name: "Arial", bold: false, color: { rgb: blue }, sz: 11 },
           alignment: { vertical: "center", wrapText: true },
         };
         const cronogramaTotalRows: number[] = [];
@@ -2214,13 +2230,16 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
               data.cell.styles.fillColor = isTotais
                 ? [220, 230, 241]
                 : isCompositionItem || isRootEtapa ? [214, 224, 236] : [239, 243, 247];
+              if (s.key === 'cronograma' && isEtapa && !isCronogramaTotal) {
+                data.cell.styles.fillColor = [255, 255, 255];
+              }
               data.cell.styles.fontStyle = 'bold';
               data.cell.styles.textColor = [31, 56, 100];
               if (isCronogramaTotal) {
                 data.cell.styles.fillColor = [220, 230, 241];
                 data.cell.styles.font = 'helvetica';
                 data.cell.styles.fontSize = 8;
-                data.cell.styles.fontStyle = 'bold';
+                data.cell.styles.fontStyle = 'normal';
                 data.cell.styles.textColor = [31, 56, 100];
                 data.cell.styles.halign = data.column.index === 1 ? 'left' : 'right';
               }
