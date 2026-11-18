@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,13 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [nome, setNome] = useState("");
   const [loading, setLoading] = useState(false);
+  const [recovering, setRecovering] = useState(false);
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setRecovering(true);
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
   const AUTH_TIMEOUT_MS = 15000;
 
   const withAuthTimeout = async <T,>(promise: Promise<T>): Promise<T> => {
@@ -53,7 +60,7 @@ function LoginPage() {
   const signUp = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true);
     try {
-      const redirect = `${window.location.origin}/dashboard`;
+      const redirect = `${window.location.origin}/login`;
       const { error } = await withAuthTimeout(supabase.auth.signUp({ email, password, options: { data: { nome }, emailRedirectTo: redirect } }));
       if (error) return toast.error(error.message);
       toast.success("Conta criada! Verifique seu e-mail para confirmar.");
@@ -67,7 +74,7 @@ function LoginPage() {
   const google = async () => {
     setLoading(true);
     try {
-      const r = await withAuthTimeout(lovable.auth.signInWithOAuth("google", { redirect_uri: `${window.location.origin}/dashboard` }));
+      const r = await withAuthTimeout(lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin }));
       if (r.error) toast.error(r.error.message || "Falha ao entrar com Google");
       else if (!r.redirected) await nav({ to: "/dashboard" });
     } catch (error) {
@@ -75,6 +82,29 @@ function LoginPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const resetPassword = async () => {
+    if (!email.trim()) return toast.error("Informe seu e-mail para recuperar a senha.");
+    setLoading(true);
+    try {
+      const { error } = await withAuthTimeout(supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/login` }));
+      if (error) throw error;
+      toast.success("Se houver uma conta com este e-mail, você receberá um link para redefinir a senha.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível solicitar a recuperação.");
+    } finally { setLoading(false); }
+  };
+  const savePassword = async (e: React.FormEvent) => {
+    e.preventDefault(); setLoading(true);
+    try {
+      const { error } = await withAuthTimeout(supabase.auth.updateUser({ password }));
+      if (error) throw error;
+      setRecovering(false); setPassword("");
+      toast.success("Senha atualizada.");
+      await nav({ to: "/dashboard" });
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível atualizar a senha."); }
+    finally { setLoading(false); }
   };
 
   return (
@@ -93,6 +123,11 @@ function LoginPage() {
           <h1 className="text-2xl font-semibold">Acessar plataforma</h1>
           <p className="text-sm text-muted-foreground mb-6">Entre com seus dados ou crie uma conta.</p>
 
+          {recovering ? <form onSubmit={savePassword} className="space-y-3">
+            <Label htmlFor="new-password">Nova senha</Label>
+            <Input id="new-password" type="password" autoComplete="new-password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
+            <Button type="submit" className="w-full" disabled={loading}>Salvar nova senha</Button>
+          </form> : <>
           <Button variant="outline" className="w-full mb-4" onClick={google} disabled={loading}>Continuar com Google</Button>
           <div className="relative my-4 text-center text-xs text-muted-foreground"><span className="bg-background px-2 relative z-10">ou com e-mail</span><div className="absolute inset-x-0 top-1/2 border-t" /></div>
 
@@ -106,6 +141,7 @@ function LoginPage() {
                 <div><Label>E-mail</Label><Input type="email" required value={email} onChange={(e)=>setEmail(e.target.value)} /></div>
                 <div><Label>Senha</Label><Input type="password" required value={password} onChange={(e)=>setPassword(e.target.value)} /></div>
                 <Button type="submit" className="w-full" disabled={loading}>{loading?"Entrando…":"Entrar"}</Button>
+                <Button type="button" variant="link" className="w-full" onClick={resetPassword} disabled={loading}>Esqueci minha senha</Button>
               </form>
             </TabsContent>
             <TabsContent value="signup">
@@ -117,6 +153,7 @@ function LoginPage() {
               </form>
             </TabsContent>
           </Tabs>
+          </>}
 
           <p className="mt-6 text-xs text-center text-muted-foreground">
             <Link to="/" className="hover:underline">Voltar ao início</Link>

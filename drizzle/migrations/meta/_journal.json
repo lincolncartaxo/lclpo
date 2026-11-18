@@ -78,6 +78,20 @@
       "when": 1794819413258,
       "tag": "0010_composition_exact_code_fast_path",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795008273138,
+      "tag": "0011_self_service_signup_and_recursive_price_entry",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795008359076,
+      "tag": "0012_signup_owner_membership_without_duplicate_insert",
+      "breakpoints": true
     }
   ]
 }

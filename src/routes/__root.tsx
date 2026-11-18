@@ -84,8 +84,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "LclPlan — Plataforma de Orçamentos" },
       { name: "twitter:description", content: "Crie orçamentos completos de obras com SINAPI, DER, BDI e cronograma físico-financeiro." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/bebf8783-9576-41ac-aa94-64494329f31e/id-preview-56aad36c--2bcd9e7a-e761-4372-8c8b-6774aaa44396.lovable.app-1778588392373.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/bebf8783-9576-41ac-aa94-64494329f31e/id-preview-56aad36c--2bcd9e7a-e761-4372-8c8b-6774aaa44396.lovable.app-1778588392373.png" },
     ],
     links: [
       {
@@ -102,7 +100,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="pt-BR">
       <head>
         <HeadContent />
       </head>

@@ -8,3 +8,5 @@
 - Use row-local organization predicates for budget SELECT policies so INSERT RETURNING can read newly created budgets without self-lookup visibility failures.
 - Keep content-route metadata in the shared metadata helper; each leaf supplies its own title and description.
 - Index normalized catalog and price codes used by recursive calculations so leading-zero compatibility does not cause full-table scans and report timeouts.
+- Provision each new auth account with its own Free organization and owner membership in the signup transaction; ignore tenant/role metadata to prevent cross-company access.
+- Keep password recovery on the public login page and OAuth callbacks on the public origin so sessions hydrate before protected navigation.

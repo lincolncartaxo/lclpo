@@ -10,6 +10,7 @@ describe.runIf(process.env.RUN_DB_TESTS === "true")("commercial pilot database i
   const orgA = crypto.randomUUID();
   const orgB = crypto.randomUUID();
   const users: string[] = [];
+  const provisionedOrganizations: string[] = [];
   let budgetA = "";
   let budgetB = "";
   const marker = crypto.randomUUID().replaceAll("-", "");
@@ -42,6 +43,9 @@ describe.runIf(process.env.RUN_DB_TESTS === "true")("commercial pilot database i
       const created = creation.data;
       if (!created.user) throw new Error("Fixture creation failed");
       users.push(created.user.id);
+      const provisioned = requireData(await admin.from("profiles").select("id_empresa").eq("id", created.user.id).single());
+      if (!provisioned?.id_empresa) throw new Error("Signup organization unavailable");
+      provisionedOrganizations.push(provisioned.id_empresa);
       requireData(await admin.from("profiles").upsert({ id: created.user.id, id_empresa: org }));
       requireData(await admin.from("organization_members").update({ role: index === 0 ? "owner" : "member" }).eq("organization_id", org).eq("user_id", created.user.id));
       const client = createClient<Database>(url, publicKey, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -62,9 +66,24 @@ describe.runIf(process.env.RUN_DB_TESTS === "true")("commercial pilot database i
     if (!admin) return;
     requireData(await admin.from("billing_events").delete().in("organization_id", [orgA, orgB]));
     for (const user of users) { const { error } = await admin.auth.admin.deleteUser(user); if (error) throw new Error("Fixture user cleanup failed"); }
-    const { error } = await admin.from("empresas").delete().in("id", [orgA, orgB]);
+    const { error } = await admin.from("empresas").delete().in("id", [orgA, orgB, ...provisionedOrganizations]);
     if (error) throw new Error("Fixture company cleanup failed");
   }, 60000);
+  it("signup provisions a separate Free company with an owner", async () => {
+    const creation = await admin.auth.admin.createUser({ email: `signup-${marker}@example.invalid`, password: `Signup-${crypto.randomUUID()}-Aa1`, email_confirm: true,
+      user_metadata: { nome: "Signup test", id_empresa: orgA, role: "admin" } });
+    if (creation.error || !creation.data.user) throw new Error("Signup fixture failed");
+    const userId = creation.data.user.id;
+    users.push(userId);
+    const profile = requireData(await admin.from("profiles").select("id_empresa").eq("id", userId).single());
+    if (!profile?.id_empresa) throw new Error("Signup company missing");
+    provisionedOrganizations.push(profile.id_empresa);
+    expect(profile.id_empresa).not.toBe(orgA);
+    expect(profile.id_empresa).not.toBe(orgB);
+    expect(requireData(await admin.from("organization_members").select("role").eq("organization_id", profile.id_empresa).eq("user_id", userId).single())?.role).toBe("owner");
+    expect(requireData(await admin.from("organization_subscriptions").select("plan_code,status").eq("organization_id", profile.id_empresa).single())).toEqual({ plan_code: "free", status: "active" });
+    expect(requireData(await admin.from("user_roles").select("role").eq("user_id", userId))).toEqual([]);
+  });
   it("company B cannot read company A budgets", async () => expect(requireData(await bob.from("orcamentos").select("id").eq("id", budgetA))).toEqual([]));
   it("company A cannot read company B budgets", async () => expect(requireData(await alice.from("orcamentos").select("id").eq("id", budgetB))).toEqual([]));
   it("company B cannot read company A items", async () => expect(requireData(await bob.from("orcamento_itens").select("id").eq("orcamento_id", budgetA))).toEqual([]));

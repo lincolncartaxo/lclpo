@@ -1,6 +1,9 @@
 # Roadmap
 
 ## Preparação para piloto comercial
+- [ ] Revisar o relatório de release enviado em 18/11 e atualizar evidências atuais.
+- [ ] Publicar a versão revisada e conferir a entrega assinada de pagamento Stripe de teste.
+- [ ] Concluir cadastro autônomo, recuperação de senha e validar com conta temporária.
 - [x] Concluir a retomada: corrigir demora e verificar exportações analíticas XLSX/PDF em orçamento real.
 - [x] Implementar cobrança Stripe por empresa, histórico e autorização de gestão.
 - [ ] Ativar notificações automáticas: STRIPE_WEBHOOK_SECRET salvo; aguarda publicação e pagamento de teste.
