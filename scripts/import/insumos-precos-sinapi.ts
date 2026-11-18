@@ -1,6 +1,6 @@
 /** Importa preços de insumos para catalogo_insumos + precos_historicos_insumos. */
 import { createClient } from '@supabase/supabase-js';
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 import { readFileSync } from 'node:fs';
 const BATCH = 1000;
 const norm = (s: string) => s.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();

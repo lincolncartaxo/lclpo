@@ -851,7 +851,7 @@ function ExplosaoSheet({ row, onClose, regime, uf, mesRef }: { row: Item | null;
       }));
       setPrecos(Object.fromEntries(entries));
       const { data: officialPrice } = await supabase.rpc("calcular_custo_composicao", {
-        p_fonte: row.fonte,
+        p_fonte: row.fonte!,
         p_codigo: String(row.codigo),
         p_uf: uf?.trim() || "PB",
         p_mes_ref: mesRef ?? "",

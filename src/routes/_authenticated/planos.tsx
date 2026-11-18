@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Check } from "lucide-react";
@@ -33,9 +33,9 @@ function PlanosPage() {
   const [inEditorFrame, setInEditorFrame] = useState(false);
   useEffect(() => { try { setInEditorFrame(window.self !== window.top); } catch { setInEditorFrame(true); } }, []);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     try { setCurrent(await subscription()); } catch (e: any) { toast.error(e.message ?? "Erro ao verificar assinatura"); }
-  };
+  }, [subscription]);
   useEffect(() => {
     const st = new URLSearchParams(window.location.search).get("status");
     if (st === "sucesso") toast.info("Pagamento recebido para verificação. Aguarde a confirmação da assinatura.");
@@ -44,7 +44,7 @@ function PlanosPage() {
     const onFocus = () => { void refresh(); };
     window.addEventListener("focus", onFocus);
     return () => { window.clearInterval(timer); window.removeEventListener("focus", onFocus); };
-  }, []);
+  }, [refresh]);
 
   const openPayment = async (operation: string, request: () => Promise<{ url: string }>) => {
     setBusy(operation);

@@ -1,6 +1,6 @@
 /** Importa o Analítico SINAPI para catalogo_* e catalogo_composicao_itens. */
 import { createClient } from '@supabase/supabase-js';
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 import { readFileSync } from 'node:fs';
 
 type Comp = { codigo: string; fonte: string; descricao: string; unidade: string | null; classe: string | null };
