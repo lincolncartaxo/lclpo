@@ -13,8 +13,9 @@ AS SELECT p.*
    FROM public.precos_historicos_insumos p
    WHERE false;
 
-CREATE UNIQUE INDEX IF NOT EXISTS _backup_20261118_insumos_pb_202606_id_idx
-  ON public._backup_20261118_insumos_pb_202606 (id);
+CREATE UNIQUE INDEX IF NOT EXISTS _backup_20261118_insumos_pb_202606_key_idx
+  ON public._backup_20261118_insumos_pb_202606
+     (codigo_insumo, fonte, uf, mes_ref);
 
 CREATE TEMP TABLE _target_insumos_pb_202606 (
   codigo_insumo text PRIMARY KEY
@@ -10501,7 +10502,7 @@ SELECT p.*
  WHERE upper(btrim(p.fonte)) = 'SINAPI'
    AND upper(btrim(p.uf)) = 'PB'
    AND p.mes_ref = '2026-06'
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (codigo_insumo, fonte, uf, mes_ref) DO NOTHING;
 
 DELETE FROM public.precos_historicos_insumos p
  USING _target_insumos_pb_202606 c
