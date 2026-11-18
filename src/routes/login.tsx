@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Building2 } from "lucide-react";
 import { pageMetadata } from "@/lib/route-metadata";
+import { LegalLinks } from "@/components/LegalLayout";
 
 export const Route = createFileRoute("/login")({
   head: () => pageMetadata("Entrar", "Acesse sua conta LclPlan e os orçamentos de engenharia da sua empresa."),
@@ -158,6 +159,7 @@ function LoginPage() {
           <p className="mt-6 text-xs text-center text-muted-foreground">
             <Link to="/" className="hover:underline">Voltar ao início</Link>
           </p>
+          <div className="mt-4"><LegalLinks /></div>
         </div>
       </div>
     </div>

@@ -5,6 +5,28 @@
 
 ## Resultado executivo
 
+### Atualização desta rodada (18/11/2026, após 13:38 UTC)
+
+- Entrega de e-mails confirmada por Lincoln. Identificação legal e contato de suporte informados e incorporados em `/termos`, `/privacidade` e `/suporte`. Conteúdo para piloto, sem certificação jurídica.
+- Atualizações compatíveis eliminam os alertas de esbuild, minimatch, seroval, sharp, source-map-js, undici, vite e zod. `bun audit` permanece com **picomatch 4.0.7, alto**, sem versão corrigida disponível no registro consultado. Não ignorado.
+- **52 testes aprovados nesta rodada: 30 locais + 22 de integração reais**, incluindo isolamento, limites e preços/quantidades históricos das medições. Executado com `RUN_DB_TESTS=true`; credenciais não foram expostas. Fixtures removidas.
+- Fluxo real autenticado com orçamento descartável: desconto individual 10% em item de R$100 × 100, BDI 25% → total licitado R$11.250; BM01 20 unidades → R$2.250, saldo 80; tentativa de 81 unidades recusada sem criar boletim; BM02 10 → R$1.125, acumulado 30, saldo 70. XLSX/PDF baixados e conteúdo verificado; dados temporários removidos.
+- Migrações 0013–0014 adicionam medições transacionais, autorização de orçamento, limites acumulados, preços/BDI históricos e limpeza correta na exclusão integral de orçamento. Testes locais permanentes adicionados, e teste de integração de acesso/limites das medições mantido na suíte.
+- Importação exige mapeamento item, código, quantidade e fonte; descrição, unidade e preços vêm da base por padrão. Unidade da base prevalece; espera a persistência das etapas antes de anunciar sucesso.
+- CSRF aplicado somente a funções internas. Páginas legais, login, painel e planos verificados no navegador sem erros de execução; suporte móvel sem transbordamento. Endpoint público `/api/public/health` disponível, sem dados privados.
+- Stripe: destino de teste habilitado na URL publicada e sete eventos corretos. `checkout.session.completed` ainda aparece com `pending_webhooks=1` e entrega sem sucesso. Entrega original e correspondência da assinatura continuam bloqueio externo; reenvio manual não resolve essa prova.
+- `scripts/OPERACAO_COMERCIAL.md` descreve monitoramento, exportação oficial, restauração isolada e incidentes. Usuário confirmou no painel o backup de **18/11/2026 às 09:39:02 UTC**. Ensaio de recuperação e alerta externo não comprovados; nenhum rollback de dados de produção executado.
+
+### Bloqueios atuais antes do lançamento amplo
+1. Conferir resposta da entrega Stripe; corrigir credencial pelo formulário seguro se necessário, publicar e repetir pagamento/recusa/cancelamento em teste. Produção requer chave/preços/destino do mesmo modo, sem cobrança real criada nesta rodada.
+2. Realizar ensaio em ambiente separado do responsável; backup mais recente informado pelo usuário: 18/11/2026, 09:39:02 UTC. Não existe ferramenta de restauração isolada Cloud disponível ao agente.
+3. Ativar monitor externo e alertas com conta/destinatário; endpoint de saúde não equivale a alertas configurados.
+4. Revisão jurídica profissional das políticas, incluindo retenção/reembolso. Dados da empresa já confirmados, revisão não certificada.
+5. Atualização corrigida de picomatch pelo mantenedor ou decisão explícita de risco; sem supressão do alerta.
+6. Publicar as alterações desta rodada; código salvo não significa publicação.
+
+As seções seguintes são evidências históricas anteriores a esta rodada.
+
 A revisão no Lovable em 18/11/2026 confirmou **45 testes aprovados**, incluindo 21 testes reais de banco. A publicação foi solicitada e `/login` respondeu HTTP 200. O pagamento Stripe de teste Pro foi concluído em BRL (12900 centavos), sem dinheiro real; o plano apareceu ativo no aplicativo após reenvio manual do evento real, assinado com a chave configurada. **Entrega automática do Stripe ainda não comprovada.** O release permanece indicado para piloto controlado, não para cobrança pública ampla.
 
 ## Evidências atualizadas em 18/11/2026

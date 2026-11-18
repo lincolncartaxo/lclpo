@@ -10,3 +10,6 @@
 - Index normalized catalog and price codes used by recursive calculations so leading-zero compatibility does not cause full-table scans and report timeouts.
 - Provision each new auth account with its own Free organization and owner membership in the signup transaction; ignore tenant/role metadata to prevent cross-company access.
 - Keep password recovery on the public login page and OAuth callbacks on the public origin so sessions hydrate before protected navigation.
+- Keep legal and support pages public, with shared navigation and accurate descriptions of enabled analytics; do not claim legal certification.
+- Register measurements through a locked transactional RPC with budget edit authorization and cumulative quantity checks; snapshot awarded prices and BDI so later edits cannot rewrite measured amounts.
+- Protect server-function requests with CSRF middleware without applying it to externally signed webhooks.

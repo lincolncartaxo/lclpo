@@ -19,6 +19,8 @@ import { ImportExcelDialog } from "@/components/ImportExcelDialog";
 import { PleStructureTab } from "@/components/PleStructureTab";
 import { trunc2, budgetItemTotal } from "@/lib/budget-calculations";
 import { pageMetadata } from "@/lib/route-metadata";
+import { MeasurementsTab } from "@/components/MeasurementsTab";
+import { discountedPrice } from "@/lib/contract-calculations";
 
 /* ---------- HELPERS COMPARTILHADOS ---------- */
 // Regra SINAPI: truncar cada subtotal para centavos antes de somar as linhas.
@@ -139,6 +141,7 @@ type Item = {
   evento_id?: string | null;
   memoria?: any[];
   bdi_id?: string | null;
+  desconto_licitacao?: number;
 };
 
 function totalEtapaComDescendentes(
@@ -270,6 +273,7 @@ function Editor() {
             <TabsTrigger value="cronograma">Cronograma F/F</TabsTrigger>
             {orc.interesse_transferegov && <TabsTrigger value="ple">Transferegov (PLE/BM)</TabsTrigger>}
             {orc.interesse_licitacao && <TabsTrigger value="licitacao">Licitação</TabsTrigger>}
+            {orc.interesse_licitacao && <TabsTrigger value="medicoes">Medições</TabsTrigger>}
             <TabsTrigger value="abc">Curva ABC</TabsTrigger>
             <TabsTrigger value="qci">QCI</TabsTrigger>
             <TabsTrigger value="relatorio">Relatório</TabsTrigger>
@@ -286,6 +290,7 @@ function Editor() {
           <TabsContent value="cronograma"><CronogramaTab orcId={id} items={items} totalComBdi={totalComBdi} orc={orc} onSaved={load} /></TabsContent>
           {orc.interesse_transferegov && <TabsContent value="ple"><PleStructureTab orcId={id} items={items} /><RelatorioTab orc={orc} orcId={id} items={items} bdis={bdis} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} transferegovOnly /></TabsContent>}
           {orc.interesse_licitacao && <TabsContent value="licitacao"><LicitacaoTab orc={orc} orcId={id} items={items} bdis={bdis} subtotal={subtotal} totalComBdi={totalComBdi} /></TabsContent>}
+          {orc.interesse_licitacao && <TabsContent value="medicoes"><MeasurementsTab orcId={id} items={items} name={orc.nome} /></TabsContent>}
           <TabsContent value="qci"><QciTab orcId={id} items={items} subtotal={subtotal} totalComBdi={totalComBdi} orc={orc} onSaved={load} /></TabsContent>
           <TabsContent value="relatorio"><RelatorioTab orc={orc} orcId={id} items={items} bdis={bdis} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} /></TabsContent>
         </Tabs>
@@ -695,7 +700,7 @@ function PlanilhaTab({ orcId, items, reload, onItemUpdated, bdiPct, regime, uf, 
             onEtapas={async (ns) => {
               const novas = ns.filter(n => !etapasExistentes.includes(n));
               const error = await persistEtapaMarkers(orcId, novas);
-              if (error) return toast.error(`Não foi possível persistir as etapas importadas: ${error.message}`);
+              if (error) throw new Error(`Não foi possível persistir as etapas importadas: ${error.message}`);
               setEtapasExtra(prev => Array.from(new Set([...prev, ...novas])));
             }} />
           <AddItemDialog orcId={orcId} open={editingItem ? true : open} setOpen={(value: boolean) => { if (editingItem) { if (!value) setEditingItem(null); } else setOpen(value); }} onAdded={reload} nextOrdem={items.length+1} regime={regime} uf={uf} refPrecos={refPrecos} editingItem={editingItem} />
@@ -2653,7 +2658,8 @@ function LicitacaoTab({ orc, orcId, items, bdis: parentBdis = [], subtotal, tota
   const bdi = Number(orc.bdi_pct) || 0;
   const [bdis, setBdis] = useState<BdiProfile[]>([]);
   const [valorFinal, setValorFinal] = useState("");
-  const [modo, setModo] = useState<"linear" | "linear_2_casas">("linear");
+  const [modo, setModo] = useState<"linear" | "linear_2_casas" | "individual">("linear");
+  const [discounts, setDiscounts] = useState<Record<string, number>>({});
   const [aplicarSolver, setAplicarSolver] = useState(false);
   const [relatoriosOpen, setRelatoriosOpen] = useState(false);
   const [salvo, setSalvo] = useState(false);
@@ -2663,7 +2669,8 @@ function LicitacaoTab({ orc, orcId, items, bdis: parentBdis = [], subtotal, tota
     let active = true;
     (async () => {
       const { data } = await (supabase as any).from("orcamento_licitacoes").select("valor_final,modo").eq("orcamento_id", orcId).maybeSingle();
-      if (active && data) { setValorFinal(String(data.valor_final)); setModo(data.modo === "linear_2_casas" ? data.modo : "linear"); setSalvo(true); }
+      if (active && data) { setValorFinal(String(data.valor_final)); setModo(["linear_2_casas", "individual"].includes(data.modo) ? data.modo : "linear"); setSalvo(true); }
+      if (active) setDiscounts(Object.fromEntries((items as Item[]).map(item => [item.id, Number(item.desconto_licitacao ?? 0)])));
       const { data: bdiRows } = await (supabase as any).from("orcamento_bdis").select("id,bdi_pct").eq("orcamento_id", orcId);
       if (active) setBdis((bdiRows ?? []) as BdiProfile[]);
       if (active) setCarregando(false);
@@ -2675,10 +2682,10 @@ function LicitacaoTab({ orc, orcId, items, bdis: parentBdis = [], subtotal, tota
   const fator = totalComBdi > 0 && alvo > 0 ? alvo / totalComBdi : 0;
   const desconto = fator > 0 ? (1 - fator) * 100 : 0;
   const calculado = useMemo(() => {
-    if (!(alvo > 0) || !(totalComBdi > 0)) return { rows: [], total: 0, diferenca: 0, ajustado: 0 };
+    if ((modo !== "individual" && !(alvo > 0)) || !(totalComBdi > 0)) return { rows: [], total: 0, diferenca: 0, ajustado: 0 };
     const rows = (items as Item[]).map((item, index) => {
       const original = Number(item.preco_unitario) || 0;
-      const linear = original * fator;
+      const linear = modo === "individual" ? discountedPrice(original, discounts[item.id] ?? 0) : original * fator;
       const itemBdi = Number(bdis.find((profile) => profile.id === item.bdi_id)?.bdi_pct ?? bdi);
       return { item, index, linear, bdi: itemBdi, ajusteFinal: false, preco: modo === "linear_2_casas" ? Math.round(linear * 100) / 100 : linear };
     });
@@ -2723,19 +2730,28 @@ function LicitacaoTab({ orc, orcId, items, bdis: parentBdis = [], subtotal, tota
     const total = rows.reduce((s, r) => s + Number(r.item.quantidade) * r.preco * (1 + r.bdi), 0);
     const totalArredondado = Math.round(total * 100) / 100;
     return { rows, total: totalArredondado, diferenca: alvo - totalArredondado };
-  }, [alvo, aplicarSolver, bdi, bdis, fator, items, modo, totalComBdi]);
+  }, [alvo, aplicarSolver, bdi, bdis, discounts, fator, items, modo, totalComBdi]);
+  const awardedTotal = modo === "individual" ? calculado.total : alvo;
+  const effectiveDiscount = totalComBdi > 0 && awardedTotal > 0 ? 1 - awardedTotal / totalComBdi : 0;
 
   const save = async () => {
-    if (!(alvo > 0)) return toast.error("Informe um valor final de licitação maior que zero");
-    const { error } = await (supabase as any).from("orcamento_licitacoes").upsert({ orcamento_id: orcId, valor_final: alvo, modo, updated_at: new Date().toISOString() }, { onConflict: "orcamento_id" });
+    const finalValue = modo === "individual" ? calculado.total : alvo;
+    if (!(finalValue > 0)) return toast.error("Informe um valor final de licitação maior que zero");
+    if (modo === "individual") {
+      for (const item of items as Item[]) {
+        const update = await supabase.from("orcamento_itens").update({ desconto_licitacao: discounts[item.id] ?? 0 }).eq("id", item.id);
+        if (update.error) return toast.error(update.error.message);
+      }
+    }
+    const { error } = await (supabase as any).from("orcamento_licitacoes").upsert({ orcamento_id: orcId, valor_final: finalValue, modo, precos_itens: Object.fromEntries(calculado.rows.map(row => [row.item.id, row.preco])), updated_at: new Date().toISOString() }, { onConflict: "orcamento_id" });
     if (error) return toast.error(error.message);
     setSalvo(true); toast.success("Configuração de licitação salva");
   };
   const exportXlsx = async () => {
     if (!calculado.rows.length) return toast.error("Informe o valor final antes de exportar");
     const XLSX = await import("xlsx-js-style");
-    const rows = [["Etapa", "Item", "Fonte", "Código", "Descrição", "Un.", "Quantidade", "Preço unitário original", "Desconto do item", "Preço unitário licitado sem BDI", "Preço unitário licitado com BDI", "Total licitado"], ...calculado.rows.map(r => [r.item.etapa || "", r.item.item || "", r.item.fonte || "", r.item.codigo || "", r.item.descricao, r.item.unidade || "", Number(r.item.quantidade), Number(r.item.preco_unitario), aplicarSolver && Number(r.item.preco_unitario) > 0 ? 1 - r.preco / Number(r.item.preco_unitario) : desconto / 100, r.preco, r.preco * (1 + r.bdi), Number(r.item.quantidade) * r.preco * (1 + r.bdi)]), ["", "", "", "", "", "", "", "", "", "", "TOTAL", calculado.total]];
-    const ws = XLSX.utils.aoa_to_sheet([["PLANILHA ORÇAMENTÁRIA AJUSTADA — LICITAÇÃO"], ["Valor original c/ BDI", totalComBdi], ["Valor vencedor c/ BDI", alvo], ["Desconto", desconto / 100], [], ...rows]);
+    const rows = [["Etapa", "Item", "Fonte", "Código", "Descrição", "Un.", "Quantidade", "Preço unitário original", "Desconto do item", "Preço unitário licitado sem BDI", "Preço unitário licitado com BDI", "Total licitado"], ...calculado.rows.map(r => [r.item.etapa || "", r.item.item || "", r.item.fonte || "", r.item.codigo || "", r.item.descricao, r.item.unidade || "", Number(r.item.quantidade), Number(r.item.preco_unitario), Number(r.item.preco_unitario) > 0 ? 1 - r.preco / Number(r.item.preco_unitario) : 0, r.preco, r.preco * (1 + r.bdi), Number(r.item.quantidade) * r.preco * (1 + r.bdi)]), ["", "", "", "", "", "", "", "", "", "", "TOTAL", calculado.total]];
+    const ws = XLSX.utils.aoa_to_sheet([["PLANILHA ORÇAMENTÁRIA AJUSTADA — LICITAÇÃO"], ["Valor original c/ BDI", totalComBdi], ["Valor vencedor c/ BDI", awardedTotal], ["Desconto", effectiveDiscount], [], ...rows]);
     ws["A1"].s = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F3864" } } };
     ws["A4"].z = "0.00%";
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Licitação");
@@ -2756,13 +2772,14 @@ function LicitacaoTab({ orc, orcId, items, bdis: parentBdis = [], subtotal, tota
   return <div className="mt-4 max-w-6xl space-y-5">
     <div><h2 className="text-lg font-semibold">Licitação</h2><p className="text-sm text-muted-foreground">Informe o valor final da proposta vencedora para recalcular os preços unitários e os relatórios do orçamento.</p></div>
     <div className="grid gap-4 md:grid-cols-3">
-      <Field label="Valor final da planilha vencedora (R$)"><Input value={valorFinal} onChange={e => { setValorFinal(e.target.value); setSalvo(false); }} placeholder="0,00" /></Field>
-      <Field label="Forma de aplicação do desconto"><Select value={modo} onValueChange={v => { setModo(v as any); setSalvo(false); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="linear">Desconto linear</SelectItem><SelectItem value="linear_2_casas">Desconto linear com ajuste para 2 casas decimais</SelectItem></SelectContent></Select></Field>
-      <div className="rounded-lg border bg-muted/20 p-3"><p className="text-xs text-muted-foreground">Desconto calculado</p><p className="text-2xl font-semibold">{fmtPct(desconto / 100)}</p><p className="text-xs text-muted-foreground">Original: {fmtBRL(totalComBdi)} · Vencedora: {fmtBRL(alvo || 0)}</p></div>
+      <Field label="Valor final da planilha vencedora (R$)"><Input value={modo === "individual" ? String(calculado.total) : valorFinal} disabled={modo === "individual"} onChange={e => { setValorFinal(e.target.value); setSalvo(false); }} placeholder="0,00" /></Field>
+      <Field label="Forma de aplicação do desconto"><Select value={modo} onValueChange={v => { setModo(v as any); setSalvo(false); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="linear">Desconto linear</SelectItem><SelectItem value="linear_2_casas">Desconto linear com ajuste para 2 casas decimais</SelectItem><SelectItem value="individual">Desconto individual</SelectItem></SelectContent></Select></Field>
+      <div className="rounded-lg border bg-muted/20 p-3"><p className="text-xs text-muted-foreground">Desconto calculado</p><p className="text-2xl font-semibold">{fmtPct(effectiveDiscount)}</p><p className="text-xs text-muted-foreground">Original: {fmtBRL(totalComBdi)} · Vencedora: {fmtBRL(awardedTotal || 0)}</p></div>
     </div>
+    {modo === "individual" && <div className="overflow-x-auto border rounded"><table className="w-full text-sm"><thead className="bg-muted"><tr><th className="p-2 text-left">Item</th><th className="p-2 text-left">Descrição</th><th className="p-2 text-left">Redução (%)</th></tr></thead><tbody>{(items as Item[]).map(item => <tr key={item.id} className="border-t"><td className="p-2">{item.item}</td><td className="p-2">{item.descricao}</td><td className="p-2"><Input aria-label={`Desconto ${item.item ?? item.id}`} type="number" min={0} max={100} step="any" value={discounts[item.id] ?? 0} onChange={event => { setDiscounts({ ...discounts, [item.id]: Math.max(0, Math.min(100, Number(event.target.value) || 0)) }); setSalvo(false); }} className="w-28" /></td></tr>)}</tbody></table></div>}
     {modo === "linear_2_casas" && <label className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 cursor-pointer"><Checkbox checked={aplicarSolver} onCheckedChange={v => setAplicarSolver(!!v)} /><span><b>Aplicar solver para eliminar o resíduo?</b><br />Antes do solver, o desconto exibido é o mesmo percentual global em todos os itens. Ao ativar, o sistema combina alterações de centavos e, se necessário, aplica o saldo final com precisão de até seis casas no item de maior impacto, para fazer o total monetário coincidir com a proposta vencedora. Resíduo atual: <b>{fmtBRL(calculado.diferenca)}</b>.</span></label>}
     <div className="flex flex-wrap gap-2"><Button onClick={save} disabled={carregando}><Save className="mr-2 size-4" />{salvo ? "Configuração salva" : "Salvar licitação"}</Button><Button variant="outline" onClick={() => setRelatoriosOpen(true)} disabled={!calculado.rows.length}><FileDown className="mr-2 size-4" />Relatórios da licitação</Button></div>
-    {calculado.rows.length > 0 && <div className="rounded-lg border overflow-auto"><table className="w-full text-sm"><thead><tr className="bg-muted"><th className="p-2 text-left">Item</th><th className="p-2 text-left">Código</th><th className="p-2 text-left">Descrição</th><th className="p-2 text-right">Qtd.</th><th className="p-2 text-right">PU original</th><th className="p-2 text-right">Desconto</th><th className="p-2 text-right">PU licitado</th><th className="p-2 text-right">Total</th></tr></thead><tbody>{calculado.rows.map(r => <tr key={r.item.id} className="border-t"><td className="p-2">{r.item.item || "—"}</td><td className="p-2">{r.item.codigo || "—"}</td><td className="p-2 min-w-80">{r.item.descricao}</td><td className="p-2 text-right">{fmtNum(Number(r.item.quantidade), 4)}</td><td className="p-2 text-right">{fmtBRL(Number(r.item.preco_unitario))}</td><td className="p-2 text-right">{fmtPct(aplicarSolver && Number(r.item.preco_unitario) > 0 ? 1 - r.preco / Number(r.item.preco_unitario) : desconto / 100)}</td><td className="p-2 text-right">{r.preco.toLocaleString("pt-BR", { minimumFractionDigits: r.ajusteFinal ? 6 : 2, maximumFractionDigits: r.ajusteFinal ? 6 : 2 })}{r.ajusteFinal && <span className="ml-1 text-xs text-amber-700">(ajuste)</span>}</td><td className="p-2 text-right">{fmtBRL(Number(r.item.quantidade) * r.preco * (1 + r.bdi))}</td></tr>)}</tbody><tfoot><tr className="border-t bg-muted font-semibold"><td className="p-2" colSpan={7}>TOTAL LICITADO C/ BDI</td><td className="p-2 text-right">{fmtBRL(calculado.total)}</td></tr></tfoot></table></div>}
+    {calculado.rows.length > 0 && <div className="rounded-lg border overflow-auto"><table className="w-full text-sm"><thead><tr className="bg-muted"><th className="p-2 text-left">Item</th><th className="p-2 text-left">Código</th><th className="p-2 text-left">Descrição</th><th className="p-2 text-right">Qtd.</th><th className="p-2 text-right">PU original</th><th className="p-2 text-right">Desconto</th><th className="p-2 text-right">PU licitado</th><th className="p-2 text-right">Total</th></tr></thead><tbody>{calculado.rows.map(r => <tr key={r.item.id} className="border-t"><td className="p-2">{r.item.item || "—"}</td><td className="p-2">{r.item.codigo || "—"}</td><td className="p-2 min-w-80">{r.item.descricao}</td><td className="p-2 text-right">{fmtNum(Number(r.item.quantidade), 4)}</td><td className="p-2 text-right">{fmtBRL(Number(r.item.preco_unitario))}</td><td className="p-2 text-right">{fmtPct(Number(r.item.preco_unitario) > 0 ? 1 - r.preco / Number(r.item.preco_unitario) : 0)}</td><td className="p-2 text-right">{r.preco.toLocaleString("pt-BR", { minimumFractionDigits: r.ajusteFinal ? 6 : 2, maximumFractionDigits: r.ajusteFinal ? 6 : 2 })}{r.ajusteFinal && <span className="ml-1 text-xs text-amber-700">(ajuste)</span>}</td><td className="p-2 text-right">{fmtBRL(Number(r.item.quantidade) * r.preco * (1 + r.bdi))}</td></tr>)}</tbody><tfoot><tr className="border-t bg-muted font-semibold"><td className="p-2" colSpan={7}>TOTAL LICITADO C/ BDI</td><td className="p-2 text-right">{fmtBRL(calculado.total)}</td></tr></tfoot></table></div>}
     <Dialog open={relatoriosOpen} onOpenChange={setRelatoriosOpen}>
       <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto">
         <DialogHeader><DialogTitle>Relatórios da licitação</DialogTitle></DialogHeader>
@@ -2770,8 +2787,8 @@ function LicitacaoTab({ orc, orcId, items, bdis: parentBdis = [], subtotal, tota
           <p className="text-sm text-muted-foreground">Os relatórios usam os preços unitários ajustados, preservando o BDI ({fmtPct(bdi)}) e os encargos sociais ({fmtPct(Number(orc.encargos_pct || 0) )}) da planilha original.</p>
           <div className="grid gap-3 sm:grid-cols-4 rounded-lg border bg-muted/20 p-3 text-sm">
             <div><span className="text-muted-foreground">Total original c/ BDI</span><br /><b>{fmtBRL(totalComBdi)}</b></div>
-            <div><span className="text-muted-foreground">Valor vencedor c/ BDI</span><br /><b>{fmtBRL(alvo)}</b></div>
-            <div><span className="text-muted-foreground">Desconto global</span><br /><b>{fmtPct(desconto / 100)}</b></div>
+            <div><span className="text-muted-foreground">Valor vencedor c/ BDI</span><br /><b>{fmtBRL(awardedTotal)}</b></div>
+            <div><span className="text-muted-foreground">Desconto global</span><br /><b>{fmtPct(effectiveDiscount)}</b></div>
             <div><span className="text-muted-foreground">Total ajustado</span><br /><b>{fmtBRL(calculado.total)}</b></div>
           </div>
           <RelatorioTab orc={orc} orcId={orcId} items={itemsAjustados} bdis={parentBdis.length ? parentBdis : bdis} subtotal={subtotalLicitado} totalEncargos={totalEncargosLicitado} totalComBdi={calculado.total} />

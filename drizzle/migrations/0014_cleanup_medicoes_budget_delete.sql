@@ -1,0 +1,2 @@
+CREATE OR REPLACE FUNCTION public.cleanup_budget_measurements() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$ BEGIN DELETE FROM public.orcamento_medicoes WHERE orcamento_id=OLD.id; RETURN OLD; END; $$;
+CREATE TRIGGER cleanup_budget_measurements BEFORE DELETE ON public.orcamentos FOR EACH ROW EXECUTE FUNCTION public.cleanup_budget_measurements();

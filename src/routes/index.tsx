@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Building2, FileSpreadsheet, Calculator, Table2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { pageMetadata } from "@/lib/route-metadata";
+import { LegalLinks } from "@/components/LegalLayout";
 
 export const Route = createFileRoute("/")({
   beforeLoad: async () => {
@@ -55,6 +56,7 @@ function Landing() {
           ))}
         </div>
       </section>
+      <footer className="border-t px-6 py-6"><LegalLinks /></footer>
     </div>
   );
 }

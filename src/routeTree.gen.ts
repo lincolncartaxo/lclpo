@@ -12,12 +12,16 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as PrivacidadeRouteImport } from './routes/privacidade'
+import { Route as SuporteRouteImport } from './routes/suporte'
+import { Route as TermosRouteImport } from './routes/termos'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedBasesRouteImport } from './routes/_authenticated/bases'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedPlanosRouteImport } from './routes/_authenticated/planos'
 import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
 import { Route as AuthenticatedOrcamentoIdRouteImport } from './routes/_authenticated/orcamento.$id'
+import { Route as ApiPublicHealthRouteImport } from './routes/api/public/health'
 import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/stripe-webhook'
 
 const IndexRoute = IndexRouteImport.update({
@@ -32,6 +36,21 @@ const AuthenticatedRoute = AuthenticatedRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacidadeRoute = PrivacidadeRouteImport.update({
+  id: '/privacidade',
+  path: '/privacidade',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SuporteRoute = SuporteRouteImport.update({
+  id: '/suporte',
+  path: '/suporte',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermosRoute = TermosRouteImport.update({
+  id: '/termos',
+  path: '/termos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
@@ -65,6 +84,11 @@ const AuthenticatedOrcamentoIdRoute =
     path: '/orcamento/$id',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const ApiPublicHealthRoute = ApiPublicHealthRouteImport.update({
+  id: '/api/public/health',
+  path: '/api/public/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
   id: '/api/public/stripe-webhook',
   path: '/api/public/stripe-webhook',
@@ -74,23 +98,31 @@ const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/privacidade': typeof PrivacidadeRoute
+  '/suporte': typeof SuporteRoute
+  '/termos': typeof TermosRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/bases': typeof AuthenticatedBasesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/planos': typeof AuthenticatedPlanosRoute
   '/team': typeof AuthenticatedTeamRoute
   '/orcamento/$id': typeof AuthenticatedOrcamentoIdRoute
+  '/api/public/health': typeof ApiPublicHealthRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/privacidade': typeof PrivacidadeRoute
+  '/suporte': typeof SuporteRoute
+  '/termos': typeof TermosRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/bases': typeof AuthenticatedBasesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/planos': typeof AuthenticatedPlanosRoute
   '/team': typeof AuthenticatedTeamRoute
   '/orcamento/$id': typeof AuthenticatedOrcamentoIdRoute
+  '/api/public/health': typeof ApiPublicHealthRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
 }
 export interface FileRoutesById {
@@ -98,12 +130,16 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
+  '/privacidade': typeof PrivacidadeRoute
+  '/suporte': typeof SuporteRoute
+  '/termos': typeof TermosRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/bases': typeof AuthenticatedBasesRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/planos': typeof AuthenticatedPlanosRoute
   '/_authenticated/team': typeof AuthenticatedTeamRoute
   '/_authenticated/orcamento/$id': typeof AuthenticatedOrcamentoIdRoute
+  '/api/public/health': typeof ApiPublicHealthRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
 }
 export interface FileRouteTypes {
@@ -111,35 +147,47 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/privacidade'
+    | '/suporte'
+    | '/termos'
     | '/admin'
     | '/bases'
     | '/dashboard'
     | '/planos'
     | '/team'
     | '/orcamento/$id'
+    | '/api/public/health'
     | '/api/public/stripe-webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
+    | '/privacidade'
+    | '/suporte'
+    | '/termos'
     | '/admin'
     | '/bases'
     | '/dashboard'
     | '/planos'
     | '/team'
     | '/orcamento/$id'
+    | '/api/public/health'
     | '/api/public/stripe-webhook'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/login'
+    | '/privacidade'
+    | '/suporte'
+    | '/termos'
     | '/_authenticated/admin'
     | '/_authenticated/bases'
     | '/_authenticated/dashboard'
     | '/_authenticated/planos'
     | '/_authenticated/team'
     | '/_authenticated/orcamento/$id'
+    | '/api/public/health'
     | '/api/public/stripe-webhook'
   fileRoutesById: FileRoutesById
 }
@@ -147,6 +195,10 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  PrivacidadeRoute: typeof PrivacidadeRoute
+  SuporteRoute: typeof SuporteRoute
+  TermosRoute: typeof TermosRoute
+  ApiPublicHealthRoute: typeof ApiPublicHealthRoute
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
 }
 
@@ -171,6 +223,27 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacidade': {
+      id: '/privacidade'
+      path: '/privacidade'
+      fullPath: '/privacidade'
+      preLoaderRoute: typeof PrivacidadeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/suporte': {
+      id: '/suporte'
+      path: '/suporte'
+      fullPath: '/suporte'
+      preLoaderRoute: typeof SuporteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/termos': {
+      id: '/termos'
+      path: '/termos'
+      fullPath: '/termos'
+      preLoaderRoute: typeof TermosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin': {
@@ -215,6 +288,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOrcamentoIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/api/public/health': {
+      id: '/api/public/health'
+      path: '/api/public/health'
+      fullPath: '/api/public/health'
+      preLoaderRoute: typeof ApiPublicHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/stripe-webhook': {
       id: '/api/public/stripe-webhook'
       path: '/api/public/stripe-webhook'
@@ -251,6 +331,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
+  PrivacidadeRoute: PrivacidadeRoute,
+  SuporteRoute: SuporteRoute,
+  TermosRoute: TermosRoute,
+  ApiPublicHealthRoute: ApiPublicHealthRoute,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
 }
 export const routeTree = rootRouteImport

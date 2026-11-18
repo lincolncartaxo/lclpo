@@ -486,6 +486,7 @@ export type Database = {
           bdi_id: string | null
           codigo: string | null
           created_at: string
+          desconto_licitacao: number
           descricao: string
           etapa: string | null
           evento_id: string | null
@@ -503,6 +504,7 @@ export type Database = {
           bdi_id?: string | null
           codigo?: string | null
           created_at?: string
+          desconto_licitacao?: number
           descricao: string
           etapa?: string | null
           evento_id?: string | null
@@ -520,6 +522,7 @@ export type Database = {
           bdi_id?: string | null
           codigo?: string | null
           created_at?: string
+          desconto_licitacao?: number
           descricao?: string
           etapa?: string | null
           evento_id?: string | null
@@ -563,6 +566,7 @@ export type Database = {
           id: string
           modo: string
           orcamento_id: string
+          precos_itens: Json
           updated_at: string
           valor_final: number
         }
@@ -571,6 +575,7 @@ export type Database = {
           id?: string
           modo?: string
           orcamento_id: string
+          precos_itens?: Json
           updated_at?: string
           valor_final: number
         }
@@ -579,6 +584,7 @@ export type Database = {
           id?: string
           modo?: string
           orcamento_id?: string
+          precos_itens?: Json
           updated_at?: string
           valor_final?: number
         }
@@ -587,6 +593,80 @@ export type Database = {
             foreignKeyName: "orcamento_licitacoes_orcamento_id_fkey"
             columns: ["orcamento_id"]
             isOneToOne: true
+            referencedRelation: "orcamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orcamento_medicao_itens: {
+        Row: {
+          bdi: number
+          item_id: string
+          medicao_id: string
+          preco_unitario: number
+          quantidade: number
+        }
+        Insert: {
+          bdi: number
+          item_id: string
+          medicao_id: string
+          preco_unitario: number
+          quantidade: number
+        }
+        Update: {
+          bdi?: number
+          item_id?: string
+          medicao_id?: string
+          preco_unitario?: number
+          quantidade?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orcamento_medicao_itens_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "orcamento_itens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orcamento_medicao_itens_medicao_id_fkey"
+            columns: ["medicao_id"]
+            isOneToOne: false
+            referencedRelation: "orcamento_medicoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orcamento_medicoes: {
+        Row: {
+          created_at: string
+          data_medicao: string
+          id: string
+          numero: number
+          observacao: string
+          orcamento_id: string
+        }
+        Insert: {
+          created_at?: string
+          data_medicao: string
+          id?: string
+          numero: number
+          observacao?: string
+          orcamento_id: string
+        }
+        Update: {
+          created_at?: string
+          data_medicao?: string
+          id?: string
+          numero?: number
+          observacao?: string
+          orcamento_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orcamento_medicoes_orcamento_id_fkey"
+            columns: ["orcamento_id"]
+            isOneToOne: false
             referencedRelation: "orcamentos"
             referencedColumns: ["id"]
           },
@@ -1188,6 +1268,15 @@ export type Database = {
       recalcular_orcamentos_da_composicao: {
         Args: { p_codigo: string; p_fonte: string }
         Returns: number
+      }
+      registrar_medicao: {
+        Args: {
+          p_data: string
+          p_itens: Json
+          p_observacao: string
+          p_orcamento_id: string
+        }
+        Returns: string
       }
       remove_organization_member: {
         Args: { p_user_id: string }

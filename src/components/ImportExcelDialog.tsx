@@ -50,7 +50,7 @@ type Props = {
   mesRef: string | null;
   nextOrdem: number;
   onImported: () => void;
-  onEtapas: (nomes: string[]) => void;
+  onEtapas: (nomes: string[]) => void | Promise<void>;
 };
 
 const colIdx = (letter: string) => {
@@ -217,7 +217,7 @@ export function ImportExcelDialog({
         row.precoBase = costs.get(key) ?? 0;
         row.descBase = text(composition.descricao) || null;
         row.fonteBase = text(composition.fonte);
-        row.unidade = row.unidade || text(composition.unidade);
+        row.unidade = text(composition.unidade);
         continue;
       }
       const supply = findExact(row, supplyRows, "codigo_insumo");
@@ -228,20 +228,22 @@ export function ImportExcelDialog({
         );
         row.descBase = text(catalog.descricao) || null;
         row.fonteBase = text(supply.fonte);
-        row.unidade = row.unidade || text(catalog.unidade);
+        row.unidade = text(catalog.unidade);
       }
     }
   };
 
   const next2 = async () => {
     // Essenciais: item, código e quantidade. Descrição, unidade e preço vêm do banco.
-    const required = ["item", "codigo", "quantidade"] as const;
+    const required = ["item", "codigo", "quantidade", "fonte"] as const;
     if (required.some((key) => colIdx(cols[key]) < 0))
       return toast.error("Preencha as colunas obrigatórias");
     if (comPrecos && colIdx(cols.preco) < 0) return toast.error("Informe a coluna do preço");
     setBusy(true);
     try {
-      const data = XLSX.utils.sheet_to_json<SheetRow>(wb!.Sheets[sheet], {
+      const worksheet = wb?.Sheets[sheet];
+      if (!worksheet) throw new Error("Selecione uma planilha válida.");
+      const data = XLSX.utils.sheet_to_json<SheetRow>(worksheet, {
         header: 1,
         raw: true,
         defval: "",
@@ -299,7 +301,7 @@ export function ImportExcelDialog({
   const concluir = async () => {
     setBusy(true);
     const stages = unique(
-      rows.filter((row) => row.etapa && row.etapaNome).map((row) => row.etapaNome!),
+      rows.flatMap(row => row.etapa && row.etapaNome ? [row.etapaNome] : []),
     );
     const items = rows
       .filter((row) => !row.etapa)
@@ -324,7 +326,7 @@ export function ImportExcelDialog({
         const { error } = await db.from("orcamento_itens").insert(items.slice(index, index + 500));
         if (error) throw new Error(error.message);
       }
-      if (stages.length) onEtapas(stages);
+      if (stages.length) await onEtapas(stages);
       const withoutPrice = items.filter((item) => !item.preco_unitario).length;
       toast.success(
         `${items.length} itens e ${stages.length} etapas importados${withoutPrice ? ` · ${withoutPrice} sem preço` : ""}`,
@@ -467,7 +469,7 @@ export function ImportExcelDialog({
             {colField("item", "de Itemização")}
             {colField("codigo", "do Código")}
             {colField("quantidade", "da Quantidade")}
-            {colField("fonte", "da Fonte", false)}
+            {colField("fonte", "da Fonte")}
             {colField("descricao", "da Descrição", false)}
             {colField("unidade", "da Unidade", false)}
             {comPrecos && colField("preco", "do Preço Unitário")}
@@ -478,7 +480,7 @@ export function ImportExcelDialog({
               </label>
             )}
             <p className="text-xs text-muted-foreground">
-              Basta informar item, código e quantidade: descrição, unidade e preço são buscados no
+              Informe item, código, quantidade e fonte: descrição, unidade e preço são buscados no
               banco. Sem fonte informada, assume-se SINAPI. Linhas sem código ou sem quantidade são
               etapas.
             </p>

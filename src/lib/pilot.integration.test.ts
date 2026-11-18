@@ -100,6 +100,20 @@ describe.runIf(process.env.RUN_DB_TESTS === "true")("commercial pilot database i
     expect((await bob.from("orcamentos").insert({ nome: "Third free fixture", user_id: users[1], organization_id: orgB })).error).not.toBeNull();
   });
   it("existing budgets remain editable at the Free limit", async () => expect(requireData(await bob.from("orcamentos").update({ nome: "Edited at quota" }).eq("id", budgetB).select("id"))).toHaveLength(1));
+  it("measurements accumulate without exceeding the contracted quantity", async () => {
+    const item = requireData(await alice.from("orcamento_itens").insert({ orcamento_id: budgetA, item: "TEST.BM", descricao: "Measurement fixture", quantidade: 100, preco_unitario: 100 }).select("id").single());
+    if (!item) throw new Error("Measurement fixture unavailable");
+    requireData(await alice.from("orcamento_licitacoes").upsert({ orcamento_id: budgetA, valor_final: 9000, modo: "individual", precos_itens: { [item.id]: 90 } }, { onConflict: "orcamento_id" }));
+    const args = { p_orcamento_id: budgetA, p_data: "2026-11-18", p_observacao: "Fixture", p_itens: [{ item_id: item.id, quantidade: 20 }] };
+    const first = requireData(await alice.rpc("registrar_medicao", args));
+    if (!first) throw new Error("Measurement registration did not return an id");
+    expect(requireData(await alice.from("orcamento_medicao_itens").select("quantidade,preco_unitario").eq("medicao_id", first).single())).toEqual({ quantidade: 20, preco_unitario: 90 });
+    expect(requireData(await bob.from("orcamento_medicoes").select("id").eq("orcamento_id", budgetA))).toEqual([]);
+    expect((await bob.rpc("registrar_medicao", args)).error).not.toBeNull();
+    expect((await alice.rpc("registrar_medicao", { ...args, p_itens: [{ item_id: item.id, quantidade: 81 }] })).error).not.toBeNull();
+    expect(requireData(await alice.from("orcamento_medicoes").select("id").eq("orcamento_id", budgetA))).toHaveLength(1);
+    expect((await alice.from("orcamento_itens").update({ quantidade: 19 }).eq("id", item.id)).error).not.toBeNull();
+  });
   it.each([["88316", "desonerado", 22.75], ["88316", "nao_desonerado", 24.05], ["95378", "desonerado", 0.33], ["95378", "nao_desonerado", 0.36]])("real SINAPI PB May 2026 %s %s = %s", async (code, regime, price) => {
     expect(requireData(await alice.rpc("calcular_custo_composicao", { p_fonte: "SINAPI", p_codigo: String(code), p_uf: "PB", p_mes_ref: "2026-05", p_regime: String(regime) }))).toBe(price);
   });

@@ -92,6 +92,20 @@
       "when": 1795008359076,
       "tag": "0012_signup_owner_membership_without_duplicate_insert",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795009479030,
+      "tag": "0013_licitacao_individual_medicoes",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1795009648948,
+      "tag": "0014_cleanup_medicoes_budget_delete",
+      "breakpoints": true
     }
   ]
 }
