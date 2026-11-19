@@ -2676,7 +2676,7 @@ function LicitacaoTab({ orc, orcId, items, bdis: parentBdis = [], subtotal, tota
       if (active) setCarregando(false);
     })();
     return () => { active = false; };
-  }, [orcId]);
+  }, [items, orcId]);
 
   const alvo = Number(valorFinal.includes(",") ? valorFinal.replace(/\./g, "").replace(",", ".") : valorFinal);
   const fator = totalComBdi > 0 && alvo > 0 ? alvo / totalComBdi : 0;

@@ -80,6 +80,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:title", content: "LclPlan — Referências, cálculos e licitações" },
       { property: "og:description", content: "Orçamentos públicos com múltiplas referências de preço, memória de cálculo automática, Transferegov e licitações." },
       { property: "og:type", content: "website" },
+      { property: "og:locale", content: "pt_BR" },
       { property: "og:site_name", content: "LclPlan" },
       { property: "og:image", content: "https://lclpo.vercel.app/og-lclplan.png" },
       { property: "og:image:alt", content: "LclPlan — referências de preços, memória de cálculo automática, licitações e Transferegov" },

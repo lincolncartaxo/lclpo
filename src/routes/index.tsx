@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import {
   ArrowRight,
@@ -5,10 +6,14 @@ import {
   Calculator,
   CalendarDays,
   Check,
+  CheckCircle2,
   ChevronDown,
   Database,
   FileSpreadsheet,
   Layers,
+  Layers3,
+  MousePointerClick,
+  ShieldCheck,
   Table2,
   Users,
   type LucideIcon,
@@ -84,6 +89,127 @@ const faqs = [
     answer: "Os planos pagos são mensais. A assinatura e o cancelamento são gerenciados na área de planos da conta; consulte também a página de suporte e cancelamento.",
   },
 ];
+
+type DemoView = "planilha" | "memoria" | "cronograma";
+
+const demoViews: Record<DemoView, { label: string; eyebrow: string; title: string }> = {
+  planilha: {
+    label: "Planilha",
+    eyebrow: "1 · Composição do orçamento",
+    title: "Itens, quantidades e preços em uma visão só",
+  },
+  memoria: {
+    label: "Memória de cálculo",
+    eyebrow: "2 · Formação do preço",
+    title: "Veja de onde vem cada valor antes de fechar",
+  },
+  cronograma: {
+    label: "Cronograma",
+    eyebrow: "3 · Planejamento físico-financeiro",
+    title: "Distribua o orçamento por etapa e mês",
+  },
+};
+
+function DemoShowcase() {
+  const [view, setView] = useState<DemoView>("planilha");
+  const active = demoViews[view];
+
+  return (
+    <section id="demonstracao" className="border-y bg-card/70 py-16 md:py-20">
+      <div className="mx-auto grid max-w-6xl gap-10 px-6 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+        <div>
+          <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+            <MousePointerClick className="size-4" /> Explore o fluxo
+          </div>
+          <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{active.eyebrow}</p>
+          <h2 className="mt-2 text-3xl font-bold tracking-tight md:text-4xl">{active.title}</h2>
+          <p className="mt-4 max-w-lg text-muted-foreground">
+            Esta é uma demonstração navegável da experiência do LclPlan. Os valores abaixo são ilustrativos;
+            a referência de preços exibida no exemplo é <strong className="text-foreground">SINAPI · PB · 2026-05</strong>.
+          </p>
+          <div className="mt-7 flex flex-wrap gap-2" role="tablist" aria-label="Visões da demonstração">
+            {(Object.keys(demoViews) as DemoView[]).map((key) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={view === key}
+                onClick={() => setView(key)}
+                className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+                  view === key ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:bg-secondary"
+                }`}
+              >
+                {demoViews[key].label}
+              </button>
+            ))}
+          </div>
+          <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
+            <CalendarDays className="size-4 text-primary" />
+            A UF e o mês são escolhidos no orçamento e ficam visíveis na base consultada.
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-xl border bg-background shadow-xl shadow-primary/5">
+          <div className="flex items-center justify-between border-b bg-sidebar px-4 py-3 text-sidebar-foreground">
+            <div className="flex items-center gap-2 text-sm font-medium"><Layers3 className="size-4" /> LclPlan / Orçamento demonstrativo</div>
+            <span className="rounded-full bg-sidebar-accent px-2 py-1 text-[10px] font-semibold uppercase tracking-wide">{active.label}</span>
+          </div>
+          {view === "planilha" && <PlanilhaDemo />}
+          {view === "memoria" && <MemoriaDemo />}
+          {view === "cronograma" && <CronogramaDemo />}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-secondary/50 px-4 py-3 text-xs text-muted-foreground">
+            <span>Exemplo ilustrativo · SINAPI / PB · 2026-05</span>
+            <span className="inline-flex items-center gap-1"><ShieldCheck className="size-3.5" /> revisão antes da exportação</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PlanilhaDemo() {
+  return (
+    <div className="overflow-x-auto p-4">
+      <table className="budget-table min-w-[620px] text-xs">
+        <thead><tr><th>Item</th><th>Descrição</th><th className="num">Un.</th><th className="num">Qtd.</th><th className="num">Preço</th><th className="num">Total</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td className="font-medium">SERVIÇOS PRELIMINARES</td><td className="num">vb</td><td className="num">1,00</td><td className="num">8.275,15</td><td className="num">8.275,15</td></tr>
+          <tr><td>2</td><td className="font-medium">PINTURA</td><td className="num">m²</td><td className="num">420,00</td><td className="num">105,10</td><td className="num">44.142,00</td></tr>
+          <tr><td>3</td><td className="font-medium">DIVERSOS</td><td className="num">vb</td><td className="num">1,00</td><td className="num">3.551,19</td><td className="num">3.551,19</td></tr>
+          <tr className="font-semibold"><td colSpan={5}>TOTAL DIRETO</td><td className="num">55.968,34</td></tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function MemoriaDemo() {
+  return (
+    <div className="grid gap-4 p-5 sm:grid-cols-2">
+      <div className="rounded-lg border bg-card p-4 sm:col-span-2"><div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Composição demonstrativa</div><div className="mt-2 flex items-end justify-between gap-4"><div><div className="font-semibold">Pintura acrílica em parede</div><div className="text-xs text-muted-foreground">SINAPI · PB · 2026-05 · não desonerado</div></div><div className="text-xl font-bold">R$ 105,10</div></div></div>
+      {["Insumos e mão de obra", "BDI", "Encargos sociais", "Preço de venda"].map((label, index) => (
+        <div key={label} className="rounded-lg border p-4"><div className="text-xs text-muted-foreground">{label}</div><div className="mt-2 flex items-center justify-between"><span className="text-sm">{index < 2 ? (index === 0 ? "Composição analítica" : "22,00%") : (index === 2 ? "88,68%" : "Referência calculada")}</span>{index < 3 && <CheckCircle2 className="size-4 text-success" />}</div></div>
+      ))}
+    </div>
+  );
+}
+
+function CronogramaDemo() {
+  return (
+    <div className="overflow-x-auto p-4">
+      <table className="budget-table min-w-[620px] text-xs">
+        <thead><tr><th>Etapa</th><th className="num">Total</th><th className="num">M1</th><th className="num">M2</th><th className="num">M3</th><th className="num">Peso</th></tr></thead>
+        <tbody>
+          <tr><td>Serviços preliminares</td><td className="num">8.275,15</td><td className="num">100%</td><td className="num">—</td><td className="num">—</td><td className="num">14,79%</td></tr>
+          <tr><td>Pintura</td><td className="num">44.142,00</td><td className="num">50%</td><td className="num">50%</td><td className="num">—</td><td className="num">78,87%</td></tr>
+          <tr><td>Diversos</td><td className="num">3.551,19</td><td className="num">—</td><td className="num">100%</td><td className="num">—</td><td className="num">6,35%</td></tr>
+          <tr className="font-semibold"><td>TOTAL ACUMULADO</td><td className="num">55.968,34</td><td className="num">57,04%</td><td className="num">100%</td><td className="num">100%</td><td className="num">100%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 
 function Landing() {
   return (
@@ -163,22 +289,7 @@ function Landing() {
           </div>
         </section>
 
-        <section id="demo" className="scroll-mt-24 border-y bg-[#f3f5f7]">
-          <div className="mx-auto grid min-w-0 max-w-7xl grid-cols-1 items-center gap-8 px-4 py-14 sm:px-8 sm:py-18 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)] lg:gap-16">
-            <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#a36d12]">Veja antes de criar sua conta</p>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Uma amostra do orçamento dentro do LclPlan.</h2>
-              <p className="mt-4 leading-7 text-muted-foreground">
-                Explore a estrutura da planilha, o cálculo do BDI e a consolidação do total. Esta prévia é pública e não exige cadastro.
-              </p>
-              <div className="mt-6 flex items-start gap-3 rounded-lg border border-[#e7ad43]/45 bg-[#fffaf0] p-4 text-sm leading-6 text-[#5f4a25]">
-                <BadgeCheck className="mt-0.5 size-5 shrink-0 text-[#a36d12]" />
-                <p><strong>Exemplo demonstrativo.</strong> Quantidades e valores são fictícios; não representam preços oficiais de nenhuma base nem uma data-base válida para licitação.</p>
-              </div>
-            </div>
-            <BudgetPreview />
-          </div>
-        </section>
+        <DemoShowcase />
 
         <section id="planos" className="mx-auto max-w-7xl scroll-mt-24 px-4 py-14 sm:px-8 sm:py-18">
           <div className="mx-auto max-w-2xl text-center">

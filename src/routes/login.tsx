@@ -17,6 +17,12 @@ export const Route = createFileRoute("/login")({
   component: LoginPage,
 });
 
+function safeNextPath() {
+  if (typeof window === "undefined") return "/dashboard";
+  const target = new URLSearchParams(window.location.search).get("next")?.trim();
+  return target && target.startsWith("/") && !target.startsWith("//") ? target : "/dashboard";
+}
+
 function LoginPage() {
   const nav = useNavigate();
   const [email, setEmail] = useState("");
@@ -27,9 +33,10 @@ function LoginPage() {
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") setRecovering(true);
+      if (event === "SIGNED_IN") void nav({ to: safeNextPath() as any });
     });
     return () => data.subscription.unsubscribe();
-  }, []);
+  }, [nav]);
   const AUTH_TIMEOUT_MS = 15000;
 
   const withAuthTimeout = async <T,>(promise: Promise<T>): Promise<T> => {
@@ -51,7 +58,7 @@ function LoginPage() {
     try {
       const { error } = await withAuthTimeout(supabase.auth.signInWithPassword({ email, password }));
       if (error) return toast.error(error.message);
-      await nav({ to: "/dashboard" });
+      await nav({ to: safeNextPath() as any });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível entrar.");
     } finally {
@@ -62,7 +69,7 @@ function LoginPage() {
   const signUp = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true);
     try {
-      const redirect = `${window.location.origin}/login`;
+      const redirect = `${window.location.origin}/login?next=${encodeURIComponent(safeNextPath())}`;
       const { error } = await withAuthTimeout(supabase.auth.signUp({ email, password, options: { data: { nome }, emailRedirectTo: redirect } }));
       if (error) return toast.error(error.message);
       toast.success("Conta criada! Verifique seu e-mail para confirmar.");
@@ -76,9 +83,9 @@ function LoginPage() {
   const google = async () => {
     setLoading(true);
     try {
-      const r = await withAuthTimeout(lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin }));
+      const r = await withAuthTimeout(lovable.auth.signInWithOAuth("google", { redirect_uri: `${window.location.origin}/login?next=${encodeURIComponent(safeNextPath())}` }));
       if (r.error) toast.error(r.error.message || "Falha ao entrar com Google");
-      else if (!r.redirected) await nav({ to: "/dashboard" });
+      else if (!r.redirected) await nav({ to: safeNextPath() as any });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Falha ao entrar com Google.");
     } finally {
@@ -90,7 +97,7 @@ function LoginPage() {
     if (!email.trim()) return toast.error("Informe seu e-mail para recuperar a senha.");
     setLoading(true);
     try {
-      const { error } = await withAuthTimeout(supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/login` }));
+      const { error } = await withAuthTimeout(supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/login?next=${encodeURIComponent(safeNextPath())}` }));
       if (error) throw error;
       toast.success("Se houver uma conta com este e-mail, você receberá um link para redefinir a senha.");
     } catch (error) {
@@ -104,7 +111,7 @@ function LoginPage() {
       if (error) throw error;
       setRecovering(false); setPassword("");
       toast.success("Senha atualizada.");
-      await nav({ to: "/dashboard" });
+      await nav({ to: safeNextPath() as any });
     } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível atualizar a senha."); }
     finally { setLoading(false); }
   };
