@@ -312,7 +312,7 @@ function Landing() {
                   {plan.bullets.map((bullet) => <li key={bullet} className="flex items-start gap-2.5"><Check className="mt-0.5 size-4 shrink-0 text-emerald-700" /><span className="min-w-0">{bullet}</span></li>)}
                 </ul>
                 <Button variant={"featured" in plan && plan.featured ? "default" : "outline"} className="mt-6 w-full" asChild>
-                  <Link to="/login">{plan.price === 0 ? "Começar no Free" : "Criar conta ou entrar"}</Link>
+                  <a href={plan.price === 0 ? "/login" : "/login?next=%2Fplanos"}>{plan.price === 0 ? "Começar no Free" : `Assinar ${plan.name}`}</a>
                 </Button>
               </article>
             ))}
