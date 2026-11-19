@@ -13,7 +13,7 @@ import { pageMetadata } from "@/lib/route-metadata";
 import { LegalLinks } from "@/components/LegalLayout";
 
 export const Route = createFileRoute("/login")({
-  head: () => pageMetadata("Entrar", "Acesse sua conta LclPlan e os orçamentos de engenharia da sua empresa."),
+  head: () => pageMetadata("Entrar", "Acesse sua conta LclPlan e os orçamentos de engenharia da sua empresa.", "/login"),
   component: LoginPage,
 });
 

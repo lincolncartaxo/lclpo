@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Mail } from "lucide-react";
 import { pageMetadata } from "@/lib/route-metadata";
 
-export const Route = createFileRoute("/suporte")({ head: () => pageMetadata("Suporte e Cancelamento", "Contato de suporte do LclPlan para acesso, cobrança, cancelamento e direitos de privacidade."), component: Support });
+export const Route = createFileRoute("/suporte")({ head: () => pageMetadata("Suporte e Cancelamento", "Contato de suporte do LclPlan para acesso, cobrança, cancelamento e direitos de privacidade.", "/suporte"), component: Support });
 function Support() {
   return <LegalLayout title="Suporte e cancelamento">
     <section className="space-y-4"><h2 className="text-xl font-semibold">Fale com o responsável</h2><p>Informe o e-mail da conta, nome da empresa e o problema encontrado. Nunca envie senhas, dados completos de cartão ou chaves de acesso.</p><Button asChild><a href="mailto:lincolncartaxo@hotmail.com?subject=Suporte%20LclPlan"><Mail className="size-4" />lincolncartaxo@hotmail.com</a></Button><p className="text-sm text-muted-foreground">O atendimento não tem prazo garantido nesta fase de piloto.</p></section>

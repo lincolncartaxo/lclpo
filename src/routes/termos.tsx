@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { LegalLayout } from "@/components/LegalLayout";
 import { pageMetadata } from "@/lib/route-metadata";
 
-export const Route = createFileRoute("/termos")({ head: () => pageMetadata("Termos de Uso", "Condições de utilização do LclPlan, responsabilidade técnica, assinaturas e cancelamento."), component: Terms });
+export const Route = createFileRoute("/termos")({ head: () => pageMetadata("Termos de Uso", "Condições de utilização do LclPlan, responsabilidade técnica, assinaturas e cancelamento.", "/termos"), component: Terms });
 
 function Terms() {
   return <LegalLayout title="Termos de uso">

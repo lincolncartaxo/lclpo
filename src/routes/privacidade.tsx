@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { LegalLayout } from "@/components/LegalLayout";
 import { pageMetadata } from "@/lib/route-metadata";
 
-export const Route = createFileRoute("/privacidade")({ head: () => pageMetadata("Política de Privacidade", "Dados tratados pelo LclPlan, segurança, direitos de privacidade e contato para solicitações."), component: Privacy });
+export const Route = createFileRoute("/privacidade")({ head: () => pageMetadata("Política de Privacidade", "Dados tratados pelo LclPlan, segurança, direitos de privacidade e contato para solicitações.", "/privacidade"), component: Privacy });
 
 function Privacy() {
   return <LegalLayout title="Política de Privacidade">
