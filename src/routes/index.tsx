@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import {
   ArrowRight,
@@ -168,28 +168,70 @@ function DemoShowcase() {
 }
 
 function PlanilhaDemo() {
+  const rows = [
+    ["1.1", "SINAPI", "105009", "LOCAÇÃO CONVENCIONAL DE OBRA, UTILIZANDO GABARITO DE TÁBUAS CORRIDAS PONTALETADAS A CADA 1,50M - 2 UTILIZAÇÕES. AF_03/2024", "M", "499,84", "82,40", "0,00%", "82,40", "41.187,87"],
+    ["2.1", "SINAPI", "101254", "ESCAVAÇÃO VERTICAL PARA EDIFICAÇÃO, COM CARGA, DESCARGA E TRANSPORTE DE SOLO DE 1ª CATEGORIA, COM ESCAVADEIRA HIDRÁULICA (CAÇAMBA: 0,8 M³ / 111HP), FROTA DE 3 CAMINHÕES BASCULANTES DE 10 M³, DMT ATÉ 1 KM E VELOCIDADE MÉDIA 14 KM/H. AF_05/2020", "M3", "1.649,472", "13,96", "0,00%", "13,96", "23.029,93"],
+    ["3.1", "SINAPI", "96616", "LASTRO DE CONCRETO MAGRO, APLICADO EM BLOCOS DE COROAMENTO OU SAPATAS. AF_01/2024", "M3", "109,9648", "884,44", "0,00%", "884,44", "97.257,18"],
+    ["4.1", "PRÓPRIA", "LCL-002", "MURO DE ARRIMO DE PEDRA ARGAMASSADA (ADAPTADO DE SINAPI 73844/001)", "M3", "1.626,979", "694,58", "0,00%", "694,58", "1.130.066,72"],
+    ["5.1", "PRÓPRIA", "LCL-001", "CAMADA DRENANTE COM BRITA NUM 3 (ADAPTADO DE SINAPI 73902/001)", "m3", "179,9424", "163,49", "0,00%", "163,49", "29.419,16"],
+    ["5.2", "SINAPI", "102705", "TUBO DE PVC CORRUGADO RÍGIDO PERFURADO, DN 100 MM, PARA DRENO - FORNECIMENTO E ASSENTAMENTO. AF_07/2021", "M", "795", "62,13", "0,00%", "62,13", "49.391,44"],
+    ["5.3", "PRÓPRIA", "LCL-003", "EXECUÇÃO DE DRENO COM MANTA GEOTÊXTIL 200 G/M2 (ADAPTADO DE SINAPI 73881/001)", "M2", "54", "9,64", "0,00%", "9,64", "520,40"],
+  ] as const;
+  const groups = ["1 - SERVIÇOS PRELIMINARES", "2 - MOVIMENTAÇÃO DE TERRA", "3 - FUNDAÇÃO", "4 - MURO DE ARRIMO", "5 - DRENAGEM"];
   return (
-    <div className="overflow-x-auto p-4">
-      <table className="budget-table min-w-[620px] text-xs">
-        <thead><tr><th>Item</th><th>Descrição</th><th className="num">Un.</th><th className="num">Qtd.</th><th className="num">Preço</th><th className="num">Total</th></tr></thead>
+    <div className="overflow-hidden p-3 sm:p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2.5">
+        <div><div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Planilha orçamentária</div><div className="mt-1 text-sm font-semibold">Muro de Arrimo · 7 itens</div></div>
+        <div className="text-right"><div className="text-[10px] text-muted-foreground">Modelo de orçamento</div><div className="font-mono text-xs font-semibold">db60e034</div></div>
+      </div>
+      <div className="max-h-[31rem] overflow-auto rounded-lg border">
+      <table className="min-w-[1120px] border-collapse text-[10px] leading-tight">
+        <thead className="sticky top-0 z-10 bg-sidebar text-sidebar-foreground"><tr><th className="px-2 py-2 text-left">ITEM</th><th className="px-2 py-2 text-left">FONTE</th><th className="px-2 py-2 text-left">CÓDIGO</th><th className="min-w-80 px-2 py-2 text-left">DESCRIÇÃO</th><th className="px-2 py-2 text-center">UN.</th><th className="px-2 py-2 text-right">QUANT.</th><th className="px-2 py-2 text-right">PREÇO UNIT.</th><th className="px-2 py-2 text-right">BDI</th><th className="px-2 py-2 text-right">PREÇO UNIT. c/ BDI</th><th className="px-2 py-2 text-right">TOTAL</th></tr></thead>
         <tbody>
-          <tr><td>1</td><td className="font-medium">SERVIÇOS PRELIMINARES</td><td className="num">vb</td><td className="num">1,00</td><td className="num">8.275,15</td><td className="num">8.275,15</td></tr>
-          <tr><td>2</td><td className="font-medium">PINTURA</td><td className="num">m²</td><td className="num">420,00</td><td className="num">105,10</td><td className="num">44.142,00</td></tr>
-          <tr><td>3</td><td className="font-medium">DIVERSOS</td><td className="num">vb</td><td className="num">1,00</td><td className="num">3.551,19</td><td className="num">3.551,19</td></tr>
-          <tr className="font-semibold"><td colSpan={5}>TOTAL DIRETO</td><td className="num">55.968,34</td></tr>
+          {groups.map((group, groupIndex) => <Fragment key={group}><tr className="bg-secondary/70"><td colSpan={10} className="px-2 py-2 font-semibold">{group}</td></tr>{(groupIndex === 4 ? rows.slice(4) : [rows[groupIndex]]).map((row) => <tr key={row[0]} className="border-t bg-card"><td className="px-2 py-2 font-semibold">{row[0]}</td>{row.slice(1).map((value, index) => <td key={`${row[0]}-${index}`} className={`px-2 py-2 ${index >= 4 ? "text-right" : index === 3 ? "text-center" : "text-left"} ${index === 7 ? "font-semibold text-primary" : ""}`}>{value}</td>)}</tr>)}</Fragment>)}
+          <tr className="border-t bg-secondary/70 font-semibold"><td colSpan={9} className="px-2 py-2 text-right">TOTAL c/ BDI</td><td className="px-2 py-2 text-right text-primary">R$ 1.370.872,70</td></tr>
         </tbody>
       </table>
+      </div>
+      <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Prévia baseada na estrutura do orçamento db60e034. Fontes, códigos, quantidades e totais acompanham o modelo informado.</p>
     </div>
   );
 }
 
 function MemoriaDemo() {
+  const rows = [
+    { etapa: "1 - SERVIÇOS PRELIMINARES", item: "1.1", servico: "LOCAÇÃO CONVENCIONAL DE OBRA, UTILIZANDO GABARITO DE TÁBUAS CORRIDAS PONTALETADAS A CADA 1,50M - 2 UTILIZAÇÕES. AF_03/2024", unidade: "M", total: "499,84", formulas: [["TRECHO 01", "72,62"], ["TRECHO 02", "116"], ["TRECHO 03", "76"], ["TRECHO 04", "48,52"], ["TRECHO 05", "98,7"], ["TRECHO 06", "88"]] },
+    { etapa: "2 - MOVIMENTAÇÃO DE TERRA", item: "2.1", servico: "ESCAVAÇÃO VERTICAL PARA EDIFICAÇÃO, COM CARGA, DESCARGA E TRANSPORTE DE SOLO DE 1ª CATEGORIA, COM ESCAVADEIRA HIDRÁULICA (CAÇAMBA: 0,8 M³ / 111 HP), FROTA DE 3 CAMINHÕES BASCULANTES DE 10 M³, DMT ATÉ 1 KM E VELOCIDADE MÉDIA 14 KM/H. AF_05/2020", unidade: "M3", total: "1.649,472", formulas: [["COMPRIMENTO X ALTURA X LARGURA", "1.649,472"]] },
+    { etapa: "3 - FUNDAÇÃO", item: "3.1", servico: "LASTRO DE CONCRETO MAGRO, APLICADO EM BLOCOS DE COROAMENTO OU SAPATAS. AF_01/2024", unidade: "M3", total: "109,9648", formulas: [["COMPRIMENTO X ALTURA X LARGURA", "109,9648"]] },
+    { etapa: "4 - MURO DE ARRIMO", item: "4.1", servico: "MURO DE ARRIMO DE PEDRA ARGAMASSADA (ADAPTADO DE SINAPI 73844/001)", unidade: "M3", total: "1.626,9792", formulas: [["SEÇÃO DA BASE (COMPRIMENTO X ALTURA X LARGURA)", "659,7888"], ["SEÇÃO TRIANGULAR (COMPRIMENTO X ÁREA_TRAPÉZIO)", "967,1904"]] },
+    { etapa: "5 - DRENAGEM", item: "5.1", servico: "CAMADA DRENANTE COM BRITA NUM 3 (ADAPTADO DE SINAPI 73902/001)", unidade: "M3", total: "179,9424", formulas: [["COMPRIMENTO X ALTURA X LARGURA", "179,9424"]] },
+    { etapa: "5 - DRENAGEM", item: "5.2", servico: "TUBO DE PVC CORRUGADO RÍGIDO PERFURADO, DN 100 MM, PARA DRENO - FORNECIMENTO E ASSENTAMENTO. AF_07/2021", unidade: "M", total: "795", formulas: [["COMPRIMENTO DO TUBO NA PARTE SUPERIOR DA SEÇÃO", "300"], ["COMPRIMENTO DO TUBO NA PARTE INFERIOR DA SEÇÃO", "495"]] },
+    { etapa: "5 - DRENAGEM", item: "5.3", servico: "EXECUÇÃO DE DRENO COM MANTA GEOTÊXTIL 200 G/M2 (ADAPTADO DE SINAPI 73881/001)", unidade: "M2", total: "54", formulas: [["COMPRIMENTO DO TUBO NA PARTE SUPERIOR DA SEÇÃO", "27"], ["COMPRIMENTO DO TUBO NA PARTE INFERIOR DA SEÇÃO", "27"]] },
+  ];
   return (
-    <div className="grid gap-4 p-5 sm:grid-cols-2">
-      <div className="rounded-lg border bg-card p-4 sm:col-span-2"><div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Composição demonstrativa</div><div className="mt-2 flex items-end justify-between gap-4"><div><div className="font-semibold">Pintura acrílica em parede</div><div className="text-xs text-muted-foreground">SINAPI · PB · 2026-05 · não desonerado</div></div><div className="text-xl font-bold">R$ 105,10</div></div></div>
-      {["Insumos e mão de obra", "BDI", "Encargos sociais", "Preço de venda"].map((label, index) => (
-        <div key={label} className="rounded-lg border p-4"><div className="text-xs text-muted-foreground">{label}</div><div className="mt-2 flex items-center justify-between"><span className="text-sm">{index < 2 ? (index === 0 ? "Composição analítica" : "22,00%") : (index === 2 ? "88,68%" : "Referência calculada")}</span>{index < 3 && <CheckCircle2 className="size-4 text-success" />}</div></div>
-      ))}
+    <div className="overflow-hidden p-3 sm:p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2.5">
+        <div><div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Memória de cálculo</div><div className="mt-1 text-sm font-semibold">Muro de Arrimo · Caraúbas - PB</div></div>
+        <div className="text-right"><div className="text-[10px] text-muted-foreground">Modelo de orçamento</div><div className="font-mono text-xs font-semibold">db60e034</div></div>
+      </div>
+      <div className="max-h-[31rem] overflow-auto rounded-lg border">
+        <table className="min-w-[1040px] border-collapse text-[10px] leading-tight">
+          <thead className="sticky top-0 z-10 bg-sidebar text-sidebar-foreground">
+            <tr><th rowSpan={2} className="w-16 px-2 py-2 text-left">ITEM</th><th rowSpan={2} className="w-56 px-2 py-2 text-left">SERVIÇO</th><th rowSpan={2} className="w-72 px-2 py-2 text-left">DESCRIÇÃO</th><th rowSpan={2} className="px-2 py-2 text-center">VEZ</th><th colSpan={6} className="px-2 py-1.5 text-center">DADOS</th><th colSpan={3} className="px-2 py-1.5 text-center">RESULTADO</th><th rowSpan={2} className="px-2 py-2 text-center">UNID.</th></tr>
+            <tr>{["X1", "X2", "Y1", "Y2", "Z1", "Z2", "PARCIAL", "TOTAL", "GERAL"].map((label) => <th key={label} className="min-w-12 border-t border-sidebar-border px-2 py-1.5 text-center">{label}</th>)}</tr>
+          </thead>
+          <tbody>
+            {rows.map((row, rowIndex) => (
+              <Fragment key={`${row.item}-${rowIndex}`}>
+                {(rowIndex === 0 || row.etapa !== rows[rowIndex - 1].etapa) && <tr className="bg-secondary/70"><td colSpan={14} className="px-2 py-2 font-semibold text-foreground">{row.etapa}</td></tr>}
+                <tr className="border-t bg-card align-top"><td className="px-2 py-2 font-semibold">{row.item}</td><td colSpan={2} className="max-w-0 px-2 py-2 font-medium">{row.servico}</td><td className="px-2 py-2 text-center">1</td><td colSpan={6} className="px-2 py-2 text-center text-muted-foreground">—</td><td colSpan={2} className="px-2 py-2 text-right font-semibold text-primary">{row.total}</td><td className="px-2 py-2 text-center">{row.unidade}</td></tr>
+                {row.formulas.map(([description, value]) => <tr key={`${row.item}-${description}`} className="border-t bg-background"><td></td><td colSpan={2} className="px-2 py-1.5 pl-8 text-muted-foreground">{description}</td><td className="px-2 py-1.5 text-center">1</td><td className="px-2 py-1.5 text-center">{value}</td><td colSpan={5} className="px-2 py-1.5 text-center text-muted-foreground">0</td><td className="px-2 py-1.5 text-right">{value}</td><td className="px-2 py-1.5 text-right font-medium text-primary">{value}</td><td className="px-2 py-1.5 text-center">{row.unidade}</td></tr>)}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Prévia baseada na estrutura do orçamento db60e034. Os dados exibidos são uma amostra visual da memória analítica.</p>
     </div>
   );
 }
@@ -197,15 +239,19 @@ function MemoriaDemo() {
 function CronogramaDemo() {
   return (
     <div className="overflow-x-auto p-4">
-      <table className="budget-table min-w-[620px] text-xs">
-        <thead><tr><th>Etapa</th><th className="num">Total</th><th className="num">M1</th><th className="num">M2</th><th className="num">M3</th><th className="num">Peso</th></tr></thead>
+      <div className="mb-3 flex items-center justify-between rounded-lg border bg-card px-3 py-2.5"><div><div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Cronograma F/F</div><div className="mt-1 text-sm font-semibold">Muro de Arrimo · 3 meses</div></div><div className="text-right"><div className="text-[10px] text-muted-foreground">Modelo</div><div className="font-mono text-xs font-semibold">db60e034</div></div></div>
+      <table className="budget-table min-w-[700px] text-xs">
+        <thead><tr><th>Etapa</th><th className="num">M1</th><th className="num">M2</th><th className="num">M3</th><th className="num">Σ</th></tr></thead>
         <tbody>
-          <tr><td>Serviços preliminares</td><td className="num">8.275,15</td><td className="num">100%</td><td className="num">—</td><td className="num">—</td><td className="num">14,79%</td></tr>
-          <tr><td>Pintura</td><td className="num">44.142,00</td><td className="num">50%</td><td className="num">50%</td><td className="num">—</td><td className="num">78,87%</td></tr>
-          <tr><td>Diversos</td><td className="num">3.551,19</td><td className="num">—</td><td className="num">100%</td><td className="num">—</td><td className="num">6,35%</td></tr>
-          <tr className="font-semibold"><td>TOTAL ACUMULADO</td><td className="num">55.968,34</td><td className="num">57,04%</td><td className="num">100%</td><td className="num">100%</td><td className="num">100%</td></tr>
+          <tr><td>1 - SERVIÇOS PRELIMINARES</td><td className="num">100%</td><td className="num">0%</td><td className="num">0%</td><td className="num text-emerald-700">100,00%</td></tr>
+          <tr><td>2 - MOVIMENTAÇÃO DE TERRA</td><td className="num">100%</td><td className="num">—</td><td className="num">—</td><td className="num text-emerald-700">100,00%</td></tr>
+          <tr><td>3 - FUNDAÇÃO</td><td className="num">50%</td><td className="num">50%</td><td className="num">—</td><td className="num text-emerald-700">100,00%</td></tr>
+          <tr><td>4 - MURO DE ARRIMO</td><td className="num">20%</td><td className="num">40%</td><td className="num">40%</td><td className="num text-emerald-700">100,00%</td></tr>
+          <tr><td>5 - DRENAGEM</td><td className="num">0%</td><td className="num">—</td><td className="num">100%</td><td className="num text-emerald-700">100,00%</td></tr>
+          <tr className="font-semibold"><td>Valor / mês</td><td className="num">R$ 338.859,73</td><td className="num">R$ 500.655,28</td><td className="num">R$ 531.357,70</td><td className="num">R$ 1.370.872,70</td></tr>
         </tbody>
       </table>
+      <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Distribuição mensal conforme o modelo de orçamento db60e034.</p>
     </div>
   );
 }
