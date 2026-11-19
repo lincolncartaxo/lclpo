@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      _backup_20261118_precos_composicoes_sinapi_pb_202606: {
+        Row: {
+          codigo_composicao: string | null
+          custo_desonerado: number | null
+          custo_nao_desonerado: number | null
+          fonte: string | null
+          mes_ref: string | null
+          uf: string | null
+        }
+        Insert: {
+          codigo_composicao?: string | null
+          custo_desonerado?: number | null
+          custo_nao_desonerado?: number | null
+          fonte?: string | null
+          mes_ref?: string | null
+          uf?: string | null
+        }
+        Update: {
+          codigo_composicao?: string | null
+          custo_desonerado?: number | null
+          custo_nao_desonerado?: number | null
+          fonte?: string | null
+          mes_ref?: string | null
+          uf?: string | null
+        }
+        Relationships: []
+      }
+      _backup_20261118_precos_insumos_sinapi_pb_202606: {
+        Row: {
+          codigo_insumo: string | null
+          fonte: string | null
+          mes_ref: string | null
+          preco_desonerado: number | null
+          preco_nao_desonerado: number | null
+          uf: string | null
+        }
+        Insert: {
+          codigo_insumo?: string | null
+          fonte?: string | null
+          mes_ref?: string | null
+          preco_desonerado?: number | null
+          preco_nao_desonerado?: number | null
+          uf?: string | null
+        }
+        Update: {
+          codigo_insumo?: string | null
+          fonte?: string | null
+          mes_ref?: string | null
+          preco_desonerado?: number | null
+          preco_nao_desonerado?: number | null
+          uf?: string | null
+        }
+        Relationships: []
+      }
       audit_events: {
         Row: {
           actor_user_id: string | null
