@@ -2,7 +2,7 @@
 
 ## Solicitação atual: tratar todas as pendências
 - [x] Corrigir oito grupos de dependências vulneráveis e repetir 30 testes locais; picomatch sem correção publicada continua bloqueio externo.
-- [ ] Verificar configuração e entrega automática Stripe; exercitar falha e cancelamento em modo teste.
+- [ ] Verificar configuração e entrega automática Stripe; exercitar falha e cancelamento em modo teste. Erro real informado: HTTP 401 Invalid signature. Destino de teste e sete eventos conferidos via Stripe; 18 testes de cobrança/assinatura passaram. STRIPE_WEBHOOK_SECRET substituído pelo usuário no formulário seguro; aguarda reenvio pelo Stripe e resposta HTTP 200 (não comprovado por assinatura gerada localmente).
 - [x] Criar e validar páginas de termos, privacidade e suporte com identificação e contato confirmados; publicação pendente.
 - [x] Preparar endpoint de saúde e procedimento oficial de backup/restauração sem afetar produção.
 - [x] Revisar pendências funcionais antigas e registrar o estado real no relatório.
