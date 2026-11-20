@@ -248,7 +248,8 @@ function CronogramaDemo() {
           <tr><td>3 - FUNDAÇÃO</td><td className="num">50%</td><td className="num">50%</td><td className="num">—</td><td className="num text-emerald-700">100,00%</td></tr>
           <tr><td>4 - MURO DE ARRIMO</td><td className="num">20%</td><td className="num">40%</td><td className="num">40%</td><td className="num text-emerald-700">100,00%</td></tr>
           <tr><td>5 - DRENAGEM</td><td className="num">0%</td><td className="num">—</td><td className="num">100%</td><td className="num text-emerald-700">100,00%</td></tr>
-          <tr className="font-semibold"><td>Valor / mês</td><td className="num">R$ 338.859,73</td><td className="num">R$ 500.655,28</td><td className="num">R$ 531.357,70</td><td className="num">R$ 1.370.872,70</td></tr>
+          <tr className="bg-[#dce6f1] font-semibold text-[#213f68]"><td>TOTAL PERÍODO</td><td className="num">R$ 338.859,73</td><td className="num">R$ 500.655,28</td><td className="num">R$ 531.357,70</td><td className="num">R$ 1.370.872,70</td></tr>
+          <tr className="bg-[#dce6f1] font-semibold text-[#213f68]"><td>TOTAL ACUMULADO</td><td className="num">R$ 338.859,73</td><td className="num">R$ 839.515,01</td><td className="num">R$ 1.370.872,70</td><td className="num">R$ 1.370.872,70</td></tr>
         </tbody>
       </table>
       <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Distribuição mensal conforme o modelo de orçamento db60e034.</p>
