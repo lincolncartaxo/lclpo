@@ -1265,6 +1265,12 @@ function CronogramaTab({ orcId, items, totalComBdi, orc, onSaved }: { orcId: str
     return etapasDaSubarvore(e).reduce((sum, stage) => sum + (grid[stage]?.[mes] || 0) * (totaisPorEtapa[stage] || 0) * fator, 0) / tot;
   };
   const valorMes = (mes: number) => etapas.reduce((sum, e) => sum + (grid[e]?.[mes] || 0) * (totaisPorEtapa[e] || 0) * fator, 0);
+  const valoresMensais = Array.from({ length: meses }, (_, i) => valorMes(i + 1));
+  const totalPeriodo = valoresMensais.reduce((sum, value) => sum + value, 0);
+  const valoresAcumulados = valoresMensais.reduce<number[]>((acc, value, index) => {
+    acc.push((acc[index - 1] ?? 0) + value);
+    return acc;
+  }, []);
 
 
   return (
@@ -1316,8 +1322,18 @@ function CronogramaTab({ orcId, items, totalComBdi, orc, onSaved }: { orcId: str
             })}
             <tr className="bg-secondary/50 font-semibold">
               <td>Valor / mês</td>
-              {Array.from({length:meses},(_,i)=>i+1).map(m=>(<td key={m} className="num">{fmtBRL(valorMes(m))}</td>))}
-              <td className="num">{fmtBRL(Array.from({length:meses},(_,i)=>i+1).reduce((s,m)=>s+valorMes(m),0))}</td>
+              {valoresMensais.map((value, index) => <td key={index + 1} className="num">{fmtBRL(value)}</td>)}
+              <td className="num">{fmtBRL(totalPeriodo)}</td>
+            </tr>
+            <tr className="bg-[#dce6f1] font-semibold text-[#213f68]">
+              <td>TOTAL PERÍODO</td>
+              {valoresMensais.map((value, index) => <td key={index + 1} className="num">{fmtBRL(value)}</td>)}
+              <td className="num">{fmtBRL(totalPeriodo)}</td>
+            </tr>
+            <tr className="bg-[#dce6f1] font-semibold text-[#213f68]">
+              <td>TOTAL ACUMULADO</td>
+              {valoresAcumulados.map((value, index) => <td key={index + 1} className="num">{fmtBRL(value)}</td>)}
+              <td className="num">{fmtBRL(totalPeriodo)}</td>
             </tr>
             {etapas.length===0 && <tr><td colSpan={meses+2} className="text-center text-muted-foreground py-6">Adicione itens com etapa na Planilha Orçamentária.</td></tr>}
           </tbody>
