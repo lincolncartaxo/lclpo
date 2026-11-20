@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet, redirect, Link, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Building2, LayoutDashboard, FileSpreadsheet, LogOut, Database, Shield, CreditCard, LifeBuoy } from "lucide-react";
+import { Building2, LayoutDashboard, FileSpreadsheet, LogOut, Database, Shield, CreditCard, LifeBuoy, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Brand } from "@/components/Brand";
@@ -20,13 +20,35 @@ export const Route = createFileRoute("/_authenticated")({
 function AuthLayout() {
   const { user } = useAuth();
   const nav = useNavigate();
+  const [sidebarHidden, setSidebarHidden] = useState(false);
   const signOut = async () => { await supabase.auth.signOut(); nav({ to: "/login" }); };
+  const toggleSidebar = () => {
+    setSidebarHidden((hidden) => {
+      const nextHidden = !hidden;
+      window.localStorage.setItem("lclplan-sidebar-hidden", String(nextHidden));
+      return nextHidden;
+    });
+  };
+
+  useEffect(() => {
+    setSidebarHidden(window.localStorage.getItem("lclplan-sidebar-hidden") === "true");
+  }, []);
 
   return (
-    <div className="min-h-screen grid grid-cols-[240px_1fr] bg-background">
-      <aside className="bg-sidebar text-sidebar-foreground flex flex-col">
+    <div className={sidebarHidden ? "min-h-screen bg-background" : "min-h-screen grid grid-cols-[240px_1fr] bg-background"}>
+      {!sidebarHidden && <aside className="bg-sidebar text-sidebar-foreground flex flex-col">
         <div className="px-5 py-5 flex items-center gap-2 border-b border-sidebar-border">
           <Brand tone="dark" />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="ml-auto text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            onClick={toggleSidebar}
+            aria-label="Ocultar menu lateral"
+            title="Ocultar menu lateral"
+          >
+            <PanelLeftClose />
+          </Button>
         </div>
         <nav className="flex-1 px-3 py-4 space-y-1 text-sm">
           <NavItem to="/dashboard" icon={LayoutDashboard}>Orçamentos</NavItem>
@@ -42,8 +64,18 @@ function AuthLayout() {
             <LogOut className="mr-2 size-4" /> Sair
           </Button>
         </div>
-      </aside>
-      <main className="overflow-x-auto">
+      </aside>}
+      <main className="relative overflow-x-auto">
+        {sidebarHidden && <Button
+          variant="outline"
+          size="icon"
+          className="fixed left-4 top-4 z-30 bg-background shadow-sm"
+          onClick={toggleSidebar}
+          aria-label="Mostrar menu lateral"
+          title="Mostrar menu lateral"
+        >
+          <PanelLeftOpen />
+        </Button>}
         <Outlet />
       </main>
     </div>
