@@ -1321,16 +1321,11 @@ function CronogramaTab({ orcId, items, totalComBdi, orc, onSaved }: { orcId: str
               );
             })}
             <tr className="bg-secondary/50 font-semibold">
-              <td>Valor / mês</td>
-              {valoresMensais.map((value, index) => <td key={index + 1} className="num">{fmtBRL(value)}</td>)}
-              <td className="num">{fmtBRL(totalPeriodo)}</td>
-            </tr>
-            <tr className="bg-[#dce6f1] font-semibold text-[#213f68]">
               <td>TOTAL PERÍODO</td>
               {valoresMensais.map((value, index) => <td key={index + 1} className="num">{fmtBRL(value)}</td>)}
               <td className="num">{fmtBRL(totalPeriodo)}</td>
             </tr>
-            <tr className="bg-[#dce6f1] font-semibold text-[#213f68]">
+            <tr className="bg-secondary/50 font-semibold">
               <td>TOTAL ACUMULADO</td>
               {valoresAcumulados.map((value, index) => <td key={index + 1} className="num">{fmtBRL(value)}</td>)}
               <td className="num">{fmtBRL(totalPeriodo)}</td>
