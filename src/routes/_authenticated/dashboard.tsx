@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { pageMetadata } from "@/lib/route-metadata";
+import { PlanUsage, friendlyLimitError } from "@/components/PlanUsage";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => pageMetadata("Meus Orçamentos", "Gerencie os orçamentos de obras, bases de referência e documentos da sua empresa no LclPlan."),
@@ -36,8 +37,8 @@ const STATUS_OPTIONS = [
   { value: "concluido", label: "Concluído" },
   { value: "cancelado", label: "Cancelado" },
 ];
-const DEFAULT_ENGENHEIRO = "LINCOLN CARTAXO DE LIRA JÚNIOR";
-const DEFAULT_CREA = "160814689-8";
+const DEFAULT_ENGENHEIRO = "";
+const DEFAULT_CREA = "";
 const fmtBase = (b: Base) => {
   const [y, m] = String(b.mes_ref).split("-");
   return `${b.fonte} · ${m && y ? `${m}/${y}` : b.mes_ref}`;
@@ -54,6 +55,7 @@ function Dashboard() {
   const [statusSaving, setStatusSaving] = useState<string | null>(null);
   const [form, setForm] = useState({ nome: "", objeto: "", municipio: "", uf: "", ref_precos: "", orgao: "", regime: "nao_desonerado", engenheiro: DEFAULT_ENGENHEIRO, crea: DEFAULT_CREA });
   const [search, setSearch] = useState("");
+  const [usageKey, setUsageKey] = useState(0);
 
   const load = async () => {
     let { data, error } = await (supabase as any)
@@ -72,6 +74,7 @@ function Dashboard() {
     }
     if (error) return toast.error(error.message);
     setOrcs((data ?? []) as Orc[]);
+    setUsageKey((k) => k + 1);
   };
 
   useEffect(() => { void load(); }, []);
@@ -106,7 +109,7 @@ function Dashboard() {
       ({ data, error } = await (supabase as any).from("orcamentos").insert(fallback).select().single());
     }
     setLoading(false);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyLimitError(error.message));
     setOpen(false);
     nav({ to: "/orcamento/$id", params: { id: data.id } });
   };
@@ -131,7 +134,7 @@ function Dashboard() {
     setLoading(true);
     const { data, error } = await (supabase as any).rpc("duplicar_orcamento", { p_orcamento_id: id, p_nome: nome.trim() });
     setLoading(false);
-    if (error) return toast.error("Erro ao duplicar: " + error.message);
+    if (error) return toast.error(friendlyLimitError("Erro ao duplicar: " + error.message));
     toast.success("Orçamento duplicado como modelo");
     void load();
     if (data) nav({ to: "/orcamento/$id", params: { id: data } });
@@ -197,10 +200,33 @@ function Dashboard() {
         </Dialog>
       </div>
 
+      <PlanUsage refreshKey={usageKey} />
+
       {orcs.length === 0 ? (
-        <div className="border border-dashed rounded-lg p-12 text-center">
-          <FileSpreadsheet className="size-10 mx-auto text-muted-foreground" />
-          <p className="mt-3 text-muted-foreground">Você ainda não tem orçamentos. Crie o primeiro.</p>
+        <div className="rounded-lg border border-dashed p-8">
+          <div className="text-center">
+            <FileSpreadsheet className="size-10 mx-auto text-muted-foreground" />
+            <h2 className="mt-3 text-lg font-semibold">Comece seu primeiro orçamento</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Em poucos minutos você terá uma planilha pronta para revisar e exportar.</p>
+          </div>
+          <ol className="mx-auto mt-6 grid max-w-3xl gap-3 text-sm md:grid-cols-3">
+            {[
+              ["1", "Crie o orçamento", "Informe nome, UF, data base e regime tributário."],
+              ["2", "Adicione etapas e itens", "Busque composições SINAPI ou importe sua planilha Excel."],
+              ["3", "Revise e exporte", "Ajuste BDI e cronograma e gere PDF, XLSX ou envie ao Transferegov."],
+            ].map(([n, t, d]) => (
+              <li key={n} className="rounded-md border bg-card p-4">
+                <span className="flex size-6 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">{n}</span>
+                <p className="mt-2 font-medium">{t}</p>
+                <p className="text-muted-foreground">{d}</p>
+              </li>
+            ))}
+          </ol>
+          <div className="mt-6 text-center">
+            <Button onClick={() => { setForm((f) => ({ ...f, uf: f.uf || "PB", nome: f.nome || "Meu primeiro orçamento" })); setOpen(true); }}>
+              <Plus className="mr-2 size-4" />Criar meu primeiro orçamento
+            </Button>
+          </div>
         </div>
       ) : (
         <>

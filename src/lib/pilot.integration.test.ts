@@ -95,9 +95,10 @@ describe.runIf(process.env.RUN_DB_TESTS === "true")("commercial pilot database i
   it("an owner cannot manage another company's billing", async () => expect(requireData(await alice.rpc("can_manage_organization_billing", { p_organization_id: orgB }))).toBe(false));
   it("ordinary members cannot manage billing", async () => expect(requireData(await bob.rpc("can_manage_organization_billing", { p_organization_id: orgB }))).toBe(false));
   it("authenticated members cannot bind arbitrary Stripe customers", async () => expect((await alice.rpc("bind_stripe_customer", { p_organization_id: orgA, p_customer_id: customer })).error).not.toBeNull());
-  it("Free permits exactly two budgets and blocks a third", async () => {
+  it("Free permits exactly three budgets and blocks a fourth", async () => {
     requireData(await bob.from("orcamentos").insert({ nome: "Second free fixture", user_id: users[1], organization_id: orgB }));
-    expect((await bob.from("orcamentos").insert({ nome: "Third free fixture", user_id: users[1], organization_id: orgB })).error).not.toBeNull();
+    requireData(await bob.from("orcamentos").insert({ nome: "Third free fixture", user_id: users[1], organization_id: orgB }));
+    expect((await bob.from("orcamentos").insert({ nome: "Fourth free fixture", user_id: users[1], organization_id: orgB })).error).not.toBeNull();
   });
   it("existing budgets remain editable at the Free limit", async () => expect(requireData(await bob.from("orcamentos").update({ nome: "Edited at quota" }).eq("id", budgetB).select("id"))).toHaveLength(1));
   it("measurements accumulate without exceeding the contracted quantity", async () => {
