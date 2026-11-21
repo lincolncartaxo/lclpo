@@ -1,3 +1,4 @@
+import { ShareDialog } from "@/components/ShareDialog";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -226,6 +227,7 @@ function Editor() {
     if (typeof window !== "undefined") window.localStorage.setItem(tabKey, v);
   };
 
+  const [shareOpen, setShareOpen] = useState(false);
   const load = useCallback(async () => {
     setLoading(true);
     const { data: o } = await supabase.from("orcamentos").select("*").eq("id", id).single();
@@ -253,6 +255,8 @@ function Editor() {
             <h1 className="font-semibold">{orc.nome}</h1>
             <p className="text-xs text-muted-foreground">{orc.municipio || "—"} · {orc.orgao || "—"}</p>
           </div>
+          <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>Compartilhar</Button>
+          <ShareDialog target={shareOpen ? { kind: "orcamento", id, label: orc.nome } : null} onClose={() => setShareOpen(false)} />
           <div className="text-right">
             <div className="text-xs text-muted-foreground">Total c/ BDI</div>
             <div className="text-lg font-semibold">{fmtBRL(totalComBdi)}</div>

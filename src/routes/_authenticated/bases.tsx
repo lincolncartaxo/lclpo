@@ -9,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { fmtBRL } from "@/lib/format";
-import { Search, ChevronLeft, ChevronRight, Layers, Plus, Trash2, Copy, Pencil } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Layers, Plus, Trash2, Copy, Pencil, Share2 } from "lucide-react";
 import { toast } from "sonner";
+import { ShareDialog } from "@/components/ShareDialog";
 import { pageMetadata } from "@/lib/route-metadata";
 
 export const Route = createFileRoute("/_authenticated/bases")({
@@ -341,6 +342,7 @@ function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: st
                   {r.fonte === PROPRIA && (
                     <div className="flex justify-end gap-2">
                       <button onClick={()=>duplicate(r)} className="text-primary hover:opacity-70" title="Duplicar como modelo"><Copy className="size-4"/></button>
+                      <button onClick={()=>setShareRow(r)} className="text-primary hover:opacity-70" title="Compartilhar com outra empresa"><Share2 className="size-4"/></button>
                       <button onClick={()=>setEditRow(r)} className="text-primary hover:opacity-70" title="Editar composição"><Pencil className="size-4"/></button>
                       <button onClick={()=>setConfirmDel(r)} className="text-destructive hover:opacity-70" title="Excluir"><Trash2 className="size-4"/></button>
                     </div>
@@ -356,6 +358,7 @@ function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: st
 
       <CpuSheet row={cpuRow} uf={uf} mes={mes} onClose={()=>setCpuRow(null)} />
       <NovaComposicaoDialog open={openNew} setOpen={setOpenNew} onCreated={onReload} />
+      <ShareDialog target={shareRow ? { kind: "composicao", fonte: shareRow.fonte, codigo: shareRow.codigo, label: `${shareRow.codigo} — ${shareRow.descricao}` } : null} onClose={()=>setShareRow(null)} />
       <EditarComposicaoDialog row={editRow} onClose={()=>setEditRow(null)} onSaved={()=>{ setEditRow(null); onReload(); }} />
       <ConfirmDeleteDialog
         open={!!confirmDel}

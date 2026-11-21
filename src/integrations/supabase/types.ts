@@ -1245,6 +1245,10 @@ export type Database = {
         Returns: boolean
       }
       can_edit_orcamento: { Args: { p_orcamento_id: string }; Returns: boolean }
+      can_manage_composicao_propria: {
+        Args: { p_codigo: string; p_fonte: string }
+        Returns: boolean
+      }
       can_manage_organization_billing: {
         Args: { p_organization_id: string }
         Returns: boolean
@@ -1254,6 +1258,14 @@ export type Database = {
         Args: {
           p_codigo: string
           p_fonte: string
+          p_organization_id: string
+          p_permission?: string
+        }
+        Returns: undefined
+      }
+      compartilhar_orcamento: {
+        Args: {
+          p_orcamento_id: string
           p_organization_id: string
           p_permission?: string
         }
@@ -1319,6 +1331,24 @@ export type Database = {
           mes_ref: string
         }[]
       }
+      listar_compartilhamentos_composicao: {
+        Args: { p_codigo: string; p_fonte: string }
+        Returns: {
+          created_at: string
+          empresa_nome: string
+          organization_id: string
+          permission: string
+        }[]
+      }
+      listar_compartilhamentos_orcamento: {
+        Args: { p_orcamento_id: string }
+        Returns: {
+          created_at: string
+          empresa_nome: string
+          organization_id: string
+          permission: string
+        }[]
+      }
       recalcular_orcamentos_da_composicao: {
         Args: { p_codigo: string; p_fonte: string }
         Returns: number
@@ -1334,6 +1364,14 @@ export type Database = {
       }
       remove_organization_member: {
         Args: { p_user_id: string }
+        Returns: undefined
+      }
+      revogar_compartilhamento_composicao: {
+        Args: { p_codigo: string; p_fonte: string; p_organization_id: string }
+        Returns: undefined
+      }
+      revogar_compartilhamento_orcamento: {
+        Args: { p_orcamento_id: string; p_organization_id: string }
         Returns: undefined
       }
       salvar_composicao_propria: {
