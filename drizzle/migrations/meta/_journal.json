@@ -106,6 +106,13 @@
       "when": 1795009648948,
       "tag": "0014_cleanup_medicoes_budget_delete",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1795281937384,
+      "tag": "0015_lock_backup_price_tables",
+      "breakpoints": true
     }
   ]
 }

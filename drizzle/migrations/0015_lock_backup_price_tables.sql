@@ -1,0 +1,6 @@
+ALTER TABLE public._backup_20261118_precos_insumos_sinapi_pb_202606 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public._backup_20261118_precos_composicoes_sinapi_pb_202606 ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public._backup_20261118_precos_insumos_sinapi_pb_202606 FROM anon, authenticated;
+REVOKE ALL ON public._backup_20261118_precos_composicoes_sinapi_pb_202606 FROM anon, authenticated;
+GRANT ALL ON public._backup_20261118_precos_insumos_sinapi_pb_202606 TO service_role;
+GRANT ALL ON public._backup_20261118_precos_composicoes_sinapi_pb_202606 TO service_role;
