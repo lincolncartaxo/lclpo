@@ -113,6 +113,13 @@
       "when": 1795281937384,
       "tag": "0015_lock_backup_price_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1795282686140,
+      "tag": "0016_restrict_budget_share_writes",
+      "breakpoints": true
     }
   ]
 }
