@@ -1,5 +1,9 @@
 # Roadmap
 
+## Página comercial
+- [ ] Apresentar benefícios, demonstração ilustrativa e planos sem depoimentos fictícios.
+- [ ] Verificar acesso ao cadastro, navegação pública e apresentação no celular e computador.
+
 ## Solicitação atual: tratar todas as pendências
 - [x] Corrigir oito grupos de dependências vulneráveis e repetir 30 testes locais; picomatch sem correção publicada continua bloqueio externo.
 - [x] Verificar configuração e entrega automática Stripe: HTTP 401 Invalid signature resolvido após republicar o app com a nova chave de assinatura; reenvio do Stripe confirmado pelo usuário com HTTP 200 em 19/11/2026.
