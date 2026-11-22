@@ -15,6 +15,7 @@ import {
   MousePointerClick,
   FileCheck2,
   Gauge,
+  Share2,
   ShieldCheck,
   Table2,
   Target,
@@ -335,6 +336,7 @@ function Landing() {
             <ProofPoint icon={Calculator} title="Memória automática" detail="Quantidades calculadas por dimensões" />
             <ProofPoint icon={Layers} title="Módulo de licitações" detail="Desconto vencedor e planilha ajustada" />
             <ProofPoint icon={FileSpreadsheet} title="Transferegov" detail="Validação e envio PLE/BM" />
+            <ProofPoint icon={Share2} title="Compartilhamento" detail="Orçamentos e composições próprias entre empresas" />
           </div>
         </section>
 
@@ -373,6 +375,7 @@ function Landing() {
             <FeatureCard icon={Calculator} number="02" title="Memória de cálculo automática" text="Informe dimensões e repetições; o sistema calcula parciais, totais e as quantidades vinculadas aos itens do orçamento." />
             <FeatureCard icon={FileSpreadsheet} number="03" title="Módulo Transferegov (PLE/BM)" text="Valide e prepare a estrutura para envio integrado. O envio requer credenciais válidas configuradas." />
             <FeatureCard icon={Layers} number="04" title="Módulo de Licitações" text="Aplique o desconto da proposta vencedora, recalcule os preços e gere planilha e relatórios ajustados." />
+            <FeatureCard icon={Share2} number="05" title="Compartilhe com outras empresas" text="Compartilhe orçamentos para consulta ou edição e disponibilize suas composições próprias para uso. A empresa dona mantém o controle e pode revogar o acesso." />
           </div>
         </section>
 
