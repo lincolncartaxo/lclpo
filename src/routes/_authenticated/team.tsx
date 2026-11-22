@@ -109,6 +109,10 @@ function TeamPage() {
             </span>
           </p>
           <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
+            <span className="text-muted-foreground">Código da empresa (para receber compartilhamentos):</span>
+            <button type="button" className="font-mono px-2 py-1 rounded bg-muted hover:bg-muted/70" title="Copiar" onClick={() => { void navigator.clipboard.writeText(empresa.id); toast.success("Código copiado") }}>{empresa.id}</button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
             <span className="text-muted-foreground">Seu acesso:</span>
             {isGlobalAdmin && <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 font-bold">Administrador global</span>}
             {currentOrganizationRole === 'owner' && <span className="px-2 py-1 rounded-full bg-amber-100 text-amber-700 font-bold">Owner da empresa</span>}

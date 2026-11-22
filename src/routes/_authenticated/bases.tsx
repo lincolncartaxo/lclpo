@@ -250,6 +250,7 @@ function CompList({ uf, mes, fonte, reloadKey, onReload }: { uf: string; mes: st
   const [openNew, setOpenNew] = useState(false);
   const [confirmDel, setConfirmDel] = useState<any | null>(null);
   const [editRow, setEditRow] = useState<any | null>(null);
+  const [shareRow, setShareRow] = useState<any | null>(null);
   const [computed, setComputed] = useState<Record<string, { deson: number; nao_deson: number }>>({});
   const [latestMes, setLatestMes] = useState<Record<string, string>>({});
   const effUf = uf === "__all" ? "PB" : uf;

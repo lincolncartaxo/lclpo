@@ -12,4 +12,4 @@
 - Keep password recovery on the public login page and OAuth callbacks on the public origin so sessions hydrate before protected navigation.
 - Keep legal and support pages public, with shared navigation and accurate descriptions of enabled analytics; do not claim legal certification.
 - Register measurements through a locked transactional RPC with budget edit authorization and cumulative quantity checks; snapshot awarded prices and BDI so later edits cannot rewrite measured amounts.
-- Protect server-function requests with CSRF middleware without applying it to externally signed webhooks.
+- Protect server-function requests with CSRF middleware without applying it to externally signed webhooks.- Use SECURITY DEFINER RPCs for cross-company budget/composition sharing; only budget owners or company owner/admin may grant or revoke.

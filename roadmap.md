@@ -37,3 +37,4 @@
 - [x] Avaliar últimas alterações e registrar evidências e riscos no relatório.
 - [x] Módulo de licitação: desconto individual adicionado ao linear existente; preço final salvo para relatórios e medições.
 - [x] Módulo de medições BM01/BM02 por licitação com acumulado, saldo, XLSX/PDF; fluxo real verificado em orçamento temporário.
+- [x] Compartilhar orçamentos e composições próprias com outra empresa
