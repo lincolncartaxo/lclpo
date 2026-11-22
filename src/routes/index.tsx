@@ -130,7 +130,7 @@ const benefitCards = [
   },
 ];
 
-type DemoView = "planilha" | "memoria" | "cronograma";
+type DemoView = "planilha" | "memoria" | "cronograma" | "abc";
 
 const demoViews: Record<DemoView, { label: string; eyebrow: string; title: string }> = {
   planilha: {
@@ -148,6 +148,11 @@ const demoViews: Record<DemoView, { label: string; eyebrow: string; title: strin
     eyebrow: "3 · Planejamento físico-financeiro",
     title: "Distribua o orçamento por etapa e mês",
   },
+  abc: {
+    label: "Curva ABC",
+    eyebrow: "4 · Priorização de custos",
+    title: "Identifique os itens que mais pesam na obra",
+  },
 };
 
 function DemoShowcase() {
@@ -164,7 +169,7 @@ function DemoShowcase() {
           <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{active.eyebrow}</p>
           <h2 className="mt-2 text-3xl font-bold tracking-tight md:text-4xl">{active.title}</h2>
           <p className="mt-4 max-w-lg text-muted-foreground">
-            Esta é uma demonstração navegável baseada na estrutura do orçamento autorizado de uma quadra poliesportiva em Lucena/PB. Os valores abaixo são uma amostra pública; a referência exibida é <strong className="text-foreground">SINAPI · PB · 08/2026</strong>.
+            Esta é uma demonstração navegável baseada na estrutura de um orçamento genérico e exemplificativo de quadra poliesportiva. Os valores abaixo são uma amostra técnica; a referência exibida é <strong className="text-foreground">SINAPI · PB · 08/2026</strong>.
           </p>
           <div className="mt-7 flex flex-wrap gap-2" role="tablist" aria-label="Visões da demonstração">
             {(Object.keys(demoViews) as DemoView[]).map((key) => (
@@ -196,8 +201,9 @@ function DemoShowcase() {
           {view === "planilha" && <PlanilhaDemo />}
           {view === "memoria" && <MemoriaDemo />}
           {view === "cronograma" && <CronogramaDemo />}
+          {view === "abc" && <AbcDemo />}
           <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-secondary/50 px-4 py-3 text-xs text-muted-foreground">
-            <span>Exemplo autorizado · SINAPI / PB · 08/2026 · 110 itens</span>
+            <span>Exemplo genérico · SINAPI / PB · 08/2026 · 110 itens</span>
             <span className="inline-flex items-center gap-1"><ShieldCheck className="size-3.5" /> revisão antes da exportação</span>
           </div>
         </div>
@@ -221,7 +227,7 @@ function PlanilhaDemo() {
     <div className="overflow-hidden p-3 sm:p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2.5">
         <div><div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Planilha orçamentária</div><div className="mt-1 text-sm font-semibold">Quadra poliesportiva · 110 itens</div></div>
-        <div className="text-right"><div className="text-[10px] text-muted-foreground">Município · órgão</div><div className="font-mono text-xs font-semibold">Lucena · Prefeitura Municipal</div></div>
+        <div className="text-right"><div className="text-[10px] text-muted-foreground">Identificação</div><div className="font-mono text-xs font-semibold">Orçamento genérico</div></div>
       </div>
       <div className="max-h-[31rem] overflow-auto rounded-lg border">
       <table className="min-w-[1120px] border-collapse text-[10px] leading-tight">
@@ -232,26 +238,26 @@ function PlanilhaDemo() {
         </tbody>
       </table>
       </div>
-      <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Amostra técnica baseada em orçamento autorizado: BDI aplicado de 16,75%, composição SINAPI e curva ABC disponíveis no relatório. Não representa uma oferta ou contratação.</p>
+      <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Amostra técnica genérica: BDI exemplificativo de 16,75%, composição SINAPI e curva ABC disponíveis no relatório. Não representa cliente, contrato ou contratação.</p>
     </div>
   );
 }
 
 function MemoriaDemo() {
   const rows = [
-    { etapa: "1 - SERVIÇOS PRELIMINARES", item: "1.1", servico: "LOCAÇÃO CONVENCIONAL DE OBRA, UTILIZANDO GABARITO DE TÁBUAS CORRIDAS PONTALETADAS A CADA 1,50M - 2 UTILIZAÇÕES. AF_03/2024", unidade: "M", total: "499,84", formulas: [["TRECHO 01", "72,62"], ["TRECHO 02", "116"], ["TRECHO 03", "76"], ["TRECHO 04", "48,52"], ["TRECHO 05", "98,7"], ["TRECHO 06", "88"]] },
-    { etapa: "2 - MOVIMENTAÇÃO DE TERRA", item: "2.1", servico: "ESCAVAÇÃO VERTICAL PARA EDIFICAÇÃO, COM CARGA, DESCARGA E TRANSPORTE DE SOLO DE 1ª CATEGORIA, COM ESCAVADEIRA HIDRÁULICA (CAÇAMBA: 0,8 M³ / 111 HP), FROTA DE 3 CAMINHÕES BASCULANTES DE 10 M³, DMT ATÉ 1 KM E VELOCIDADE MÉDIA 14 KM/H. AF_05/2020", unidade: "M3", total: "1.649,472", formulas: [["COMPRIMENTO X ALTURA X LARGURA", "1.649,472"]] },
-    { etapa: "3 - FUNDAÇÃO", item: "3.1", servico: "LASTRO DE CONCRETO MAGRO, APLICADO EM BLOCOS DE COROAMENTO OU SAPATAS. AF_01/2024", unidade: "M3", total: "109,9648", formulas: [["COMPRIMENTO X ALTURA X LARGURA", "109,9648"]] },
-    { etapa: "4 - MURO DE ARRIMO", item: "4.1", servico: "MURO DE ARRIMO DE PEDRA ARGAMASSADA (ADAPTADO DE SINAPI 73844/001)", unidade: "M3", total: "1.626,9792", formulas: [["SEÇÃO DA BASE (COMPRIMENTO X ALTURA X LARGURA)", "659,7888"], ["SEÇÃO TRIANGULAR (COMPRIMENTO X ÁREA_TRAPÉZIO)", "967,1904"]] },
-    { etapa: "5 - DRENAGEM", item: "5.1", servico: "CAMADA DRENANTE COM BRITA NUM 3 (ADAPTADO DE SINAPI 73902/001)", unidade: "M3", total: "179,9424", formulas: [["COMPRIMENTO X ALTURA X LARGURA", "179,9424"]] },
-    { etapa: "5 - DRENAGEM", item: "5.2", servico: "TUBO DE PVC CORRUGADO RÍGIDO PERFURADO, DN 100 MM, PARA DRENO - FORNECIMENTO E ASSENTAMENTO. AF_07/2021", unidade: "M", total: "795", formulas: [["COMPRIMENTO DO TUBO NA PARTE SUPERIOR DA SEÇÃO", "300"], ["COMPRIMENTO DO TUBO NA PARTE INFERIOR DA SEÇÃO", "495"]] },
-    { etapa: "5 - DRENAGEM", item: "5.3", servico: "EXECUÇÃO DE DRENO COM MANTA GEOTÊXTIL 200 G/M2 (ADAPTADO DE SINAPI 73881/001)", unidade: "M2", total: "54", formulas: [["COMPRIMENTO DO TUBO NA PARTE SUPERIOR DA SEÇÃO", "27"], ["COMPRIMENTO DO TUBO NA PARTE INFERIOR DA SEÇÃO", "27"]] },
+    { etapa: "1.1 - SERVIÇOS PRELIMINARES", item: "1.1.1", servico: "FORNECIMENTO E INSTALAÇÃO DE PLACA DE OBRA COM CHAPA GALVANIZADA E ESTRUTURA DE MADEIRA. AF_03/2022_PS", unidade: "M2", total: "6", formulas: [["Quantidade informada no orçamento", "6"]] },
+    { etapa: "1.1 - SERVIÇOS PRELIMINARES", item: "1.1.2", servico: "LIMPEZA MANUAL DE VEGETAÇÃO EM TERRENO COM ENXADA. AF_03/2024", unidade: "M2", total: "261,288", formulas: [["40 % da área de intervenção", "261,288"]] },
+    { etapa: "1.1 - SERVIÇOS PRELIMINARES", item: "1.1.3", servico: "DEMOLIÇÃO DE ALVENARIA DE BLOCO FURADO, DE FORMA MANUAL, SEM REAPROVEITAMENTO. AF_09/2023", unidade: "M3", total: "3,96", formulas: [["Excedente na mureta do alambrado existente", "3,96"]] },
+    { etapa: "1.2 - QUADRA - ARQUIBANCADA", item: "1.2.1", servico: "ESCAVAÇÃO MANUAL EM SOLO - PROF. ATÉ 1,50 M [ADAPTADO SINAPI 79561/001]", unidade: "M3", total: "1,25", formulas: [["Blocos (50x50)", "1,25"]] },
+    { etapa: "1.2 - QUADRA - ARQUIBANCADA", item: "1.2.3", servico: "ALVENARIA DE VEDAÇÃO DE BLOCOS CERÂMICOS FURADOS NA HORIZONTAL DE 19X19X29 CM. AF_08/2026", unidade: "M2", total: "43,18", formulas: [["Primeira fiada", "7,62"], ["Segunda fiada", "15,24"], ["Terceira fiada", "20,32"]] },
+    { etapa: "1.2 - QUADRA - ARQUIBANCADA", item: "1.2.4", servico: "MONTAGEM E DESMONTAGEM DE FÔRMA DE LAJE MACIÇA, PÉ-DIREITO SIMPLES. AF_09/2020", unidade: "M2", total: "46,99", formulas: [["Primeiro lance", "27,94"], ["Segundo lance", "19,05"]] },
+    { etapa: "1.2 - QUADRA - ARQUIBANCADA", item: "1.2.8", servico: "CONCRETO FCK = 20MPA, PREPARO MECÂNICO COM BETONEIRA 600 L. AF_05/2021", unidade: "M3", total: "11,1845", formulas: [["Quantidade calculada para a estrutura", "11,1845"]] },
   ];
   return (
     <div className="overflow-hidden p-3 sm:p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2.5">
-        <div><div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Memória de cálculo</div><div className="mt-1 text-sm font-semibold">Quadra poliesportiva · Lucena - PB</div></div>
-        <div className="text-right"><div className="text-[10px] text-muted-foreground">Estrutura real</div><div className="font-mono text-xs font-semibold">110 itens</div></div>
+        <div><div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Memória de cálculo</div><div className="mt-1 text-sm font-semibold">Quadra poliesportiva · exemplo genérico</div></div>
+        <div className="text-right"><div className="text-[10px] text-muted-foreground">Estrutura de exemplo</div><div className="font-mono text-xs font-semibold">110 itens</div></div>
       </div>
       <div className="max-h-[31rem] overflow-auto rounded-lg border">
         <table className="min-w-[1040px] border-collapse text-[10px] leading-tight">
@@ -270,7 +276,7 @@ function MemoriaDemo() {
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Prévia baseada na estrutura da memória analítica do orçamento autorizado. A demonstração resume o formato e não expõe todos os dados do workspace.</p>
+      <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Prévia baseada em uma estrutura genérica de memória analítica. Os campos e números são exemplificativos e não expõem dados de cliente ou contrato.</p>
     </div>
   );
 }
@@ -291,7 +297,27 @@ function CronogramaDemo() {
           <tr className="bg-[#dce6f1] font-semibold text-[#213f68]"><td>TOTAL ACUMULADO</td><td className="num">R$ 62.255,43</td><td className="num">R$ 107.640,71</td><td className="num">R$ 200.253,40</td><td className="num">R$ 200.253,40</td><td className="num">R$ 200.253,40</td><td className="num">R$ 200.253,40</td><td className="num">R$ 200.253,40</td></tr>
         </tbody>
       </table>
-      <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Distribuição mensal baseada no cronograma autorizado, com 6 meses e totais reais do orçamento.</p>
+      <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Distribuição mensal de um cronograma genérico de 6 meses, apresentada apenas para demonstrar o formato.</p>
+    </div>
+  );
+}
+
+function AbcDemo() {
+  const rows = [
+    ["1", "SINAPI · 102494", "Pintura de piso com tinta epóxi", "503,4 m²", "R$ 33.881,27", "17,44%", "17,44%"],
+    ["2", "SINAPI · 87265", "Revestimento cerâmico para paredes", "159,5 m²", "R$ 13.039,27", "6,71%", "24,15%"],
+    ["3", "SINAPI · 87529", "Massa única em argamassa", "217,96 m²", "R$ 10.121,73", "5,21%", "29,37%"],
+    ["4", "SINAPI · 87548", "Massa única com preparo manual", "239,88 m²", "R$ 8.862,94", "4,56%", "33,93%"],
+    ["5", "SINAPI · 92480", "Fôrma de viga com escoramento metálico", "83,88 m²", "R$ 8.508,93", "4,38%", "38,31%"],
+    ["6", "SINAPI · 103670", "Lançamento e acabamento de concreto", "17,96 m³", "R$ 6.979,93", "3,59%", "41,90%"],
+    ["7", "SINAPI · 94970", "Concreto FCK 20MPA", "11,18 m³", "R$ 6.960,57", "3,58%", "45,48%"],
+  ];
+  return (
+    <div className="overflow-hidden p-3 sm:p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2.5"><div><div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Curva ABC · Pareto</div><div className="mt-1 text-sm font-semibold">Itens mais representativos · total c/ BDI R$ 200.253,40</div></div><div className="text-right"><div className="text-[10px] text-muted-foreground">Faixa exibida</div><div className="font-mono text-xs font-semibold">A · B · C</div></div></div>
+      <div className="grid gap-2 sm:grid-cols-3"><div className="rounded-lg border-l-4 border-l-[#1d4f82] bg-[#edf4fb] p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-[#1d4f82]">Classe A</p><p className="mt-1 text-xs text-muted-foreground">Itens de maior impacto, priorizados para revisão.</p></div><div className="rounded-lg border-l-4 border-l-[#6f9fca] bg-[#f2f7fb] p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-[#1d4f82]">Classe B</p><p className="mt-1 text-xs text-muted-foreground">Itens intermediários na composição do custo.</p></div><div className="rounded-lg border-l-4 border-l-[#b8c9d8] bg-[#f7fafc] p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-[#1d4f82]">Classe C</p><p className="mt-1 text-xs text-muted-foreground">Itens de menor peso individual.</p></div></div>
+      <div className="mt-3 max-h-[28rem] overflow-auto rounded-lg border"><table className="min-w-[760px] border-collapse text-[10px] leading-tight"><thead className="sticky top-0 z-10 bg-sidebar text-sidebar-foreground"><tr><th className="px-2 py-2 text-left">ITEM</th><th className="px-2 py-2 text-left">CÓDIGO</th><th className="px-2 py-2 text-left">DESCRIÇÃO</th><th className="px-2 py-2 text-right">QTD.</th><th className="px-2 py-2 text-right">TOTAL</th><th className="px-2 py-2 text-right">PESO %</th><th className="px-2 py-2 text-right">ACUM.</th></tr></thead><tbody>{rows.map((row) => <tr key={row[0]} className="border-t bg-card"><td className="px-2 py-2 font-semibold">{row[0]}</td><td className="px-2 py-2 font-mono">{row[1]}</td><td className="max-w-[260px] px-2 py-2">{row[2]}</td><td className="px-2 py-2 text-right">{row[3]}</td><td className="px-2 py-2 text-right font-semibold">{row[4]}</td><td className="px-2 py-2 text-right">{row[5]}</td><td className="px-2 py-2 text-right font-semibold text-primary">{row[6]}</td></tr>)}</tbody></table></div>
+      <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Amostra genérica dos itens mais representativos da Curva ABC. Os percentuais demonstram como priorizar a revisão de custos.</p>
     </div>
   );
 }
@@ -424,7 +450,7 @@ function Landing() {
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#f3c66f]">Prova sem promessa vazia</p>
               <h2 id="prova-title" className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Veja o produto antes de decidir.</h2>
-              <p className="mt-4 max-w-xl leading-7 text-white/70">A demonstração usa a estrutura de um orçamento real e deixa claro o que é exemplo. No plano Free, você pode testar o fluxo com os seus próprios dados.</p>
+              <p className="mt-4 max-w-xl leading-7 text-white/70">A demonstração usa uma estrutura técnica genérica e deixa claro o que é exemplo. No plano Free, você pode testar o fluxo com os seus próprios dados.</p>
               <Button size="lg" className="mt-7 bg-[#e7ad43] font-semibold text-[#142b43] hover:bg-[#f0bf60]" asChild>
                 <Link to="/login">Testar grátis agora <ArrowRight className="ml-2 size-4" /></Link>
               </Button>
@@ -560,7 +586,7 @@ function BudgetPreview({ compact = false }: { compact?: boolean }) {
         <p className="text-right text-xs text-muted-foreground">Total c/ BDI<strong className="mt-1 block text-xl text-foreground">R$ 200.253,40</strong></p>
       </div>
       <div className="mt-3 grid gap-2 rounded-lg border bg-card p-3 text-[10px] sm:grid-cols-3"><div><span className="font-semibold text-foreground">Curva ABC A</span><span className="ml-1 text-muted-foreground">pintura epóxi · 17,44%</span></div><div><span className="font-semibold text-foreground">Curva ABC B</span><span className="ml-1 text-muted-foreground">revestimentos e estrutura</span></div><div><span className="font-semibold text-foreground">Curva ABC C</span><span className="ml-1 text-muted-foreground">equipamentos e instalações</span></div></div>
-      <p className="mt-3 text-[10px] leading-4 text-muted-foreground">Amostra baseada em orçamento autorizado para demonstração. A referência exibida é SINAPI/PB 08/2026; valide os dados antes de usar.</p>
+      <p className="mt-3 text-[10px] leading-4 text-muted-foreground">Amostra genérica para demonstração. A referência exibida é SINAPI/PB 08/2026; valide os dados antes de usar.</p>
     </div>
   );
 }
