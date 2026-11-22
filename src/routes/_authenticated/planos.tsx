@@ -25,6 +25,8 @@ export const Route = createFileRoute("/_authenticated/planos")({
 
 function PlanosPage() {
   const [current, setCurrent] = useState<Awaited<ReturnType<typeof syncSubscription>> | null>(null);
+  const [loadingStatus, setLoadingStatus] = useState(true);
+  const [statusError, setStatusError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const checkout = useServerFn(createCheckout);
@@ -34,7 +36,17 @@ function PlanosPage() {
   useEffect(() => { try { setInEditorFrame(window.self !== window.top); } catch { setInEditorFrame(true); } }, []);
 
   const refresh = useCallback(async () => {
-    try { setCurrent(await subscription()); } catch (e: any) { toast.error(e.message ?? "Erro ao verificar assinatura"); }
+    setLoadingStatus(true);
+    setStatusError(null);
+    try {
+      setCurrent(await subscription());
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Erro ao verificar assinatura";
+      setStatusError(message);
+      toast.error(message);
+    } finally {
+      setLoadingStatus(false);
+    }
   }, [subscription]);
   useEffect(() => {
     const st = new URLSearchParams(window.location.search).get("status");
@@ -93,11 +105,13 @@ function PlanosPage() {
           <h1 className="text-2xl font-semibold">Planos</h1>
           <p className="text-muted-foreground">Plano atual: <strong>{current ? (BILLING_PLANS[current.plan as PaidPlanCode]?.name ?? "Free") : "…"}</strong>
             {current?.end && <> · {current.cancelAtPeriodEnd ? "acesso até" : "período até"} {new Date(current.end).toLocaleDateString("pt-BR")}</>}</p>
+          {statusError && <p role="alert" className="text-sm text-destructive">Não foi possível confirmar o plano: {statusError}</p>}
+          {loadingStatus && <p className="text-sm text-muted-foreground">Consultando o status da assinatura…</p>}
           {current && <p className="text-sm text-muted-foreground">{({ active: "Ativa", trialing: "Em avaliação", past_due: "Pagamento pendente", canceled: "Cancelada", paused: "Pausada" } as Record<string, string>)[current.status] ?? current.status}{current.manual ? " · Plano concedido pela Administração" : ""}</p>}
           {current && !current.canManage && <p className="text-sm text-muted-foreground">A assinatura é gerenciada pelo responsável ou administrador da empresa.</p>}
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={refresh}>Atualizar status</Button>
+          <Button variant="outline" onClick={refresh} disabled={loadingStatus}>{loadingStatus ? "Atualizando…" : "Atualizar status"}</Button>
           {current?.canManage && current.hasCustomer && <Button onClick={gerenciar} disabled={!!busy}>Gerenciar assinatura</Button>}
         </div>
       </div>
