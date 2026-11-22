@@ -1,4 +1,4 @@
-const siteOrigin = "https://lclpo.vercel.app";
+const siteOrigin = "https://lclplan.com.br";
 const socialImage = `${siteOrigin}/og-lclplan.png`;
 const socialImageAlt = "LclPlan — referências de preços, memória de cálculo automatizada, licitações e Transferegov";
 

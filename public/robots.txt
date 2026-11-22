@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /bases
+Disallow: /team
+Disallow: /planos
+Disallow: /orcamento/
+Disallow: /api/
+
+Sitemap: https://lclplan.com.br/sitemap.xml

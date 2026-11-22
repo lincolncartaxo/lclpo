@@ -463,6 +463,11 @@ function Landing() {
           <div>
             <Brand tone="dark" />
             <p className="mt-2 max-w-md text-xs leading-5 text-white/60">Referências de preço, cálculos e documentação para orçamentos de obras públicas.</p>
+            <div className="mt-4 max-w-md text-xs leading-5 text-white/60">
+              <p className="font-medium text-white/80">LCL SERVICOS DE ENGENHARIA LTDA - ME · CNPJ 28.536.867/0001-85</p>
+              <p>Avenida Governador Flávio Ribeiro Coutinho, nº 500, Sala 601 · Jardim Oceania · João Pessoa–PB · CEP 58037-005</p>
+              <p><a className="hover:text-white hover:underline" href="mailto:contato@lclprojetos.com">contato@lclprojetos.com</a> · (83) 3578.3426</p>
+            </div>
           </div>
           <div className="flex flex-col gap-3 md:items-end">
             <LegalLinks />
