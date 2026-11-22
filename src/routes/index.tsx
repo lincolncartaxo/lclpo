@@ -13,8 +13,11 @@ import {
   Layers,
   Layers3,
   MousePointerClick,
+  FileCheck2,
+  Gauge,
   ShieldCheck,
   Table2,
+  Target,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -87,6 +90,24 @@ const faqs = [
   {
     question: "Como funciona a assinatura?",
     answer: "Os planos pagos são mensais. A assinatura e o cancelamento são gerenciados na área de planos da conta; consulte também a página de suporte e cancelamento.",
+  },
+];
+
+const benefitCards = [
+  {
+    icon: Target,
+    title: "Decida com referência clara",
+    text: "Escolha a UF, a data-base e a fonte antes de montar o orçamento. A referência fica registrada para facilitar a conferência e a defesa da proposta.",
+  },
+  {
+    icon: Gauge,
+    title: "Reduza o retrabalho",
+    text: "Quantidades, BDI, cronograma e relatórios partem da mesma estrutura. Ajuste uma vez e mantenha os documentos alinhados.",
+  },
+  {
+    icon: FileCheck2,
+    title: "Entregue com mais segurança",
+    text: "Revise planilha, memória de cálculo, QCI, licitação e exportações em um fluxo preparado para a rotina de obras públicas.",
   },
 ];
 
@@ -317,6 +338,25 @@ function Landing() {
           </div>
         </section>
 
+        <section aria-labelledby="beneficios-title" className="border-b bg-[#f7f9fb]">
+          <div className="mx-auto max-w-7xl px-4 py-14 sm:px-8 sm:py-18">
+            <div className="max-w-2xl">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#a36d12]">O resultado no dia a dia</p>
+              <h2 id="beneficios-title" className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Mais tempo para revisar. Menos tempo refazendo.</h2>
+              <p className="mt-4 leading-7 text-muted-foreground">O LclPlan organiza as partes que mais geram retrabalho em uma proposta pública — sem esconder a referência usada nem transformar a planilha em uma caixa-preta.</p>
+            </div>
+            <div className="mt-9 grid gap-4 md:grid-cols-3">
+              {benefitCards.map(({ icon: Icon, title, text }) => (
+                <article key={title} className="rounded-xl border bg-white p-5 shadow-sm">
+                  <div className="grid size-10 place-items-center rounded-lg bg-[#142b43] text-[#e7ad43]"><Icon className="size-5" /></div>
+                  <h3 className="mt-5 text-lg font-bold">{title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section id="produto" className="mx-auto grid min-w-0 max-w-7xl grid-cols-1 gap-10 px-4 py-14 sm:px-8 sm:py-18 lg:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)] lg:gap-16">
           <div className="min-w-0 max-w-xl">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#a36d12]">Do levantamento à proposta</p>
@@ -337,6 +377,32 @@ function Landing() {
         </section>
 
         <DemoShowcase />
+
+        <section aria-labelledby="prova-title" className="border-y bg-[#142b43] text-white">
+          <div className="mx-auto grid max-w-7xl gap-8 px-4 py-14 sm:px-8 sm:py-16 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#f3c66f]">Prova sem promessa vazia</p>
+              <h2 id="prova-title" className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Veja o produto antes de decidir.</h2>
+              <p className="mt-4 max-w-xl leading-7 text-white/70">A demonstração usa a estrutura de um orçamento real e deixa claro o que é exemplo. No plano Free, você pode testar o fluxo com os seus próprios dados.</p>
+              <Button size="lg" className="mt-7 bg-[#e7ad43] font-semibold text-[#142b43] hover:bg-[#f0bf60]" asChild>
+                <Link to="/login">Testar grátis agora <ArrowRight className="ml-2 size-4" /></Link>
+              </Button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                ["Fluxo completo", "Planilha, memória, cronograma e relatório no mesmo orçamento."],
+                ["Referência visível", "Fonte, UF e mês escolhidos ficam identificados no processo."],
+                ["Entrada simples", "Comece com até 3 orçamentos no plano Free e avance quando fizer sentido."],
+              ].map(([title, text]) => (
+                <div key={title} className="rounded-xl border border-white/15 bg-white/5 p-4">
+                  <BadgeCheck className="size-5 text-[#f3c66f]" />
+                  <h3 className="mt-4 font-semibold">{title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-white/65">{text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
 
         <section id="planos" className="mx-auto max-w-7xl scroll-mt-24 px-4 py-14 sm:px-8 sm:py-18">
           <div className="mx-auto max-w-2xl text-center">
