@@ -3,6 +3,7 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import {
   ArrowRight,
   BadgeCheck,
+  Building2,
   Calculator,
   CalendarDays,
   Check,
@@ -20,6 +21,7 @@ import {
   Table2,
   Target,
   Users,
+  Scale,
   type LucideIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -91,6 +93,22 @@ const faqs = [
   {
     question: "Como funciona a assinatura?",
     answer: "Os planos pagos são mensais. A assinatura e o cancelamento são gerenciados na área de planos da conta; consulte também a página de suporte e cancelamento.",
+  },
+  {
+    question: "O LclPlan substitui a análise do responsável técnico?",
+    answer: "Não. O LclPlan organiza referências, quantitativos, BDI, memória e relatórios, mas a revisão final dos códigos, preços, encargos, regime, quantitativos e documentos deve ser feita pelo profissional responsável e pelo órgão contratante.",
+  },
+  {
+    question: "Quais normas e referências orientam o orçamento?",
+    answer: "A aplicação apoia o uso de referências como SINAPI e SICRO e pode ajudar na organização de documentos relacionados à Lei 14.133/2021 e ao Decreto 7.983. A adequação jurídica e técnica de cada orçamento deve ser validada no caso concreto.",
+  },
+  {
+    question: "Como meus dados são tratados?",
+    answer: "O acesso é separado por empresa, com permissões e compartilhamentos controlados. Consulte a Política de Privacidade para saber sobre prestadores, solicitações de acesso, correção e exclusão de dados.",
+  },
+  {
+    question: "Posso exportar meus dados e cancelar?",
+    answer: "Sim. Exporte os documentos antes de solicitar a exclusão. O responsável pela empresa pode gerenciar a assinatura na área Planos ou falar com o suporte para cancelamento e solicitações relacionadas aos dados.",
   },
 ];
 
@@ -191,13 +209,13 @@ function DemoShowcase() {
 
 function PlanilhaDemo() {
   const rows = [
-    ["1.1", "SINAPI", "105009", "LOCAÇÃO CONVENCIONAL DE OBRA, UTILIZANDO GABARITO DE TÁBUAS CORRIDAS PONTALETADAS A CADA 1,50M - 2 UTILIZAÇÕES. AF_03/2024", "M", "499,84", "82,40", "0,00%", "82,40", "41.187,87"],
-    ["2.1", "SINAPI", "101254", "ESCAVAÇÃO VERTICAL PARA EDIFICAÇÃO, COM CARGA, DESCARGA E TRANSPORTE DE SOLO DE 1ª CATEGORIA, COM ESCAVADEIRA HIDRÁULICA (CAÇAMBA: 0,8 M³ / 111HP), FROTA DE 3 CAMINHÕES BASCULANTES DE 10 M³, DMT ATÉ 1 KM E VELOCIDADE MÉDIA 14 KM/H. AF_05/2020", "M3", "1.649,472", "13,96", "0,00%", "13,96", "23.029,93"],
-    ["3.1", "SINAPI", "96616", "LASTRO DE CONCRETO MAGRO, APLICADO EM BLOCOS DE COROAMENTO OU SAPATAS. AF_01/2024", "M3", "109,9648", "884,44", "0,00%", "884,44", "97.257,18"],
-    ["4.1", "PRÓPRIA", "LCL-002", "MURO DE ARRIMO DE PEDRA ARGAMASSADA (ADAPTADO DE SINAPI 73844/001)", "M3", "1.626,979", "694,58", "0,00%", "694,58", "1.130.066,72"],
-    ["5.1", "PRÓPRIA", "LCL-001", "CAMADA DRENANTE COM BRITA NUM 3 (ADAPTADO DE SINAPI 73902/001)", "m3", "179,9424", "163,49", "0,00%", "163,49", "29.419,16"],
-    ["5.2", "SINAPI", "102705", "TUBO DE PVC CORRUGADO RÍGIDO PERFURADO, DN 100 MM, PARA DRENO - FORNECIMENTO E ASSENTAMENTO. AF_07/2021", "M", "795", "62,13", "0,00%", "62,13", "49.391,44"],
-    ["5.3", "PRÓPRIA", "LCL-003", "EXECUÇÃO DE DRENO COM MANTA GEOTÊXTIL 200 G/M2 (ADAPTADO DE SINAPI 73881/001)", "M2", "54", "9,64", "0,00%", "9,64", "520,40"],
+    ["1.1", "SINAPI", "105009", "LOCAÇÃO CONVENCIONAL DE OBRA, UTILIZANDO GABARITO DE TÁBUAS CORRIDAS PONTALETADAS A CADA 1,50M - 2 UTILIZAÇÕES. AF_03/2024", "M", "499,84", "82,40", "22,00%", "100,53", "50.249,20"],
+    ["2.1", "SINAPI", "101254", "ESCAVAÇÃO VERTICAL PARA EDIFICAÇÃO, COM CARGA, DESCARGA E TRANSPORTE DE SOLO DE 1ª CATEGORIA, COM ESCAVADEIRA HIDRÁULICA (CAÇAMBA: 0,8 M³ / 111HP), FROTA DE 3 CAMINHÕES BASCULANTES DE 10 M³, DMT ATÉ 1 KM E VELOCIDADE MÉDIA 14 KM/H. AF_05/2020", "M3", "1.649,472", "13,96", "22,00%", "17,03", "28.096,51"],
+    ["3.1", "SINAPI", "96616", "LASTRO DE CONCRETO MAGRO, APLICADO EM BLOCOS DE COROAMENTO OU SAPATAS. AF_01/2024", "M3", "109,9648", "884,44", "22,00%", "1.079,02", "118.653,76"],
+    ["4.1", "PRÓPRIA", "LCL-002", "MURO DE ARRIMO DE PEDRA ARGAMASSADA (ADAPTADO DE SINAPI 73844/001)", "M3", "1.626,979", "694,58", "22,00%", "847,39", "1.378.681,40"],
+    ["5.1", "PRÓPRIA", "LCL-001", "CAMADA DRENANTE COM BRITA NUM 3 (ADAPTADO DE SINAPI 73902/001)", "m3", "179,9424", "163,49", "22,00%", "199,46", "35.891,38"],
+    ["5.2", "SINAPI", "102705", "TUBO DE PVC CORRUGADO RÍGIDO PERFURADO, DN 100 MM, PARA DRENO - FORNECIMENTO E ASSENTAMENTO. AF_07/2021", "M", "795", "62,13", "22,00%", "75,80", "60.257,56"],
+    ["5.3", "PRÓPRIA", "LCL-003", "EXECUÇÃO DE DRENO COM MANTA GEOTÊXTIL 200 G/M2 (ADAPTADO DE SINAPI 73881/001)", "M2", "54", "9,64", "22,00%", "11,76", "634,89"],
   ] as const;
   const groups = ["1 - SERVIÇOS PRELIMINARES", "2 - MOVIMENTAÇÃO DE TERRA", "3 - FUNDAÇÃO", "4 - MURO DE ARRIMO", "5 - DRENAGEM"];
   return (
@@ -211,11 +229,11 @@ function PlanilhaDemo() {
         <thead className="sticky top-0 z-10 bg-sidebar text-sidebar-foreground"><tr><th className="px-2 py-2 text-left">ITEM</th><th className="px-2 py-2 text-left">FONTE</th><th className="px-2 py-2 text-left">CÓDIGO</th><th className="min-w-80 px-2 py-2 text-left">DESCRIÇÃO</th><th className="px-2 py-2 text-center">UN.</th><th className="px-2 py-2 text-right">QUANT.</th><th className="px-2 py-2 text-right">PREÇO UNIT.</th><th className="px-2 py-2 text-right">BDI</th><th className="px-2 py-2 text-right">PREÇO UNIT. c/ BDI</th><th className="px-2 py-2 text-right">TOTAL</th></tr></thead>
         <tbody>
           {groups.map((group, groupIndex) => <Fragment key={group}><tr className="bg-secondary/70"><td colSpan={10} className="px-2 py-2 font-semibold">{group}</td></tr>{(groupIndex === 4 ? rows.slice(4) : [rows[groupIndex]]).map((row) => <tr key={row[0]} className="border-t bg-card"><td className="px-2 py-2 font-semibold">{row[0]}</td>{row.slice(1).map((value, index) => <td key={`${row[0]}-${index}`} className={`px-2 py-2 ${index >= 4 ? "text-right" : index === 3 ? "text-center" : "text-left"} ${index === 7 ? "font-semibold text-primary" : ""}`}>{value}</td>)}</tr>)}</Fragment>)}
-          <tr className="border-t bg-secondary/70 font-semibold"><td colSpan={9} className="px-2 py-2 text-right">TOTAL c/ BDI</td><td className="px-2 py-2 text-right text-primary">R$ 1.370.872,70</td></tr>
+          <tr className="border-t bg-secondary/70 font-semibold"><td colSpan={9} className="px-2 py-2 text-right">TOTAL c/ BDI</td><td className="px-2 py-2 text-right text-primary">R$ 1.672.464,69</td></tr>
         </tbody>
       </table>
       </div>
-      <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Prévia baseada na estrutura do orçamento db60e034. Fontes, códigos, quantidades e totais acompanham o modelo informado.</p>
+      <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Amostra técnica ilustrativa: BDI de 22,00%, composição própria identificada e curva ABC disponível no relatório. Não representa contrato ou cliente real.</p>
     </div>
   );
 }
@@ -289,6 +307,7 @@ function Landing() {
           <nav aria-label="Navegação principal" className="hidden items-center gap-7 text-sm text-white/75 md:flex">
             <a className="transition hover:text-white" href="#produto">Recursos</a>
             <a className="transition hover:text-white" href="#planos">Planos</a>
+            <Link className="transition hover:text-white" to="/bases-publicas">Bases e atualização</Link>
             <a className="transition hover:text-white" href="#duvidas">Dúvidas</a>
           </nav>
           <div className="flex shrink-0 items-center gap-3">
@@ -319,7 +338,7 @@ function Landing() {
                 <Button size="lg" className="h-12 w-full bg-[#e7ad43] px-5 font-semibold text-[#142b43] hover:bg-[#f0bf60] sm:w-auto" asChild>
                   <Link to="/login">Criar conta grátis <ArrowRight className="ml-2 size-4 shrink-0" /></Link>
                 </Button>
-                <a href="#demo" className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md border border-white/20 px-4 text-center text-sm font-medium text-white transition hover:border-white/45 hover:bg-white/5 sm:w-auto sm:px-5">
+                <a href="#demonstracao" className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md border border-white/20 px-4 text-center text-sm font-medium text-white transition hover:border-white/45 hover:bg-white/5 sm:w-auto sm:px-5">
                   Ver exemplo de orçamento <ArrowRight className="size-4 shrink-0" />
                 </a>
               </div>
@@ -359,6 +378,13 @@ function Landing() {
           </div>
         </section>
 
+        <section aria-labelledby="quem-faz-title" className="border-b bg-white">
+          <div className="mx-auto grid max-w-7xl gap-8 px-4 py-14 sm:px-8 lg:grid-cols-[0.7fr_1.3fr] lg:items-center">
+            <div className="flex items-start gap-4"><div className="grid size-12 shrink-0 place-items-center rounded-xl bg-[#142b43] text-[#e7ad43]"><Building2 className="size-6" /></div><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#a36d12]">Quem faz o LclPlan</p><h2 id="quem-faz-title" className="mt-2 text-3xl font-bold tracking-tight">Produto operado pela LCL Serviços de Engenharia.</h2></div></div>
+            <div className="rounded-xl border bg-[#f7f9fb] p-5 text-sm leading-6 text-muted-foreground"><p className="font-semibold text-foreground">LCL SERVICOS DE ENGENHARIA LTDA - ME · CNPJ 28.536.867/0001-85</p><p>Avenida Governador Flávio Ribeiro Coutinho, nº 500, Sala 601, Jardim Oceania, João Pessoa–PB, CEP 58037-005.</p><p className="mt-2"><a className="font-medium text-primary underline underline-offset-4" href="mailto:contato@lclprojetos.com">contato@lclprojetos.com</a> · (83) 3578.3426</p><p className="mt-3 text-xs">O LclPlan é uma ferramenta de apoio. A validação final dos quantitativos, referências, BDI, encargos e documentos cabe ao responsável técnico e ao órgão contratante.</p></div>
+          </div>
+        </section>
+
         <section id="produto" className="mx-auto grid min-w-0 max-w-7xl grid-cols-1 gap-10 px-4 py-14 sm:px-8 sm:py-18 lg:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)] lg:gap-16">
           <div className="min-w-0 max-w-xl">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#a36d12]">Do levantamento à proposta</p>
@@ -380,6 +406,19 @@ function Landing() {
         </section>
 
         <DemoShowcase />
+
+        <section aria-labelledby="comparativo-title" className="border-y bg-[#f7f9fb]">
+          <div className="mx-auto max-w-7xl px-4 py-14 sm:px-8">
+            <div className="max-w-2xl"><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#a36d12]">Escolha com clareza</p><h2 id="comparativo-title" className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">LclPlan, Excel ou plataforma especializada?</h2><p className="mt-4 leading-7 text-muted-foreground">Cada ferramenta serve a um momento. O LclPlan busca reduzir o trabalho manual sem prometer substituir a revisão técnica.</p></div>
+            <div className="mt-8 grid gap-4 md:grid-cols-3">
+              {[
+                { icon: Scale, title: "Excel", text: "Flexível e conhecido, mas exige controle manual de referências, fórmulas, versões, relatórios e permissões." },
+                { icon: Calculator, title: "LclPlan", text: "Referências identificadas, memória, BDI, cronograma, QCI, licitação e compartilhamento em um fluxo mais simples." },
+                { icon: Layers, title: "Plataformas especializadas", text: "Podem oferecer maior cobertura e maturidade, normalmente com mais custo, configuração ou complexidade operacional." },
+              ].map(({ icon: Icon, title, text }) => <article key={title} className="rounded-xl border bg-white p-5"><Icon className="size-5 text-primary" /><h3 className="mt-4 text-lg font-bold">{title}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p></article>)}
+            </div>
+          </div>
+        </section>
 
         <section aria-labelledby="prova-title" className="border-y bg-[#142b43] text-white">
           <div className="mx-auto grid max-w-7xl gap-8 px-4 py-14 sm:px-8 sm:py-16 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
@@ -517,10 +556,11 @@ function BudgetPreview({ compact = false }: { compact?: boolean }) {
       <div className="mt-4 flex min-w-0 flex-wrap items-end justify-between gap-4 rounded-lg bg-[#f3f5f7] p-4">
         <div className="flex min-w-0 flex-wrap gap-x-6 gap-y-2 text-xs text-muted-foreground">
           <span>Subtotal <strong className="ml-1 text-foreground">R$ 11.800,00</strong></span>
-          <span>BDI ilustrativo <strong className="ml-1 text-foreground">25%</strong></span>
+          <span>BDI ilustrativo <strong className="ml-1 text-foreground">22%</strong></span>
         </div>
-        <p className="text-right text-xs text-muted-foreground">Total demonstrativo<strong className="mt-1 block text-xl text-foreground">R$ 14.750,00</strong></p>
+        <p className="text-right text-xs text-muted-foreground">Total demonstrativo<strong className="mt-1 block text-xl text-foreground">R$ 14.396,00</strong></p>
       </div>
+      <div className="mt-3 grid gap-2 rounded-lg border bg-card p-3 text-[10px] sm:grid-cols-3"><div><span className="font-semibold text-foreground">Curva ABC A</span><span className="ml-1 text-muted-foreground">muro de arrimo · maior impacto</span></div><div><span className="font-semibold text-foreground">Curva ABC B</span><span className="ml-1 text-muted-foreground">fundação e escavação</span></div><div><span className="font-semibold text-foreground">Curva ABC C</span><span className="ml-1 text-muted-foreground">serviços complementares</span></div></div>
       <p className="mt-3 text-[10px] leading-4 text-muted-foreground">Valores fictícios para mostrar a estrutura. Não usar como preço de referência.</p>
     </div>
   );

@@ -6,6 +6,7 @@ export function LegalLinks() {
   return <nav aria-label="Informações legais" className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
     <Link to="/termos" className="hover:underline">Termos de uso</Link>
     <Link to="/privacidade" className="hover:underline">Privacidade</Link>
+    <Link to="/bases-publicas" className="hover:underline">Bases e atualização</Link>
     <Link to="/suporte" className="hover:underline">Suporte e cancelamento</Link>
   </nav>;
 }

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as BasesPublicasRouteImport } from './routes/bases-publicas'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PrivacidadeRouteImport } from './routes/privacidade'
 import { Route as SuporteRouteImport } from './routes/suporte'
@@ -31,6 +32,11 @@ const IndexRoute = IndexRouteImport.update({
 } as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BasesPublicasRoute = BasesPublicasRouteImport.update({
+  id: '/bases-publicas',
+  path: '/bases-publicas',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -97,6 +103,7 @@ const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/bases-publicas': typeof BasesPublicasRoute
   '/login': typeof LoginRoute
   '/privacidade': typeof PrivacidadeRoute
   '/suporte': typeof SuporteRoute
@@ -112,6 +119,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/bases-publicas': typeof BasesPublicasRoute
   '/login': typeof LoginRoute
   '/privacidade': typeof PrivacidadeRoute
   '/suporte': typeof SuporteRoute
@@ -129,6 +137,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/bases-publicas': typeof BasesPublicasRoute
   '/login': typeof LoginRoute
   '/privacidade': typeof PrivacidadeRoute
   '/suporte': typeof SuporteRoute
@@ -146,6 +155,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/bases-publicas'
     | '/login'
     | '/privacidade'
     | '/suporte'
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/bases-publicas'
     | '/login'
     | '/privacidade'
     | '/suporte'
@@ -177,6 +188,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/bases-publicas'
     | '/login'
     | '/privacidade'
     | '/suporte'
@@ -194,6 +206,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  BasesPublicasRoute: typeof BasesPublicasRoute
   LoginRoute: typeof LoginRoute
   PrivacidadeRoute: typeof PrivacidadeRoute
   SuporteRoute: typeof SuporteRoute
@@ -216,6 +229,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bases-publicas': {
+      id: '/bases-publicas'
+      path: '/bases-publicas'
+      fullPath: '/bases-publicas'
+      preLoaderRoute: typeof BasesPublicasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -330,6 +350,7 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  BasesPublicasRoute: BasesPublicasRoute,
   LoginRoute: LoginRoute,
   PrivacidadeRoute: PrivacidadeRoute,
   SuporteRoute: SuporteRoute,
