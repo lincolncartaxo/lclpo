@@ -17,7 +17,6 @@ import {
   FileCheck2,
   Gauge,
   Share2,
-  ShieldCheck,
   Table2,
   Target,
   Users,
@@ -39,7 +38,7 @@ export const Route = createFileRoute("/")({
   },
   head: () => pageMetadata(
     "Orçamento público: referências, memória de cálculo e licitações",
-    "Use SINAPI, SICRO3, ORSE, DER, SBC e outras referências. Automatize a memória de cálculo, prepare licitações e envie ao Transferegov.",
+    "Use SINAPI, SICRO3, ORSE, DER, SBC e outras referências. Automatize a memória de cálculo, prepare licitações e organize estruturas PLE/BM para conferência e envio ao Transferegov.",
     "/",
   ),
   component: Landing,
@@ -104,7 +103,11 @@ const faqs = [
   },
   {
     question: "Como meus dados são tratados?",
-    answer: "O acesso é separado por empresa, com permissões e compartilhamentos controlados. Consulte a Política de Privacidade para saber sobre prestadores, solicitações de acesso, correção e exclusão de dados.",
+    answer: "Os dados ficam na infraestrutura conectada ao projeto, com acesso separado por empresa, permissões e compartilhamentos controlados. Consulte a Política de Privacidade para saber sobre prestadores, solicitações de acesso, correção e exclusão de dados.",
+  },
+  {
+    question: "Onde ficam os dados e como funciona o backup?",
+    answer: "Os dados da conta e dos orçamentos são armazenados na infraestrutura do serviço, com controles de acesso. O usuário deve manter cópias das exportações PDF e XLSX; a exportação é o mecanismo disponível para continuidade e conferência dos seus documentos. Não trate o serviço como substituto de uma política própria de backup.",
   },
   {
     question: "Posso exportar meus dados e cancelar?",
@@ -204,7 +207,6 @@ function DemoShowcase() {
           {view === "abc" && <AbcDemo />}
           <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-secondary/50 px-4 py-3 text-xs text-muted-foreground">
             <span>Exemplo genérico · SINAPI / PB · 08/2026 · 110 itens</span>
-            <span className="inline-flex items-center gap-1"><ShieldCheck className="size-3.5" /> revisão antes da exportação</span>
           </div>
         </div>
       </div>
@@ -214,31 +216,30 @@ function DemoShowcase() {
 
 function PlanilhaDemo() {
   const rows = [
-    ["1.6.1", "SINAPI", "102494", "PINTURA DE PISO COM TINTA EPÓXI, APLICAÇÃO MANUAL, 2 DEMÃOS, INCLUSO PRIMER EPÓXI. AF_05/2021", "M2", "503,4", "57,65", "16,75%", "67,30", "33.881,27"],
-    ["1.4.1", "SINAPI", "87265", "REVESTIMENTO CERÂMICO PARA PAREDES INTERNAS COM PLACAS TIPO ESMALTADA. AF_02/2023_PE", "M2", "159,5", "70,02", "16,75%", "81,75", "13.039,27"],
-    ["1.4.2", "SINAPI", "87529", "MASSA ÚNICA, EM ARGAMASSA TRAÇO 1:2:8, APLICADA MANUALMENTE EM PAREDES INTERNAS. AF_03/2024", "M2", "217,96", "39,78", "16,75%", "46,44", "10.121,73"],
-    ["1.4.3", "SINAPI", "87548", "MASSA ÚNICA, EM ARGAMASSA TRAÇO 1:2:8, PREPARO MANUAL, APLICADA MANUALMENTE. AF_03/2024", "M2", "239,88", "31,65", "16,75%", "36,95", "8.862,94"],
-    ["1.2.1", "SINAPI", "92480", "MONTAGEM E DESMONTAGEM DE FÔRMA DE VIGA, ESCORAMENTO METÁLICO. AF_09/2020", "M2", "83,88", "86,89", "16,75%", "101,44", "8.508,93"],
-    ["1.2.2", "SINAPI", "103670", "LANÇAMENTO COM USO DE BALDES, ADENSAMENTO E ACABAMENTO DE CONCRETO. AF_02/2022", "M3", "17,96", "332,93", "16,75%", "388,69", "6.979,93"],
-    ["1.2.3", "SINAPI", "94970", "CONCRETO FCK = 20MPA, PREPARO MECÂNICO COM BETONEIRA 600 L. AF_05/2021", "M3", "11,18", "533,05", "16,75%", "622,34", "6.960,57"],
+    ["1.6.1", "SINAPI", "102494", "PINTURA DE PISO COM TINTA EPÓXI, APLICAÇÃO MANUAL, 2 DEMÃOS, INCLUSO PRIMER EPÓXI. AF_05/2021", "M2", "503,4", "57,65", "22,00%", "70,33", "35.404,12"],
+    ["1.4.1", "SINAPI", "87265", "REVESTIMENTO CERÂMICO PARA PAREDES INTERNAS COM PLACAS TIPO ESMALTADA. AF_02/2023_PE", "M2", "159,5", "70,02", "22,00%", "85,42", "13.624,49"],
+    ["1.4.2", "SINAPI", "87529", "MASSA ÚNICA, EM ARGAMASSA TRAÇO 1:2:8, APLICADA MANUALMENTE EM PAREDES INTERNAS. AF_03/2024", "M2", "217,96", "39,78", "22,00%", "48,53", "10.577,60"],
+    ["1.4.3", "SINAPI", "87548", "MASSA ÚNICA, EM ARGAMASSA TRAÇO 1:2:8, PREPARO MANUAL, APLICADA MANUALMENTE. AF_03/2024", "M2", "239,88", "31,65", "22,00%", "38,61", "9.261,77"],
+    ["1.2.1", "SINAPI", "92480", "MONTAGEM E DESMONTAGEM DE FÔRMA DE VIGA, ESCORAMENTO METÁLICO. AF_09/2020", "M2", "83,88", "86,89", "22,00%", "106,01", "8.892,12"],
+    ["1.2.2", "SINAPI", "103670", "LANÇAMENTO COM USO DE BALDES, ADENSAMENTO E ACABAMENTO DE CONCRETO. AF_02/2022", "M3", "17,96", "332,93", "22,00%", "406,17", "7.294,81"],
+    ["1.2.3", "SINAPI", "94970", "CONCRETO FCK = 20MPA, PREPARO MECÂNICO COM BETONEIRA 600 L. AF_05/2021", "M3", "11,18", "533,05", "22,00%", "650,32", "7.270,58"],
   ] as const;
   const groups = ["1.1 - SERVIÇOS PRELIMINARES", "1.2 - QUADRA - ARQUIBANCADA", "1.4 - QUADRA - REVESTIMENTO DE PAREDES", "1.6 - QUADRA - PINTURA", "1.7 - QUADRA - EQUIPAMENTOS"];
   return (
     <div className="overflow-hidden p-3 sm:p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2.5">
         <div><div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Planilha orçamentária</div><div className="mt-1 text-sm font-semibold">Quadra poliesportiva · 110 itens</div></div>
-        <div className="text-right"><div className="text-[10px] text-muted-foreground">Identificação</div><div className="font-mono text-xs font-semibold">Orçamento genérico</div></div>
       </div>
       <div className="max-h-[31rem] overflow-auto rounded-lg border">
       <table className="min-w-[1120px] border-collapse text-[10px] leading-tight">
         <thead className="sticky top-0 z-10 bg-sidebar text-sidebar-foreground"><tr><th className="px-2 py-2 text-left">ITEM</th><th className="px-2 py-2 text-left">FONTE</th><th className="px-2 py-2 text-left">CÓDIGO</th><th className="min-w-80 px-2 py-2 text-left">DESCRIÇÃO</th><th className="px-2 py-2 text-center">UN.</th><th className="px-2 py-2 text-right">QUANT.</th><th className="px-2 py-2 text-right">PREÇO UNIT.</th><th className="px-2 py-2 text-right">BDI</th><th className="px-2 py-2 text-right">PREÇO UNIT. c/ BDI</th><th className="px-2 py-2 text-right">TOTAL</th></tr></thead>
         <tbody>
           {groups.map((group, groupIndex) => <Fragment key={group}><tr className="bg-secondary/70"><td colSpan={10} className="px-2 py-2 font-semibold">{group}</td></tr>{(groupIndex === 4 ? rows.slice(4) : [rows[groupIndex]]).map((row) => <tr key={row[0]} className="border-t bg-card"><td className="px-2 py-2 font-semibold">{row[0]}</td>{row.slice(1).map((value, index) => <td key={`${row[0]}-${index}`} className={`px-2 py-2 ${index >= 4 ? "text-right" : index === 3 ? "text-center" : "text-left"} ${index === 7 ? "font-semibold text-primary" : ""}`}>{value}</td>)}</tr>)}</Fragment>)}
-          <tr className="border-t bg-secondary/70 font-semibold"><td colSpan={9} className="px-2 py-2 text-right">TOTAL c/ BDI</td><td className="px-2 py-2 text-right text-primary">R$ 200.253,40</td></tr>
+          <tr className="border-t bg-secondary/70 font-semibold"><td colSpan={9} className="px-2 py-2 text-right">TOTAL c/ BDI</td><td className="px-2 py-2 text-right text-primary">R$ 202.986,98</td></tr>
         </tbody>
       </table>
       </div>
-      <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Amostra técnica genérica: BDI exemplificativo de 16,75%, composição SINAPI e curva ABC disponíveis no relatório. Não representa cliente, contrato ou contratação.</p>
+      <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Amostra técnica genérica: BDI demonstrativo de 22,00%, composição SINAPI e curva ABC disponíveis no relatório. Não representa cliente, contrato ou contratação.</p>
     </div>
   );
 }
@@ -285,7 +286,7 @@ function MemoriaDemo() {
 function CronogramaDemo() {
   return (
     <div className="overflow-x-auto p-4">
-      <div className="mb-3 flex items-center justify-between rounded-lg border bg-card px-3 py-2.5"><div><div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Cronograma F/F</div><div className="mt-1 text-sm font-semibold">Quadra poliesportiva · 3 meses</div></div><div className="text-right"><div className="text-[10px] text-muted-foreground">Total c/ BDI</div><div className="font-mono text-xs font-semibold">R$ 200.253,40</div></div></div>
+      <div className="mb-3 flex items-center justify-between rounded-lg border bg-card px-3 py-2.5"><div><div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Cronograma F/F</div><div className="mt-1 text-sm font-semibold">Quadra poliesportiva · 3 meses</div></div><div className="text-right"><div className="text-[10px] text-muted-foreground">Total c/ BDI</div><div className="font-mono text-xs font-semibold">R$ 202.986,98</div></div></div>
       <table className="budget-table min-w-[700px] text-xs">
         <thead><tr><th>Etapa</th><th className="num">M1</th><th className="num">M2</th><th className="num">M3</th><th className="num">Σ</th></tr></thead>
         <tbody>
@@ -294,8 +295,8 @@ function CronogramaDemo() {
           <tr><td>1.4 - QUADRA - REVESTIMENTO</td><td className="num">—</td><td className="num">100%</td><td className="num">—</td><td className="num text-emerald-700">100,00%</td></tr>
           <tr><td>1.5 - QUADRA - PAVIMENTAÇÃO</td><td className="num">—</td><td className="num">50%</td><td className="num">50%</td><td className="num text-emerald-700">100,00%</td></tr>
           <tr><td>1.6 - QUADRA - PINTURA</td><td className="num">—</td><td className="num">—</td><td className="num">100%</td><td className="num text-emerald-700">100,00%</td></tr>
-          <tr className="bg-[#dce6f1] font-semibold text-[#213f68]"><td>TOTAL PERÍODO</td><td className="num">R$ 62.255,43</td><td className="num">R$ 45.385,28</td><td className="num">R$ 92.612,69</td><td className="num">R$ 200.253,40</td></tr>
-          <tr className="bg-[#dce6f1] font-semibold text-[#213f68]"><td>TOTAL ACUMULADO</td><td className="num">R$ 62.255,43</td><td className="num">R$ 107.640,71</td><td className="num">R$ 200.253,40</td><td className="num">R$ 200.253,40</td></tr>
+          <tr className="bg-[#dce6f1] font-semibold text-[#213f68]"><td>TOTAL PERÍODO</td><td className="num">R$ 63.105,25</td><td className="num">R$ 46.004,82</td><td className="num">R$ 93.876,91</td><td className="num">R$ 202.986,98</td></tr>
+          <tr className="bg-[#dce6f1] font-semibold text-[#213f68]"><td>TOTAL ACUMULADO</td><td className="num">R$ 63.105,25</td><td className="num">R$ 109.110,07</td><td className="num">R$ 202.986,98</td><td className="num">R$ 202.986,98</td></tr>
         </tbody>
       </table>
       <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Distribuição mensal de um cronograma genérico de 3 meses, apresentada apenas para demonstrar o formato.</p>
@@ -315,7 +316,7 @@ function AbcDemo() {
   ];
   return (
     <div className="overflow-hidden p-3 sm:p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2.5"><div><div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Curva ABC · Pareto</div><div className="mt-1 text-sm font-semibold">Itens mais representativos · total c/ BDI R$ 200.253,40</div></div><div className="text-right"><div className="text-[10px] text-muted-foreground">Faixa exibida</div><div className="font-mono text-xs font-semibold">A · B · C</div></div></div>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2.5"><div><div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Curva ABC · Pareto</div><div className="mt-1 text-sm font-semibold">Itens mais representativos · total c/ BDI R$ 202.986,98</div></div><div className="text-right"><div className="text-[10px] text-muted-foreground">Faixa exibida</div><div className="font-mono text-xs font-semibold">A · B · C</div></div></div>
       <div className="grid gap-2 sm:grid-cols-3"><div className="rounded-lg border-l-4 border-l-[#1d4f82] bg-[#edf4fb] p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-[#1d4f82]">Classe A</p><p className="mt-1 text-xs text-muted-foreground">Itens de maior impacto, priorizados para revisão.</p></div><div className="rounded-lg border-l-4 border-l-[#6f9fca] bg-[#f2f7fb] p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-[#1d4f82]">Classe B</p><p className="mt-1 text-xs text-muted-foreground">Itens intermediários na composição do custo.</p></div><div className="rounded-lg border-l-4 border-l-[#b8c9d8] bg-[#f7fafc] p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-[#1d4f82]">Classe C</p><p className="mt-1 text-xs text-muted-foreground">Itens de menor peso individual.</p></div></div>
       <div className="mt-3 rounded-lg border bg-card p-3"><p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Gráfico Pareto · peso dos 7 primeiros itens</p><svg viewBox="0 0 560 190" className="h-44 w-full" role="img" aria-label="Gráfico de barras do peso dos itens da Curva ABC e linha de peso acumulado"><line x1="32" y1="155" x2="540" y2="155" stroke="currentColor" className="text-border" /><line x1="32" y1="25" x2="32" y2="155" stroke="currentColor" className="text-border" /><text x="38" y="35" fontSize="9" className="fill-muted-foreground">20%</text><text x="38" y="94" fontSize="9" className="fill-muted-foreground">10%</text><text x="38" y="153" fontSize="9" className="fill-muted-foreground">0%</text><text x="522" y="35" fontSize="9" className="fill-muted-foreground">100%</text><text x="522" y="96" fontSize="9" className="fill-muted-foreground">50%</text>{[17.44, 6.71, 5.21, 4.56, 4.38, 3.59, 3.58].map((value, index) => <g key={value}><rect x={58 + index * 58} y={155 - value * 6.2} width="30" height={value * 6.2} rx="2" className="fill-[#6f9fca]" /><text x={68 + index * 58} y="172" fontSize="9" textAnchor="middle" className="fill-muted-foreground">{index + 1}</text></g>)}<polyline points="73,132 131,124 189,117 247,111 305,105 363,101 421,96" fill="none" stroke="#e7ad43" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /><circle cx="73" cy="132" r="3" fill="#e7ad43" /><circle cx="131" cy="124" r="3" fill="#e7ad43" /><circle cx="189" cy="117" r="3" fill="#e7ad43" /><circle cx="247" cy="111" r="3" fill="#e7ad43" /><circle cx="305" cy="105" r="3" fill="#e7ad43" /><circle cx="363" cy="101" r="3" fill="#e7ad43" /><circle cx="421" cy="96" r="3" fill="#e7ad43" /></svg><div className="mt-1 flex justify-end gap-4 text-[10px] text-muted-foreground"><span><i className="mr-1 inline-block size-2 rounded-sm bg-[#6f9fca]" />Peso individual</span><span><i className="mr-1 inline-block size-2 rounded-full bg-[#e7ad43]" />Peso acumulado</span></div></div>
       <div className="mt-3 max-h-[28rem] overflow-auto rounded-lg border"><table className="min-w-[760px] border-collapse text-[10px] leading-tight"><thead className="sticky top-0 z-10 bg-sidebar text-sidebar-foreground"><tr><th className="px-2 py-2 text-left">ITEM</th><th className="px-2 py-2 text-left">CÓDIGO</th><th className="px-2 py-2 text-left">DESCRIÇÃO</th><th className="px-2 py-2 text-right">QTD.</th><th className="px-2 py-2 text-right">TOTAL</th><th className="px-2 py-2 text-right">PESO %</th><th className="px-2 py-2 text-right">ACUM.</th></tr></thead><tbody>{rows.map((row) => <tr key={row[0]} className="border-t bg-card"><td className="px-2 py-2 font-semibold">{row[0]}</td><td className="px-2 py-2 font-mono">{row[1]}</td><td className="max-w-[260px] px-2 py-2">{row[2]}</td><td className="px-2 py-2 text-right">{row[3]}</td><td className="px-2 py-2 text-right font-semibold">{row[4]}</td><td className="px-2 py-2 text-right">{row[5]}</td><td className="px-2 py-2 text-right font-semibold text-primary">{row[6]}</td></tr>)}</tbody></table></div>
@@ -359,7 +360,7 @@ function Landing() {
                 Do preço de referência à licitação, sem retrabalho.
               </h1>
               <p className="mt-5 max-w-xl text-base leading-7 text-white/75 sm:text-lg">
-                Use SINAPI, SICRO3, ORSE, DER, SBC, composições próprias e outras referências disponíveis. Automatize a memória de cálculo e organize BDI, cronograma, QCI, licitações e envio ao Transferegov.
+                Use SINAPI, SICRO3, ORSE, DER, SBC, composições próprias e outras referências disponíveis. Automatize a memória de cálculo e organize BDI, cronograma, QCI, licitações e estruturas PLE/BM para conferência e envio ao Transferegov.
               </p>
               <div className="mt-8 flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
                 <Button size="lg" className="h-12 w-full bg-[#e7ad43] px-5 font-semibold text-[#142b43] hover:bg-[#f0bf60] sm:w-auto" asChild>
@@ -408,7 +409,7 @@ function Landing() {
         <section aria-labelledby="quem-faz-title" className="border-b bg-white">
           <div className="mx-auto grid max-w-7xl gap-8 px-4 py-14 sm:px-8 lg:grid-cols-[0.7fr_1.3fr] lg:items-center">
             <div className="flex items-start gap-4"><div className="grid size-12 shrink-0 place-items-center rounded-xl bg-[#142b43] text-[#e7ad43]"><Building2 className="size-6" /></div><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#a36d12]">Quem faz o LclPlan</p><h2 id="quem-faz-title" className="mt-2 text-3xl font-bold tracking-tight">Produto operado pela LCL Serviços de Engenharia.</h2></div></div>
-            <div className="rounded-xl border bg-[#f7f9fb] p-5 text-sm leading-6 text-muted-foreground"><p className="font-semibold text-foreground">LCL SERVICOS DE ENGENHARIA LTDA - ME · CNPJ 28.536.867/0001-85</p><p>Avenida Governador Flávio Ribeiro Coutinho, nº 500, Sala 601, Jardim Oceania, João Pessoa–PB, CEP 58037-005.</p><p className="mt-2"><a className="font-medium text-primary underline underline-offset-4" href="mailto:contato@lclprojetos.com">contato@lclprojetos.com</a> · (83) 3578.3426</p><p className="mt-3 text-xs">O LclPlan é uma ferramenta de apoio. A validação final dos quantitativos, referências, BDI, encargos e documentos cabe ao responsável técnico e ao órgão contratante.</p></div>
+            <div className="rounded-xl border bg-[#f7f9fb] p-5 text-sm leading-6 text-muted-foreground"><p className="font-semibold text-foreground">LCL SERVICOS DE ENGENHARIA LTDA - ME · CNPJ 28.536.867/0001-85</p><p className="mt-1 font-medium text-foreground">Lincoln Cartaxo de Lira Júnior · Engenheiro Civil · CREA-PB 1608146898</p><p>Avenida Governador Flávio Ribeiro Coutinho, nº 500, Sala 601, Jardim Oceania, João Pessoa–PB, CEP 58037-005.</p><p className="mt-2"><a className="font-medium text-primary underline underline-offset-4" href="mailto:contato@lclprojetos.com">contato@lclprojetos.com</a> · (83) 3578.3426</p><p className="mt-3 text-xs">O LclPlan é uma ferramenta de apoio. A validação final dos quantitativos, referências, BDI, encargos e documentos cabe ao responsável técnico e ao órgão contratante.</p></div>
           </div>
         </section>
 
@@ -583,9 +584,9 @@ function BudgetPreview({ compact = false }: { compact?: boolean }) {
       <div className="mt-4 flex min-w-0 flex-wrap items-end justify-between gap-4 rounded-lg bg-[#f3f5f7] p-4">
         <div className="flex min-w-0 flex-wrap gap-x-6 gap-y-2 text-xs text-muted-foreground">
           <span>Subtotal <strong className="ml-1 text-foreground">R$ 166.382,77</strong></span>
-          <span>BDI aplicado <strong className="ml-1 text-foreground">16,75%</strong></span>
+          <span>BDI aplicado <strong className="ml-1 text-foreground">22,00%</strong></span>
         </div>
-        <p className="text-right text-xs text-muted-foreground">Total c/ BDI<strong className="mt-1 block text-xl text-foreground">R$ 200.253,40</strong></p>
+        <p className="text-right text-xs text-muted-foreground">Total c/ BDI<strong className="mt-1 block text-xl text-foreground">R$ 202.986,98</strong></p>
       </div>
       <div className="mt-3 grid gap-2 rounded-lg border bg-card p-3 text-[10px] sm:grid-cols-3"><div><span className="font-semibold text-foreground">Curva ABC A</span><span className="ml-1 text-muted-foreground">pintura epóxi · 17,44%</span></div><div><span className="font-semibold text-foreground">Curva ABC B</span><span className="ml-1 text-muted-foreground">revestimentos e estrutura</span></div><div><span className="font-semibold text-foreground">Curva ABC C</span><span className="ml-1 text-muted-foreground">equipamentos e instalações</span></div></div>
       <p className="mt-3 text-[10px] leading-4 text-muted-foreground">Amostra genérica para demonstração. A referência exibida é SINAPI/PB 08/2026; valide os dados antes de usar.</p>
