@@ -1349,6 +1349,10 @@ export type Database = {
           permission: string
         }[]
       }
+      normalize_legacy_organization_plan: {
+        Args: { p_plan: string }
+        Returns: string
+      }
       recalcular_orcamentos_da_composicao: {
         Args: { p_codigo: string; p_fonte: string }
         Returns: number
