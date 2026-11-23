@@ -134,6 +134,13 @@
       "when": 1795284000000,
       "tag": "0018_sync_legacy_organization_plan",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795402171800,
+      "tag": "0019_bind_transferegov_proposal",
+      "breakpoints": true
     }
   ]
 }

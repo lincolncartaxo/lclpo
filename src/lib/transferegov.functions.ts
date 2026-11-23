@@ -69,11 +69,17 @@ export const consultarPropostaTG = createServerFn({ method: "POST" })
 export const enviarPOTransferegov = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => propSchema.extend({
+    orcamentoId: z.string().uuid(),
     nrmeta: z.string().regex(/^\d{1,5}$/),
     nrsubmeta: z.string().regex(/^\d{1,5}$/),
     payload: z.record(z.string(), z.any()),
   }).parse(d))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    const { error: bindErr } = await (context.supabase as any).rpc("vincular_proposta_transferegov", {
+      p_orcamento_id: data.orcamentoId,
+      p_proposta: `${data.nrproposta}/${data.anoproposta}`,
+    });
+    if (bindErr) throw new Error(bindErr.message);
     const { token, epcad } = await autenticar();
     const q = `nrproposta=${data.nrproposta}&anoproposta=${data.anoproposta}&nrmeta=${data.nrmeta}&nrsubmeta=${data.nrsubmeta}`;
     const r = await fetch(`${PO_URL}?${q}`, {

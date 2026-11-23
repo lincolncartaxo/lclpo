@@ -801,6 +801,7 @@ export type Database = {
           ref_precos: string | null
           regime: string
           status: string
+          transferegov_proposta: string | null
           uf: string | null
           updated_at: string
           user_id: string
@@ -840,6 +841,7 @@ export type Database = {
           ref_precos?: string | null
           regime?: string
           status?: string
+          transferegov_proposta?: string | null
           uf?: string | null
           updated_at?: string
           user_id: string
@@ -879,6 +881,7 @@ export type Database = {
           ref_precos?: string | null
           regime?: string
           status?: string
+          transferegov_proposta?: string | null
           uf?: string | null
           updated_at?: string
           user_id?: string
@@ -1400,6 +1403,10 @@ export type Database = {
       }
       upsert_precos_insumos_lote: {
         Args: { payload: Json }
+        Returns: undefined
+      }
+      vincular_proposta_transferegov: {
+        Args: { p_orcamento_id: string; p_proposta: string }
         Returns: undefined
       }
     }

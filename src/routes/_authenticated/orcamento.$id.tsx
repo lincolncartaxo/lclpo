@@ -2475,7 +2475,7 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
     if (!window.confirm(`Enviar a planilha para a proposta ${tgProp.nrproposta}/${tgProp.anoproposta}, meta ${tgProp.nrmeta}, submeta ${tgProp.nrsubmeta}?`)) return;
     setTgBusy(true);
     try {
-      const r = await enviarFn({ data: { ...tgProp, payload: data as any } });
+      const r = await enviarFn({ data: { ...tgProp, orcamentoId: orc.id, payload: data as any } });
       if (r.ok) { toast.success("Planilha enviada ao Transferegov"); setTgOpen(false); }
       else setTgErros([`Transferegov recusou o envio (${r.status}): ${r.mensagem}`]);
     } catch (e: any) { toast.error(e?.message ?? "Erro ao enviar"); }
