@@ -53,7 +53,7 @@ function Dashboard() {
   const [bases, setBases] = useState<Base[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusSaving, setStatusSaving] = useState<string | null>(null);
-  const [form, setForm] = useState({ nome: "", objeto: "", municipio: "", uf: "", ref_precos: "", orgao: "", regime: "nao_desonerado", engenheiro: DEFAULT_ENGENHEIRO, crea: DEFAULT_CREA });
+  const [form, setForm] = useState({ nome: "", objeto: "", municipio: "", uf: "", uf_precos: "", ref_precos: "", orgao: "", regime: "nao_desonerado", engenheiro: DEFAULT_ENGENHEIRO, crea: DEFAULT_CREA });
   const [search, setSearch] = useState("");
   const [usageKey, setUsageKey] = useState(0);
 
@@ -80,11 +80,11 @@ function Dashboard() {
   useEffect(() => { void load(); }, []);
 
   useEffect(() => {
-    if (!form.uf) {
+    if (!form.uf_precos) {
       setBases([]);
       return;
     }
-    (supabase as any).rpc("listar_bases_precos", { p_uf: form.uf }).then(({ data, error }: any) => {
+    (supabase as any).rpc("listar_bases_precos", { p_uf: form.uf_precos }).then(({ data, error }: any) => {
       if (error) return toast.error(error.message);
       const next = (data ?? []) as Base[];
       setBases(next);
@@ -95,10 +95,10 @@ function Dashboard() {
           : (next[0] ? `${next[0].fonte}|${next[0].mes_ref}` : ""),
       }));
     });
-  }, [form.uf]);
+  }, [form.uf_precos]);
 
   const create = async () => {
-    if (!form.nome || !form.uf || !form.ref_precos) return toast.error("Informe nome, UF e data base");
+    if (!form.nome || !form.uf || !form.uf_precos || !form.ref_precos) return toast.error("Informe nome, UF do empreendimento, UF da base e data base");
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     const payload = { ...form, user_id: user!.id };
@@ -169,15 +169,22 @@ function Dashboard() {
               <div><Label>Município</Label><Input value={form.municipio} onChange={(e) => setForm({ ...form, municipio: e.target.value })} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>UF da base de preços</Label>
-                  <Select value={form.uf} onValueChange={(uf) => setForm({ ...form, uf })}>
+                  <Label>UF do empreendimento</Label>
+                  <Select value={form.uf} onValueChange={(uf) => setForm({ ...form, uf, uf_precos: form.uf_precos || uf })}>
                     <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent className="max-h-72">{UFS.map((uf) => <SelectItem key={uf} value={uf}>{uf}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div>
+                  <Label>UF da base de preços</Label>
+                  <Select value={form.uf_precos} onValueChange={(uf_precos) => setForm({ ...form, uf_precos, ref_precos: "" })}>
+                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent className="max-h-72">{UFS.map((uf) => <SelectItem key={uf} value={uf}>{uf}{uf === form.uf ? " — empreendimento" : ""}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
                   <Label>Data base / fonte</Label>
-                  <Select value={form.ref_precos} onValueChange={(ref_precos) => setForm({ ...form, ref_precos })} disabled={!form.uf}>
+                  <Select value={form.ref_precos} onValueChange={(ref_precos) => setForm({ ...form, ref_precos })} disabled={!form.uf_precos}>
                     <SelectTrigger><SelectValue placeholder="Última disponível" /></SelectTrigger>
                     <SelectContent className="max-h-72">{bases.map((base) => <SelectItem key={`${base.fonte}|${base.mes_ref}`} value={`${base.fonte}|${base.mes_ref}`}>{fmtBase(base)}</SelectItem>)}</SelectContent>
                   </Select>

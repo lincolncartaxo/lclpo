@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet, redirect, Link, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Building2, LayoutDashboard, FileSpreadsheet, LogOut, Database, Shield, CreditCard, LifeBuoy, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Building2, LayoutDashboard, FileSpreadsheet, LogOut, Database, Shield, CreditCard, LifeBuoy, PanelLeftClose, PanelLeftOpen, ClipboardList } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Brand } from "@/components/Brand";
@@ -52,6 +52,7 @@ function AuthLayout() {
         </div>
         <nav className="flex-1 px-3 py-4 space-y-1 text-sm">
           <NavItem to="/dashboard" icon={LayoutDashboard}>Orçamentos</NavItem>
+          <NavItem to="/cotacoes" icon={ClipboardList}>Cotações</NavItem>
           <NavItem to="/bases" icon={Database}>Bases</NavItem>
           <NavItem to="/team" icon={Building2}>Minha Empresa</NavItem>
           <NavItem to="/planos" icon={CreditCard}>Planos</NavItem>

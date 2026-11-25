@@ -32,7 +32,7 @@ const prefixOf = (s: string) => {
 };
 
 const searchKeywords = (value: string) => value.match(/[A-Za-zÀ-ÖØ-öø-ÿ0-9_/-]+/g) ?? [];
-const FONTES_ALL = ["SINAPI", "DER", "SICRO3", "SBC", "ORSE", "PRÓPRIA", "Outras"];
+const FONTES_ALL = ["SINAPI", "DER", "SICRO3", "SBC", "ORSE", "PRÓPRIA", "COTAÇÃO", "Outras"];
 
 const splitEtapaLabel = (label: string) => {
   const value = label.trim();
@@ -139,10 +139,12 @@ type Item = {
   etapa: string | null; item: string | null; fonte: string | null;
   codigo: string | null; descricao: string; unidade: string | null;
   quantidade: number; preco_unitario: number;
+  cotacao_id?: string | null;
   evento_id?: string | null;
   memoria?: any[];
   bdi_id?: string | null;
   desconto_licitacao?: number;
+  uf_precos?: string | null;
 };
 
 function totalEtapaComDescendentes(
@@ -164,6 +166,7 @@ function totalEtapaComDescendentes(
 }
 
 const UFS = ["AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT","PA","PB","PE","PI","PR","RJ","RN","RO","RR","RS","SC","SE","SP","TO"];
+const priceUfOf = (orc: any) => String(orc?.uf_precos || orc?.uf || "BR").trim().toUpperCase();
 function parseRef(ref: string | null | undefined): { fonte: string | null; mes: string | null } {
   if (!ref || !ref.includes("|")) return { fonte: null, mes: null };
   const parts = ref.split("|");
@@ -179,18 +182,18 @@ function fmtRef(ref: string | null | undefined) {
 type PriceFallbackItem = { id: string; fonte: string; codigo: string; descricao?: string | null; precoAnterior: number };
 
 async function recalculateBudgetPrices(orcamentoId: string, regime: string, uf: string | null, mesRef: string | null = null): Promise<PriceFallbackItem[]> {
-  const { data: items } = await supabase
+  const { data: items } = await (supabase as any)
     .from("orcamento_itens")
-    .select("id,fonte,codigo,descricao,preco_unitario")
+    .select("id,fonte,codigo,descricao,preco_unitario,uf_precos")
     .eq("orcamento_id", orcamentoId)
     .not("codigo", "is", null);
   const fallback: PriceFallbackItem[] = [];
-  await Promise.all((items ?? []).map(async (item) => {
+  await Promise.all((items ?? []).map(async (item: any) => {
     if (!item.fonte || !item.codigo) return;
     const { data, error } = await supabase.rpc("calcular_custo_composicao", {
       p_fonte: item.fonte,
       p_codigo: item.codigo,
-      p_uf: uf?.trim() || "PB",
+      p_uf: String((item as any).uf_precos || uf || "PB").trim(),
       p_mes_ref: mesRef ?? "",
       p_regime: regime,
     });
@@ -270,7 +273,6 @@ function Editor() {
             <TabsTrigger value="capa">Dados Gerais</TabsTrigger>
             <TabsTrigger value="encargos">Encargos</TabsTrigger>
             <TabsTrigger value="bdi">BDI</TabsTrigger>
-            <TabsTrigger value="cotacao">Cotação</TabsTrigger>
             <TabsTrigger value="planilha">Planilha Orçamentária</TabsTrigger>
             <TabsTrigger value="memoria">Memória de Cálculo</TabsTrigger>
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
@@ -286,10 +288,9 @@ function Editor() {
           <TabsContent value="capa"><CapaTab orc={orc} onSaved={load} /></TabsContent>
           <TabsContent value="encargos"><EncargosTab orc={orc} onSaved={load} /></TabsContent>
           <TabsContent value="bdi"><BdiTab orc={orc} onSaved={load} /></TabsContent>
-          <TabsContent value="cotacao"><CotacaoTab /></TabsContent>
           <TabsContent value="memoria"><MemoriaTab orcId={id} items={items} onItemUpdated={(itemId: string, patch: Partial<Item>) => setItems(current => current.map(item => item.id === itemId ? { ...item, ...patch } : item))} /></TabsContent>
           <TabsContent value="abc"><CurvaABCTab orcId={id} items={items} bdiPct={Number(orc.bdi_pct)} /></TabsContent>
-          <TabsContent value="planilha"><PlanilhaTab orcId={id} items={items} reload={load} onItemUpdated={(itemId, patch) => setItems(current => current.map(item => item.id === itemId ? { ...item, ...patch } : item))} bdiPct={Number(orc.bdi_pct)} regime={orc.regime ?? "nao_desonerado"} uf={orc.uf ?? null} refPrecos={orc.ref_precos ?? null} /></TabsContent>
+          <TabsContent value="planilha"><PlanilhaTab orcId={id} items={items} reload={load} onItemUpdated={(itemId, patch) => setItems(current => current.map(item => item.id === itemId ? { ...item, ...patch } : item))} bdiPct={Number(orc.bdi_pct)} regime={orc.regime ?? "nao_desonerado"} uf={priceUfOf(orc)} refPrecos={orc.ref_precos ?? null} /></TabsContent>
           <TabsContent value="resumo"><ResumoTab orcId={id} items={items} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} orc={orc} /></TabsContent>
           <TabsContent value="cronograma"><CronogramaTab orcId={id} items={items} totalComBdi={totalComBdi} orc={orc} onSaved={load} /></TabsContent>
           {orc.interesse_transferegov && <TabsContent value="ple"><PleStructureTab orcId={id} items={items} /><RelatorioTab orc={orc} orcId={id} items={items} bdis={bdis} subtotal={subtotal} totalEncargos={totalEncargos} totalComBdi={totalComBdi} transferegovOnly /></TabsContent>}
@@ -305,26 +306,27 @@ function Editor() {
 
 /* ---------- CAPA ---------- */
 function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
-  const [f, setF] = useState({ ...orc });
+  const [f, setF] = useState({ ...orc, uf_precos: orc.uf_precos ?? orc.uf ?? "" });
   const [bases, setBases] = useState<{ fonte: string; mes_ref: string }[]>([]);
+  useEffect(() => { setF((prev: Orc) => ({ ...prev, ...orc, uf_precos: orc.uf_precos ?? orc.uf ?? "" })); }, [orc.id, orc.uf, orc.uf_precos]);
   useEffect(() => {
-    if (!f.uf) { setBases([]); return; }
-    supabase.rpc("listar_bases_precos" as any, { p_uf: f.uf }).then(({ data }) => {
+    if (!f.uf_precos) { setBases([]); return; }
+    supabase.rpc("listar_bases_precos" as any, { p_uf: f.uf_precos }).then(({ data }) => {
       const next = (data as any) ?? []; setBases(next);
       setF((prev: Orc) => ({ ...prev, ref_precos: prev.ref_precos && next.some((b: any) => `${b.fonte}|${b.mes_ref}` === prev.ref_precos) ? prev.ref_precos : (next[0] ? `${next[0].fonte}|${next[0].mes_ref}` : "") }));
     });
-  }, [f.uf]);
+  }, [f.uf_precos]);
   const save = async () => {
     const updatePayload = {
       nome: f.nome, objeto: f.objeto, contrato: f.contrato, orgao: f.orgao,
-      municipio: f.municipio ?? f.localizacao, uf: f.uf, engenheiro: f.engenheiro, crea: f.crea, ref_precos: f.ref_precos,
+      municipio: f.municipio ?? f.localizacao, uf: f.uf, uf_precos: f.uf_precos || null, engenheiro: f.engenheiro, crea: f.crea, ref_precos: f.ref_precos,
       regime: f.regime ?? "nao_desonerado",
       interesse_transferegov: !!f.interesse_transferegov,
       interesse_licitacao: !!f.interesse_licitacao,
     } as any;
     const { error } = await supabase.from("orcamentos").update(updatePayload).eq("id", orc.id);
     if (error) return toast.error(error.message);
-    const fallbacks = await recalculateBudgetPrices(orc.id, f.regime ?? "nao_desonerado", f.uf ?? null, parseRef(f.ref_precos).mes);
+    const fallbacks = await recalculateBudgetPrices(orc.id, f.regime ?? "nao_desonerado", f.uf_precos || f.uf || null, parseRef(f.ref_precos).mes);
     if (fallbacks.length) {
       const preview = fallbacks.slice(0, 5).map(item => `${item.codigo} (${item.fonte})`).join(", ");
       const suffix = fallbacks.length > 5 ? ` e mais ${fallbacks.length - 5}` : "";
@@ -340,16 +342,22 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
         <Field label="Nome do Orçamento"><Input value={f.nome ?? ""} onChange={(e)=>setF({...f,nome:e.target.value})} /></Field>
         <Field label="Contrato"><Input value={f.contrato ?? ""} onChange={(e)=>setF({...f,contrato:e.target.value})} /></Field>
         <Field label="Município"><Input value={f.municipio ?? f.localizacao ?? ""} onChange={(e)=>setF({...f,municipio:e.target.value})} /></Field>
-        <Field label="UF">
-          <Select value={f.uf ?? ""} onValueChange={(v)=>setF({...f, uf: v, ref_precos: null})}>
-            <SelectTrigger><SelectValue placeholder="Selecione o estado" /></SelectTrigger>
+        <Field label="UF do empreendimento">
+          <Select value={f.uf ?? ""} onValueChange={(v)=>setF({...f, uf: v})}>
+            <SelectTrigger><SelectValue placeholder="Selecione o estado da obra" /></SelectTrigger>
             <SelectContent className="max-h-72">{UFS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
           </Select>
         </Field>
         <Field label="Órgão / Concedente"><Input value={f.orgao ?? ""} onChange={(e)=>setF({...f,orgao:e.target.value})} /></Field>
+        <Field label="UF da base de preços">
+          <Select value={f.uf_precos ?? f.uf ?? ""} onValueChange={(v)=>setF({...f, uf_precos: v, ref_precos: null})}>
+            <SelectTrigger><SelectValue placeholder={f.uf ? "Usar a UF do empreendimento" : "Selecione a UF da base"} /></SelectTrigger>
+            <SelectContent className="max-h-72">{UFS.map(u => <SelectItem key={u} value={u}>{u}{u === f.uf ? " — empreendimento" : ""}</SelectItem>)}</SelectContent>
+          </Select>
+        </Field>
         <Field label="Base de Preços (Referência)">
-          <Select value={f.ref_precos || ""} onValueChange={(v)=>setF({...f, ref_precos: v})} disabled={!f.uf}>
-            <SelectTrigger><SelectValue placeholder={f.uf ? (bases.length ? "Selecione a base" : "Nenhuma base para esta UF") : "Selecione a UF primeiro"} /></SelectTrigger>
+          <Select value={f.ref_precos || ""} onValueChange={(v)=>setF({...f, ref_precos: v})} disabled={!f.uf_precos}>
+            <SelectTrigger><SelectValue placeholder={f.uf_precos ? (bases.length ? "Selecione a base" : "Nenhuma base para esta UF") : "Selecione a UF da base primeiro"} /></SelectTrigger>
             <SelectContent className="max-h-72">{bases.map(b => { const v = `${b.fonte}|${String(b.mes_ref)}`; return <SelectItem key={v} value={v}>{fmtRef(v)}</SelectItem>; })}</SelectContent>
           </Select>
         </Field>
@@ -562,11 +570,6 @@ function ComposicaoTab({ items }: { items: Item[] }) {
       </div>
     </div>
   );
-}
-
-/* ---------- COTAÇÃO ---------- */
-function CotacaoTab() {
-  return <div className="mt-4 text-sm text-muted-foreground rounded border p-6 bg-muted/20">Módulo de cotação de fornecedores — cadastre cotações livres de insumos não cobertos pelas bases. <span className="italic">(Em breve)</span></div>;
 }
 
 /* ---------- PLANILHA LCLPLANMENTÁRIA ---------- */
@@ -785,7 +788,7 @@ function PlanilhaTab({ orcId, items, reload, onItemUpdated, bdiPct, regime, uf, 
           </tbody>
         </table>
       </div>
-      <ExplosaoSheet row={explodeRow} onClose={()=>setExplodeRow(null)} regime={regime} uf={uf} mesRef={refPrecos ? parseRef(refPrecos).mes : null} />
+      <ExplosaoSheet row={explodeRow} onClose={()=>setExplodeRow(null)} regime={regime} uf={explodeRow?.uf_precos ?? uf} mesRef={refPrecos ? parseRef(refPrecos).mes : null} />
       <ConfirmDialog
         open={!!confirmItem}
         title="Excluir item"
@@ -936,6 +939,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [item, setItem] = useState("");
   const [quant, setQuant] = useState("1");
+  const [itemUf, setItemUf] = useState<string>(uf || "");
 
   // manual fields
   const [m, setM] = useState({ descricao: "", unidade: "un", preco_unitario: "0" });
@@ -948,6 +952,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
       setItem(editingItem.item ?? "");
       setQuant(String(editingItem.quantidade ?? 1));
       setFonte(FONTES_ALL.includes(editingItem.fonte) ? editingItem.fonte : "__all");
+      setItemUf(editingItem.uf_precos || uf || "");
       setTab(editingItem.codigo ? "base" : "manual");
       setTipoBase("COMPOSICAO");
       if (editingItem.codigo && editingItem.fonte) {
@@ -962,17 +967,22 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
       setQ(editingItem.codigo ?? editingItem.descricao ?? "");
       setM({ descricao: editingItem.descricao ?? "", unidade: editingItem.unidade ?? "un", preco_unitario: String(editingItem.preco_unitario ?? 0) });
     } else {
-      setItem(""); setQuant("1"); setQ("");
+      setItem(""); setQuant("1"); setItemUf(uf || ""); setQ("");
       setM({ descricao: "", unidade: "un", preco_unitario: "0" });
       setFonte(defaultFonte);
     }
   }, [open, editingItem, defaultFonte]);
 
   const resolvePrice = useCallback(async (r: any) => {
+    if (r.tipo_item === "COTACAO") {
+      const { data, error } = await (supabase as any).rpc("calcular_cotacao", { p_cotacao_id: r.cotacao_id });
+      if (error) throw error;
+      return Number(data ?? 0);
+    }
     if (r.tipo_item === "COMPOSICAO") {
       const { data, error } = await supabase.rpc("calcular_custo_composicao" as any, {
         p_fonte: r.fonte, p_codigo: String(r.codigo),
-        p_uf: ufUse, p_mes_ref: (mesUse ?? null) as any, p_regime: regime,
+        p_uf: itemUf || ufUse, p_mes_ref: (mesUse ?? null) as any, p_regime: regime,
       });
       if (error) throw error;
       return Number(data ?? 0);
@@ -987,14 +997,24 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
     const { data, error } = await query.order("mes_ref", { ascending: false }).limit(100);
     if (error) throw error;
     const rows = data ?? [];
-    const match = rows.find((p: any) => String(p.uf).toUpperCase() === ufUse.toUpperCase())
+    const match = rows.find((p: any) => String(p.uf).toUpperCase() === String(itemUf || ufUse).toUpperCase())
       ?? rows.find((p: any) => String(p.uf).toUpperCase() === "BR")
       ?? rows[0];
     return Number(match?.[coluna] ?? 0);
-  }, [ufUse, mesUse, regime]);
+  }, [ufUse, itemUf, mesUse, regime]);
 
   useEffect(() => {
     const t = setTimeout(async () => {
+      if (fonte === "COTAÇÃO") {
+        let quoteQuery: any = (supabase as any).from("cotacoes_empresa").select("id,descricao,unidade,codigo").order("updated_at", { ascending: false }).limit(30);
+        if (q.trim()) quoteQuery = quoteQuery.ilike("descricao", `%${q.trim()}%`);
+        const { data } = await quoteQuery;
+        const quoteRows = (data ?? []).map((r: any) => ({ cotacao_id: r.id, codigo: r.codigo || r.id.slice(0, 8), fonte: "COTAÇÃO", descricao: r.descricao, unidade: r.unidade, tipo_item: "COTACAO" }));
+        setResults(quoteRows); setPrices({});
+        const entries = await Promise.all(quoteRows.map(async (r: any) => { try { return [`${r.fonte}|${r.codigo}`, await resolvePrice(r)] as const; } catch { return [`${r.fonte}|${r.codigo}`, 0] as const; } }));
+        setPrices(Object.fromEntries(entries));
+        return;
+      }
       const makeQuery = (byCode: boolean) => {
         const tabela = tipoBase === "COMPOSICAO" ? "catalogo_composicoes" : "catalogo_insumos";
         let x: any = (supabase as any).from(tabela)
@@ -1043,10 +1063,12 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
       fonte: r.fonte, codigo: String(r.codigo), descricao: r.descricao, unidade: r.unidade,
       quantidade: Number(quant.replace(",", ".") || 1),
       preco_unitario: preco,
+      uf_precos: itemUf || null,
+      cotacao_id: r.cotacao_id || null,
     };
     const result = editingItem
       ? await (supabase.from("orcamento_itens") as any).update(payload).eq("id", editingItem.id)
-      : await supabase.from("orcamento_itens").insert({ orcamento_id: orcId, ordem: nextOrdem, etapa: null, ...payload });
+      : await (supabase.from("orcamento_itens") as any).insert({ orcamento_id: orcId, ordem: nextOrdem, etapa: null, ...payload });
     if (result.error) return toast.error(`Não foi possível ${editingItem ? "substituir" : "adicionar"} o item: ${result.error.message}`);
     if (!preco) toast.warning("Item salvo sem preço (insumos sem cotação para a UF/mês).");
     else toast.success(editingItem ? "Item substituído" : "Item adicionado");
@@ -1057,7 +1079,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
     const payload = { item: item || null, fonte: "COMP", codigo: null, descricao: m.descricao, unidade: m.unidade, quantidade: Number(quant.replace(",", ".") || 1), preco_unitario: Number(m.preco_unitario.replace(",", ".") || 0) };
     const result = editingItem
       ? await (supabase.from("orcamento_itens") as any).update(payload).eq("id", editingItem.id)
-      : await supabase.from("orcamento_itens").insert({ orcamento_id: orcId, ordem: nextOrdem, etapa: null, ...payload });
+      : await (supabase.from("orcamento_itens") as any).insert({ orcamento_id: orcId, ordem: nextOrdem, etapa: null, ...payload });
     if (result.error) return toast.error(`Não foi possível salvar o item: ${result.error.message}`);
     toast.success(editingItem ? "Item atualizado" : "Item adicionado"); setOpen(false); onAdded();
   };
@@ -1072,17 +1094,26 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
           <Field label="Item nº (prefixo hierárquico)"><Input value={item} onChange={(e)=>setItem(e.target.value)} placeholder="Ex.: 1.1" /></Field>
           <Field label="Quantidade"><Input value={quant} onChange={(e)=>setQuant(e.target.value)} /></Field>
         </div>
+        <div className="rounded-lg border bg-muted/20 p-3">
+          <Field label="UF da referência deste item">
+            <Select value={itemUf || ufUse} onValueChange={setItemUf}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent className="max-h-72">{UFS.map(value => <SelectItem key={value} value={value}>{value}{value === ufUse ? " — padrão do orçamento" : ""}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
+          <p className="mt-1 text-xs text-muted-foreground">Permite combinar referências no mesmo orçamento, como SINAPI/PB e ORSE/SE.</p>
+        </div>
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList><TabsTrigger value="base">Das bases de preços</TabsTrigger><TabsTrigger value="manual">Item manual</TabsTrigger></TabsList>
           <TabsContent value="base">
-            <div className="flex gap-2 mt-2" role="group" aria-label="Tipo de item da base">
+            {fonte !== "COTAÇÃO" && <div className="flex gap-2 mt-2" role="group" aria-label="Tipo de item da base">
               <Button type="button" size="sm" variant={tipoBase === "COMPOSICAO" ? "default" : "outline"} onClick={() => setTipoBase("COMPOSICAO")}>
                 Composições
               </Button>
               <Button type="button" size="sm" variant={tipoBase === "INSUMO" ? "default" : "outline"} onClick={() => setTipoBase("INSUMO")}>
                 Insumos
               </Button>
-            </div>
+            </div>}
             <div className="flex gap-2 mt-2">
               <Select value={fonte} onValueChange={(v)=>setFonte(v)}>
                 <SelectTrigger className="w-40"><SelectValue/></SelectTrigger>
@@ -1096,7 +1127,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
             <div className="mt-3 max-h-80 overflow-auto rounded border">
               <table className="budget-table">
                 <thead><tr><th>Tipo</th><th>Fonte</th><th>Cód.</th><th>Descrição</th><th>Un.</th><th className="num">Preço</th><th></th></tr></thead>
-                <tbody>{results.map((r,i)=>{ const pk = `${r.fonte}|${r.codigo}`; const pv = prices[pk]; return (<tr key={i}><td>{r.tipo_item === "COMPOSICAO" ? "Composição" : "Insumo"}</td><td>{r.fonte}</td><td>{r.codigo}</td><td>{r.descricao}</td><td>{r.unidade}</td><td className="num">{pv===undefined ? "…" : fmtBRL(pv)}</td><td><Button size="sm" variant="secondary" onClick={()=>addFromBase(r)}>{editingItem ? "Substituir" : "Adicionar"}</Button></td></tr>);})}</tbody>
+                <tbody>{results.map((r,i)=>{ const pk = `${r.fonte}|${r.codigo}`; const pv = prices[pk]; return (<tr key={i}><td>{r.tipo_item === "COMPOSICAO" ? "Composição" : r.tipo_item === "COTACAO" ? "Cotação" : "Insumo"}</td><td>{r.fonte}</td><td>{r.codigo}</td><td>{r.descricao}</td><td>{r.unidade}</td><td className="num">{pv===undefined ? "…" : fmtBRL(pv)}</td><td><Button size="sm" variant="secondary" onClick={()=>addFromBase(r)}>{editingItem ? "Substituir" : "Adicionar"}</Button></td></tr>);})}</tbody>
               </table>
             </div>
           </TabsContent>
@@ -1618,7 +1649,7 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
         [...(insumoMeta ?? []), ...(composicaoMeta ?? [])].map((row: any) => [`${row.fonte}:${normalizeCode(row.codigo)}`, row] as const),
       );
       const col = regime === "desonerado" ? "preco_desonerado" : "preco_nao_desonerado";
-      const uf = String(orc.uf || "BR").toUpperCase();
+      const uf = String((item as any).uf_precos || priceUfOf(orc)).toUpperCase();
       const { data: priceRows, error: priceError } = await db.from("precos_historicos_insumos")
         .select(`codigo_insumo,fonte,uf,${col}`)
         .in("fonte", fontesItens)
@@ -1681,7 +1712,7 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
       }
     })();
     return () => { cancelled = true; };
-  }, [items, somenteProprias, orc.ref_precos, orc.uf, orc.regime, analiticasRetry]);
+  }, [items, somenteProprias, orc.ref_precos, orc.uf, orc.uf_precos, orc.regime, analiticasRetry]);
   const etapasExistentes = useMemo(() => {
     const set = new Set<string>();
     (items as Item[]).forEach(i => { if (i.etapa) set.add(i.etapa); });
@@ -1713,7 +1744,7 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
     const out: { key: string; title: string; rows: (string|number)[][] }[] = [];
     const bdiPct = Number(orc.bdi_pct);
     if (sel.capa) out.push({ key: "capa", title: "Dados Gerais", rows: [
-      ["Nome", orc.nome ?? ""], ["Contrato", orc.contrato ?? ""], ["Município", orc.municipio ?? orc.localizacao ?? ""], ["UF da base de preços", orc.uf ?? ""],
+      ["Nome", orc.nome ?? ""], ["Contrato", orc.contrato ?? ""], ["Município", orc.municipio ?? orc.localizacao ?? ""], ["UF do empreendimento", orc.uf ?? ""], ["UF da base de preços", priceUfOf(orc)],
       ["Órgão", orc.orgao ?? ""], ["Referência de Preços", fmtRef(orc.ref_precos)], ["Regime tributário", orc.regime === "desonerado" ? "Desonerado" : "Não desonerado"], ["Engenheiro", orc.engenheiro ?? ""],
       ["CREA", orc.crea ?? ""], ["Objeto", orc.objeto ?? ""],
     ]});
@@ -1793,16 +1824,17 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
     });
     if (sel.composicao) {
       out.push({ key: "composicao", title: "Composições", rows: [
-        ["Tipo","Código","Descrição","Un.","Coef.",`Preço Unit. (${orc.regime === "desonerado" ? "Desonerado" : "Não desonerado"})`,"Subtotal"],
+        ["Tipo","Fonte","Código","Descrição","Un.","Coef.",`Preço Unit. (${orc.regime === "desonerado" ? "Desonerado" : "Não desonerado"})`,"Subtotal"],
         ...(analiticas.length ? analiticas.map(r => [
           r.isParent ? `COMPOSIÇÃO (${r.fonte})` : String(r.tipo_item ?? "INSUMO").toUpperCase(),
+          r.isParent ? r.fonte : (r.fonte_item || r.fonte || ""),
           r.isParent ? r.composicao : r.codigo_item,
           r.descricao ?? "",
           r.unidade ?? "",
           r.isParent ? "" : Number(r.coeficiente),
           r.isParent ? "" : Number(r.preco_unitario ?? 0),
           Number(r.subtotal ?? 0),
-        ]) : [["—", "—", "Nenhuma composição analítica encontrada para os itens do orçamento.", "", "", "", ""]]),
+        ]) : [["—", "—", "—", "Nenhuma composição analítica encontrada para os itens do orçamento.", "", "", "", ""]]),
       ]});
     }
     if (sel.planilha) {
@@ -1962,7 +1994,7 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
     secs.forEach(s => {
       const headerInfo: any[][] = [];
       if (orc.orgao) headerInfo.push(['CONCEDENTE / ÓRGÃO:', orc.orgao]);
-      if (orc.municipio || orc.localizacao) headerInfo.push(['MUNICÍPIO / UF DA BASE:', `${orc.municipio || orc.localizacao || ''} - ${orc.uf || ''}`]);
+      if (orc.municipio || orc.localizacao) headerInfo.push(['MUNICÍPIO / UF DO EMPREENDIMENTO:', `${orc.municipio || orc.localizacao || ''} - ${orc.uf || ''}`]);
       if (orc.contrato) headerInfo.push(['CONTRATO:', orc.contrato]);
       if (orc.nome) headerInfo.push(['OBRA:', orc.nome.toUpperCase()]);
       if (orc.ref_precos) headerInfo.push(['DATA BASE:', orc.ref_precos.split('|')[1] || orc.ref_precos]);
@@ -2165,6 +2197,7 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
       const headerInfo = [];
       if (orc.orgao) headerInfo.push({ label: 'CONCEDENTE / ÓRGÃO:', value: orc.orgao });
       if (orc.municipio) headerInfo.push({ label: 'MUNICÍPIO / UF:', value: `${orc.municipio} - ${orc.uf || ''}` });
+      headerInfo.push({ label: 'UF DA BASE DE PREÇOS:', value: priceUfOf(orc) });
       if (orc.contrato) headerInfo.push({ label: 'CONTRATO:', value: orc.contrato });
       if (orc.nome) headerInfo.push({ label: 'OBRA:', value: orc.nome.toUpperCase(), isBold: true });
       if (orc.ref_precos) headerInfo.push({ label: 'DATA BASE:', value: orc.ref_precos.split('|')[1] || orc.ref_precos });
@@ -2333,7 +2366,8 @@ function RelatorioTab({ orc, orcId, items, bdis = [], subtotal, totalEncargos, t
     const r2 = (n: number) => Math.round(n * 100) / 100;
     const frente = tgFrente.trim() || "FRENTE 1";
     if (!orc.nome) erros.push("Dados Gerais: informe o nome do orçamento.");
-    if (!orc.uf) erros.push("Dados Gerais: informe a UF.");
+    if (!orc.uf) erros.push("Dados Gerais: informe a UF do empreendimento.");
+    if (!priceUfOf(orc) || priceUfOf(orc) === "BR") erros.push("Dados Gerais: informe a UF da base de preços.");
     if (!orc.ref_precos) erros.push("Dados Gerais: informe a base/referência de preços.");
     if (!(bdi >= 0) || orc.bdi_pct == null) erros.push("BDI: percentual não informado.");
     const info = etapasExistentes
