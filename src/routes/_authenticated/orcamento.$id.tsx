@@ -1106,14 +1106,17 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList><TabsTrigger value="base">Das bases de preços</TabsTrigger><TabsTrigger value="manual">Item manual</TabsTrigger></TabsList>
           <TabsContent value="base">
-            {fonte !== "COTAÇÃO" && <div className="flex gap-2 mt-2" role="group" aria-label="Tipo de item da base">
-              <Button type="button" size="sm" variant={tipoBase === "COMPOSICAO" ? "default" : "outline"} onClick={() => setTipoBase("COMPOSICAO")}>
+            <div className="flex gap-2 mt-2" role="group" aria-label="Tipo de item da base">
+              <Button type="button" size="sm" variant={fonte !== "COTAÇÃO" && tipoBase === "COMPOSICAO" ? "default" : "outline"} onClick={() => { setTipoBase("COMPOSICAO"); if (fonte === "COTAÇÃO") setFonte("__all"); }}>
                 Composições
               </Button>
-              <Button type="button" size="sm" variant={tipoBase === "INSUMO" ? "default" : "outline"} onClick={() => setTipoBase("INSUMO")}>
+              <Button type="button" size="sm" variant={fonte !== "COTAÇÃO" && tipoBase === "INSUMO" ? "default" : "outline"} onClick={() => { setTipoBase("INSUMO"); if (fonte === "COTAÇÃO") setFonte("__all"); }}>
                 Insumos
               </Button>
-            </div>}
+              <Button type="button" size="sm" variant={fonte === "COTAÇÃO" ? "default" : "outline"} onClick={() => setFonte("COTAÇÃO")}>
+                Cotação
+              </Button>
+            </div>
             <div className="flex gap-2 mt-2">
               <Select value={fonte} onValueChange={(v)=>setFonte(v)}>
                 <SelectTrigger className="w-40"><SelectValue/></SelectTrigger>
@@ -1122,7 +1125,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
                   {FONTES_ALL.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <div className="relative flex-1"><Search className="absolute left-2 top-2.5 size-4 text-muted-foreground"/><Input className="pl-8" placeholder={`Buscar ${tipoBase === "COMPOSICAO" ? "composição" : "insumo"} por código ou descrição…`} value={q} onChange={(e)=>setQ(e.target.value)} /></div>
+              <div className="relative flex-1"><Search className="absolute left-2 top-2.5 size-4 text-muted-foreground"/><Input className="pl-8" placeholder={fonte === "COTAÇÃO" ? "Buscar cotação por descrição…" : `Buscar ${tipoBase === "COMPOSICAO" ? "composição" : "insumo"} por código ou descrição…`} value={q} onChange={(e)=>setQ(e.target.value)} /></div>
             </div>
             <div className="mt-3 max-h-80 overflow-auto rounded border">
               <table className="budget-table">
