@@ -289,6 +289,131 @@ export type Database = {
           },
         ]
       }
+      cotacao_propostas: {
+        Row: {
+          cotacao_id: string
+          created_at: string
+          data_proposta: string
+          descricao: string | null
+          fornecedor_cnpj: string | null
+          fornecedor_contato: string | null
+          fornecedor_email: string | null
+          fornecedor_nome: string
+          id: string
+          nome_contato: string | null
+          observacao: string | null
+          unidade: string
+          valor: number
+        }
+        Insert: {
+          cotacao_id: string
+          created_at?: string
+          data_proposta?: string
+          descricao?: string | null
+          fornecedor_cnpj?: string | null
+          fornecedor_contato?: string | null
+          fornecedor_email?: string | null
+          fornecedor_nome: string
+          id?: string
+          nome_contato?: string | null
+          observacao?: string | null
+          unidade?: string
+          valor: number
+        }
+        Update: {
+          cotacao_id?: string
+          created_at?: string
+          data_proposta?: string
+          descricao?: string | null
+          fornecedor_cnpj?: string | null
+          fornecedor_contato?: string | null
+          fornecedor_email?: string | null
+          fornecedor_nome?: string
+          id?: string
+          nome_contato?: string | null
+          observacao?: string | null
+          unidade?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cotacao_propostas_cotacao_id_fkey"
+            columns: ["cotacao_id"]
+            isOneToOne: false
+            referencedRelation: "cotacoes_empresa"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cotacoes_empresa: {
+        Row: {
+          codigo: string | null
+          created_at: string
+          created_by: string
+          data_cotacao: string
+          descricao: string
+          fonte: string | null
+          id: string
+          metodo_calculo: string
+          observacao: string | null
+          orcamento_id: string | null
+          organization_id: string
+          quantidade_propostas_desejadas: number
+          tipo_item: string
+          unidade: string
+          updated_at: string
+        }
+        Insert: {
+          codigo?: string | null
+          created_at?: string
+          created_by?: string
+          data_cotacao?: string
+          descricao: string
+          fonte?: string | null
+          id?: string
+          metodo_calculo?: string
+          observacao?: string | null
+          orcamento_id?: string | null
+          organization_id: string
+          quantidade_propostas_desejadas?: number
+          tipo_item?: string
+          unidade?: string
+          updated_at?: string
+        }
+        Update: {
+          codigo?: string | null
+          created_at?: string
+          created_by?: string
+          data_cotacao?: string
+          descricao?: string
+          fonte?: string | null
+          id?: string
+          metodo_calculo?: string
+          observacao?: string | null
+          orcamento_id?: string | null
+          organization_id?: string
+          quantidade_propostas_desejadas?: number
+          tipo_item?: string
+          unidade?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cotacoes_empresa_orcamento_id_fkey"
+            columns: ["orcamento_id"]
+            isOneToOne: false
+            referencedRelation: "orcamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cotacoes_empresa_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       empresas: {
         Row: {
           created_at: string
@@ -539,6 +664,7 @@ export type Database = {
         Row: {
           bdi_id: string | null
           codigo: string | null
+          cotacao_id: string | null
           created_at: string
           desconto_licitacao: number
           descricao: string
@@ -557,6 +683,7 @@ export type Database = {
         Insert: {
           bdi_id?: string | null
           codigo?: string | null
+          cotacao_id?: string | null
           created_at?: string
           desconto_licitacao?: number
           descricao: string
@@ -575,6 +702,7 @@ export type Database = {
         Update: {
           bdi_id?: string | null
           codigo?: string | null
+          cotacao_id?: string | null
           created_at?: string
           desconto_licitacao?: number
           descricao?: string
@@ -596,6 +724,13 @@ export type Database = {
             columns: ["bdi_id"]
             isOneToOne: false
             referencedRelation: "orcamento_bdis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orcamento_itens_cotacao_id_fkey"
+            columns: ["cotacao_id"]
+            isOneToOne: false
+            referencedRelation: "cotacoes_empresa"
             referencedColumns: ["id"]
           },
           {
@@ -1202,6 +1337,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      aplicar_cotacao_orcamento: {
+        Args: { p_cotacao_id: string; p_item_id: string }
+        Returns: undefined
+      }
       apply_stripe_billing_event: {
         Args: {
           p_customer_id: string
@@ -1222,6 +1361,7 @@ export type Database = {
         Args: { p_customer_id: string; p_organization_id: string }
         Returns: string
       }
+      calcular_cotacao: { Args: { p_cotacao_id: string }; Returns: number }
       calcular_custo_composicao: {
         Args: {
           p_codigo: string
