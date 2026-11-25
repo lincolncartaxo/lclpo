@@ -32,7 +32,7 @@ const prefixOf = (s: string) => {
 };
 
 const searchKeywords = (value: string) => value.match(/[A-Za-zÀ-ÖØ-öø-ÿ0-9_/-]+/g) ?? [];
-const FONTES_ALL = ["SINAPI", "DER", "SICRO3", "SBC", "ORSE", "PRÓPRIA", "COTAÇÃO", "Outras"];
+const FONTES_ALL = ["SINAPI", "DER", "SICRO3", "SBC", "ORSE", "PRÓPRIA", "Outras"];
 
 const splitEtapaLabel = (label: string) => {
   const value = label.trim();
@@ -951,7 +951,7 @@ function AddItemDialog({ orcId, open, setOpen, onAdded, nextOrdem, regime, uf, r
     if (editingItem) {
       setItem(editingItem.item ?? "");
       setQuant(String(editingItem.quantidade ?? 1));
-      setFonte(FONTES_ALL.includes(editingItem.fonte) ? editingItem.fonte : "__all");
+      setFonte(editingItem.fonte === "COTAÇÃO" ? "COTAÇÃO" : FONTES_ALL.includes(editingItem.fonte) ? editingItem.fonte : "__all");
       setItemUf(editingItem.uf_precos || uf || "");
       setTab(editingItem.codigo ? "base" : "manual");
       setTipoBase("COMPOSICAO");
