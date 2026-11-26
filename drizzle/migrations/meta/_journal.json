@@ -148,6 +148,13 @@
       "when": 1795689350876,
       "tag": "0020_restrict_salvar_composicao_propria_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795689557054,
+      "tag": "0021_allow_same_company_edit_composicao_propria",
+      "breakpoints": true
     }
   ]
 }
