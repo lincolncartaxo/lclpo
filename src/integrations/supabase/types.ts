@@ -938,6 +938,7 @@ export type Database = {
           status: string
           transferegov_proposta: string | null
           uf: string | null
+          uf_precos: string | null
           updated_at: string
           user_id: string
         }
@@ -978,6 +979,7 @@ export type Database = {
           status?: string
           transferegov_proposta?: string | null
           uf?: string | null
+          uf_precos?: string | null
           updated_at?: string
           user_id: string
         }
@@ -1018,6 +1020,7 @@ export type Database = {
           status?: string
           transferegov_proposta?: string | null
           uf?: string | null
+          uf_precos?: string | null
           updated_at?: string
           user_id?: string
         }
