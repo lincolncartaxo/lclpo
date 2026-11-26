@@ -324,7 +324,15 @@ function CapaTab({ orc, onSaved }: { orc: Orc; onSaved: () => void }) {
       interesse_transferegov: !!f.interesse_transferegov,
       interesse_licitacao: !!f.interesse_licitacao,
     } as any;
-    const { error } = await supabase.from("orcamentos").update(updatePayload).eq("id", orc.id);
+    let { error } = await supabase.from("orcamentos").update(updatePayload).eq("id", orc.id);
+    if (error && /uf_precos|schema cache/i.test(error.message)) {
+      const { uf_precos: _ufPrecos, ...payloadCompat } = updatePayload;
+      const retry = await supabase.from("orcamentos").update(payloadCompat).eq("id", orc.id);
+      error = retry.error;
+      if (!error) {
+        toast.warning("Dados gerais salvos. Para persistir a UF da base de preços, aplique a migration 20261123_orcamento_uf_base_precos.sql no Supabase.", { duration: 10000 });
+      }
+    }
     if (error) return toast.error(error.message);
     const fallbacks = await recalculateBudgetPrices(orc.id, f.regime ?? "nao_desonerado", f.uf_precos || f.uf || null, parseRef(f.ref_precos).mes);
     if (fallbacks.length) {
